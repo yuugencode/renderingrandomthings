@@ -1,3 +1,3 @@
 # renderingrandomthings
 
-Experimenting with SDL, bgfx rendering and C++20.
+Experimenting with SDL, bgfx and C++20.
