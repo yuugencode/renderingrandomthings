@@ -30,3 +30,20 @@
 *.exe
 *.out
 *.app
+
+# External stuff
+imgui
+include
+lib
+x64
+
+# VS Files
+.editorconfig
+.vs
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+
+# Imgui temp file
+imgui.ini
