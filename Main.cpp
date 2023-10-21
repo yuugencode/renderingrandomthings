@@ -10,6 +10,7 @@ import Input;
 import ImguiDrawer;
 import BgfxCallback;
 import Time;
+import MiMallocator;
 
 int main(int argc, char* argv[]) {
 
@@ -28,6 +29,7 @@ int main(int argc, char* argv[]) {
 	}
 
 	// Init Bgfx
+	MiMallocator allocator;
 	bgfx::Init init;
 	init.type = bgfx::RendererType::Direct3D11;
 	init.vendorId = BGFX_PCI_ID_NONE;
@@ -37,6 +39,7 @@ int main(int argc, char* argv[]) {
 	init.resolution.height = window.height;
 	init.resolution.reset = BGFX_RESET_VSYNC;
 	init.callback = CreateBgfxCallback(); // Horror hack, read function comment
+	init.allocator = &allocator;
 
 	bgfx::renderFrame(); // Makes bgfx not create a render thread
 
@@ -50,6 +53,14 @@ int main(int argc, char* argv[]) {
 	ImguiDrawer::Init(window);
 
 	bool showBgfxStats = false;
+
+	// Create mutable texture
+	//auto texture = bgfx::createTexture2D(window.width, window.height, false, 1, bgfx::TextureFormat::RGBA8U, BGFX_SAMPLER_POINT | BGFX_SAMPLER_UVW_CLAMP);
+	//auto buffer = bgfx::alloc(window.width * window.height * 4);
+	//for (size_t i = 0; i < buffer->size; i++) {
+	//	buffer->data[i] = '\xff';
+	//}
+	//bgfx::updateTexture2D(texture, 0, 0, 0, 0, window.width, window.height, buffer);
 
 	// Main loop
 	while (true) {
@@ -65,7 +76,7 @@ int main(int argc, char* argv[]) {
 		bgfx::dbgTextClear();
 		
 		ImguiDrawer::NewFrame(window, (float)Time::deltaTime);
-		//ImguiDrawer::TestDraws();
+		ImguiDrawer::TestDraws();
 		ImguiDrawer::Render();
 
 		const bgfx::Stats* stats = bgfx::getStats();
@@ -86,6 +97,7 @@ int main(int argc, char* argv[]) {
 	// Exit cleanup
 	ImguiDrawer::Quit();
 	SDL_Quit();
+	//bgfx::destroy(texture);
 	if (init.callback != nullptr) delete init.callback; // Hack, see CreateBgfxCallback() comment
 
 	return EXIT_SUCCESS;

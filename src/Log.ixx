@@ -16,7 +16,10 @@ public:
     /// <summary> Simple print, eats almost anything </summary>
     template <typename... Args>
     static void Line(const Args&... args) {
-        ([&] { std::cout << args << std::endl; } (), ...);
+        const std::size_t num = sizeof...(Args);
+        int i = 0;
+        ([&] { std::cout << args; if ((++i) != num) std::cout << ", "; } (), ...);
+        std::cout << std::endl;
     }
     
     /// <summary> Preformatted variable length print </summary>
