@@ -13,7 +13,6 @@ export struct BgfxCallback : public bgfx::CallbackI {
 		// Something unexpected happened, inform user and bail out.
 		// Must terminate, continuing will cause crash anyway.
 		Log::Formatted("Fatal error: {}, {}", (int)_code, _str);
-		//printf("Fatal error: %d, %s", (int)_code, _str);
 		abort();
 	}
 
@@ -47,9 +46,14 @@ export struct BgfxCallback : public bgfx::CallbackI {
 	virtual ~BgfxCallback() override { }
 };
 
-// C++20 Modules + Intellisense bug: When calling BgfxCallback constructor outside 
-// the module it's defined in, intellisense goes completely wild and breaks down..
+// C++20 Modules + Intellisense bug: 
+// When calling BgfxCallback constructor outside the module it's defined in,
+// intellisense goes completely wild and starts seeing errors even if the code compiles just fine
 // Hacky workaround: Create the object in the module itself and manually delete later
 export BgfxCallback* CreateBgfxCallback() {
+#if _DEBUG
 	return new BgfxCallback();
+#else
+	return nullptr;
+#endif
 }

@@ -2,24 +2,24 @@ module;
 
 #include <mimalloc.h>
 #include <bx/allocator.h>
+#include <cassert>
 
 export module MiMallocator;
 
 import Log;
 
-// Replace CRT with mimalloc
+// Replace bgfx's CRT malloc with mimalloc
 
 // Just redirect the call to mimalloc
 export struct MiMallocator : bx::AllocatorI {
 	virtual void* realloc(void* _ptr, size_t _size, size_t _align, const char* _filePath, uint32_t _line) {
 
 		// As per bgfx definition:
-
 		///  - Allocate memory block: _ptr == NULL && size > 0
 		///  -   Resize memory block: _ptr != NULL && size > 0
 		///  -     Free memory block: _ptr != NULL && size == 0
 
-		if (_ptr == nullptr && _size == 0) return nullptr; // wtf?
+		if (_ptr == nullptr && _size == 0) return nullptr; // bgfx likes to call this with null, 0 params...
 
 		if (_align == 0) { // Malloc
 			if (_ptr == nullptr) return mi_malloc(_size);

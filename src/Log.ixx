@@ -11,6 +11,8 @@ import <iostream>;
 
 /// <summary> Contains various utility logging functions </summary>
 export class Log {
+    // MSVC incorrectly complains about internal linkage when using namespaces so they're classes
+    Log() = delete;
 public:
 
     /// <summary> Simple print, eats almost anything </summary>
@@ -20,6 +22,13 @@ public:
         int i = 0;
         ([&] { std::cout << args; if ((++i) != num) std::cout << ", "; } (), ...);
         std::cout << std::endl;
+    }
+
+    /// <summary> Prints an error and hard exits the program </summary>
+    template <typename... Args>
+    static void FatalError(const Args&... args) {
+        Line(args...);
+        abort();
     }
     
     /// <summary> Preformatted variable length print </summary>

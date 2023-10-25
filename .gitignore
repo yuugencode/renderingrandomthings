@@ -47,3 +47,6 @@ x64
 
 # Imgui temp file
 imgui.ini
+
+# Compiled shaders
+*.bin

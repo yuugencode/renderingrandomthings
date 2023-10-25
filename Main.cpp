@@ -2,15 +2,14 @@
 #include <bgfx/platform.h>
 #include <sdl/SDL.h>
 #include <glm/glm.hpp>
+#include <sdl/SDL.h>
+#include <sdl/SDL_syswm.h>
 
-import Log;
-import Utils;
-import Window;
-import Input;
 import ImguiDrawer;
 import BgfxCallback;
-import Time;
 import MiMallocator;
+import Raytracer;
+import Game;
 
 int main(int argc, char* argv[]) {
 
@@ -21,47 +20,35 @@ int main(int argc, char* argv[]) {
 	}
 
 	// Create window
-	Window window(1024, 768);
-	if (!window.IsValid()) {
-		Log::Line("Failed to create window: {}", SDL_GetError());
-		SDL_Quit();
-		return EXIT_FAILURE;
-	}
+	Game::window.Create(1024, 768);
 
 	// Init Bgfx
 	MiMallocator allocator;
 	bgfx::Init init;
 	init.type = bgfx::RendererType::Direct3D11;
 	init.vendorId = BGFX_PCI_ID_NONE;
-	init.platformData.nwh = window.windowHandle;
-	init.platformData.ndt = window.displayHandle;
-	init.resolution.width = window.width;
-	init.resolution.height = window.height;
+	init.platformData.nwh = Game::window.windowHandle;
+	init.platformData.ndt = Game::window.displayHandle;
+	init.resolution.width = Game::window.width;
+	init.resolution.height = Game::window.height;
 	init.resolution.reset = BGFX_RESET_VSYNC;
-	init.callback = CreateBgfxCallback(); // Horror hack, read function comment
+	init.callback = CreateBgfxCallback(); // Hack, read function comment
 	init.allocator = &allocator;
 
-	bgfx::renderFrame(); // Makes bgfx not create a render thread
+	bgfx::renderFrame(); // Make bgfx not create a render thread
 
 	if (!bgfx::init(init)) return EXIT_FAILURE;
 
 	// Set view rect to full screen and add clear flags
-	const bgfx::ViewId kClearView = 0;
-	bgfx::setViewClear(kClearView, BGFX_CLEAR_COLOR, 0xff000000);
-	bgfx::setViewRect(kClearView, 0, 0, bgfx::BackbufferRatio::Equal);
+	const bgfx::ViewId MAIN_VIEW = 0;
+	bgfx::setViewClear(MAIN_VIEW, BGFX_CLEAR_COLOR, 0x33333300);
+	bgfx::setViewRect(MAIN_VIEW, 0, 0, bgfx::BackbufferRatio::Equal);
 
-	ImguiDrawer::Init(window);
+	Raytracer raytracer;
+	ImguiDrawer::Init();
 
 	bool showBgfxStats = false;
-
-	// Create mutable texture
-	//auto texture = bgfx::createTexture2D(window.width, window.height, false, 1, bgfx::TextureFormat::RGBA8U, BGFX_SAMPLER_POINT | BGFX_SAMPLER_UVW_CLAMP);
-	//auto buffer = bgfx::alloc(window.width * window.height * 4);
-	//for (size_t i = 0; i < buffer->size; i++) {
-	//	buffer->data[i] = '\xff';
-	//}
-	//bgfx::updateTexture2D(texture, 0, 0, 0, 0, window.width, window.height, buffer);
-
+	
 	// Main loop
 	while (true) {
 		
@@ -69,13 +56,13 @@ int main(int argc, char* argv[]) {
 
 		Input::UpdateKeys();
 		
-		if (Input::OnKeyDown(SDL_KeyCode::SDLK_ESCAPE)) break;
+		if (Input::OnKeyDown(SDL_KeyCode::SDLK_ESCAPE) || Input::OnKeyDown(SDL_KeyCode::SDLK_RETURN)) break;
 		if (Input::OnKeyDown(SDL_KeyCode::SDLK_F1)) showBgfxStats = !showBgfxStats;
 
-		bgfx::touch(kClearView); // Triggers viewClear pass
+		bgfx::touch(MAIN_VIEW); // Triggers viewClear pass
 		bgfx::dbgTextClear();
 		
-		ImguiDrawer::NewFrame(window, (float)Time::deltaTime);
+		ImguiDrawer::NewFrame();
 		ImguiDrawer::TestDraws();
 		ImguiDrawer::Render();
 
@@ -89,15 +76,17 @@ int main(int argc, char* argv[]) {
 		Log::Screen(5, "MouseMid: {}", Input::MouseHeld(2));
 		Log::Screen(6, "MouseRight: {}", Input::MouseHeld(3));
 
+		raytracer.TraceScene();
+
 		bgfx::setDebug(showBgfxStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
 		
 		bgfx::frame();
 	}
 
 	// Exit cleanup
-	ImguiDrawer::Quit();
+	//ImguiDrawer::Quit();
+	Game::window.Destroy();
 	SDL_Quit();
-	//bgfx::destroy(texture);
 	if (init.callback != nullptr) delete init.callback; // Hack, see CreateBgfxCallback() comment
 
 	return EXIT_SUCCESS;

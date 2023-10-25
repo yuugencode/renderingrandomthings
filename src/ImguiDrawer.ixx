@@ -7,12 +7,8 @@ module;
 
 export module ImguiDrawer;
 
-import <vector>;
 import <filesystem>;
-import <fstream>;
-import Window;
-import Log;
-import Input;
+import Game;
 
 /// <summary> Contains helper functions to work with imgui functions </summary>
 export class ImguiDrawer {
@@ -23,34 +19,14 @@ export class ImguiDrawer {
 	inline static bgfx::UniformHandle fontUniform;
 	inline static bgfx::ProgramHandle program;
 
-    static const bgfx::Memory* LoadMemory(const std::filesystem::path& path) {
-		if (!std::filesystem::exists(path)) return nullptr;
-        std::ifstream file(path, std::ios::binary | std::ios::ate);
-        std::streamsize size = file.tellg();
-        file.seekg(0, std::ios::beg);
-
-        const bgfx::Memory* mem = bgfx::alloc(uint32_t(size + 1)); // Bgfx deals with freeing; leaks on read fail?
-        if (file.read((char*)mem->data, size)) {
-            mem->data[mem->size - 1] = '\0';
-            return mem;
-        }
-        return nullptr;
-    }
-
-    static bgfx::ShaderHandle LoadShader(const std::filesystem::path& path) {
-		auto buffer = LoadMemory(path);
-		assert(buffer != nullptr);
-        return bgfx::createShader(buffer);
-    }
-
     ImguiDrawer() {}
     ~ImguiDrawer() {}
 
 public:
 
-	static inline const bgfx::ViewId IMGUI_VIEW_IDX = 1;
+	static inline const bgfx::ViewId VIEW_LAYER = 1;
 
-    static void Init(const Window& window) {
+    static void Init() {
         if (initialized) return;
 
 		IMGUI_CHECKVERSION();
@@ -77,8 +53,8 @@ public:
 
 		// Read and compile shaders
 		const std::filesystem::path folder = "shaders";
-        auto vShader = LoadShader(folder / "imgui_vs_comp.bin");
-        auto fShader = LoadShader(folder / "imgui_fs_comp.bin");
+        auto vShader = Utils::LoadShader(folder / "imgui_vs.bin");
+        auto fShader = Utils::LoadShader(folder / "imgui_fs.bin");
 
 		assert(vShader.idx != bgfx::kInvalidHandle);
 		assert(fShader.idx != bgfx::kInvalidHandle);
@@ -86,16 +62,16 @@ public:
         program = bgfx::createProgram(vShader, fShader, true);
 		assert(program.idx != bgfx::kInvalidHandle);
 
-		bgfx::setViewRect(IMGUI_VIEW_IDX, 0, 0, bgfx::BackbufferRatio::Equal);
+		bgfx::setViewRect(VIEW_LAYER, 0, 0, bgfx::BackbufferRatio::Equal);
     }
 
-	static void NewFrame(const Window& window, float deltaTime) {
+	static void NewFrame() {
 		
 		ImGuiIO& io = ImGui::GetIO();
 
-		io.DisplaySize = ImVec2((float)window.width, (float)window.height);
+		io.DisplaySize = ImVec2((float)Game::window.width, (float)Game::window.height);
 		io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
-		io.DeltaTime = deltaTime;
+		io.DeltaTime = (float)Time::deltaTime;
 
 		int x, y;
 		Uint32 buttons = SDL_GetMouseState(&x, &y);
@@ -113,7 +89,7 @@ public:
 			Input::DevalidateMouse(SDL_BUTTON_RIGHT);
 		}
 
-		bgfx::touch(IMGUI_VIEW_IDX);
+		bgfx::touch(VIEW_LAYER);
 
 		ImGui::NewFrame();
 	}
@@ -170,7 +146,7 @@ public:
 					bgfx::setTexture(0, fontUniform, th);
 					bgfx::setVertexBuffer(0, &tvb, 0, numVertices);
 					bgfx::setIndexBuffer(&tib, offset, cmd->ElemCount);
-					bgfx::submit(IMGUI_VIEW_IDX, program);
+					bgfx::submit(VIEW_LAYER, program);
 				}
 
 				offset += cmd->ElemCount;
