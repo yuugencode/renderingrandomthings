@@ -49,6 +49,10 @@ int main(int argc, char* argv[]) {
 
 	bool showBgfxStats = false;
 	
+	std::vector<double> times;
+	times.reserve(64);
+	int timeI = 0;
+
 	// Main loop
 	while (true) {
 		
@@ -76,7 +80,18 @@ int main(int argc, char* argv[]) {
 		Log::Screen(5, "MouseMid: {}", Input::MouseHeld(2));
 		Log::Screen(6, "MouseRight: {}", Input::MouseHeld(3));
 
+		// Trace the scene and print averaged time it took
+		auto tt = Time::GetCurrentRealtime();
 		raytracer.TraceScene();
+		tt = Time::GetCurrentRealtime() - tt;
+
+		if (times.size() < times.capacity()) times.push_back(tt);
+		else times[(timeI++) % times.size()] = tt;
+		double sum = 0.0;
+		for (size_t i = 0; i < times.size(); i++)
+			sum += times[i];
+		sum /= times.size();
+		Log::Screen(7, "Tracing (ms): {}", sum * 1000.0);
 
 		bgfx::setDebug(showBgfxStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
 		

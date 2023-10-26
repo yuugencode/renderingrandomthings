@@ -3,6 +3,7 @@ module;
 #include <bgfx/bgfx.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <ppl.h> // Parallel for
 
 export module Raytracer;
 
@@ -13,15 +14,18 @@ import <filesystem>;
 // @TODO: Look at 23-vectordisplay example
 
 export class Raytracer {
-
+	
 public:
 
 	bgfx::TextureHandle texture;
 	bgfx::UniformHandle u_texture;
+	bgfx::TextureFormat::Enum textureFormat = bgfx::TextureFormat::RGBA8;
 	bgfx::UniformHandle u_mtx;
 	bgfx::ProgramHandle program;
 
-	const bgfx::Memory* buffer;
+	Color* buffer; // Main texture data
+	uint32_t bufferSize;
+
 	const bgfx::ViewId VIEW_LAYER = 0;
 
 	bgfx::VertexLayout vtxLayout;
@@ -43,24 +47,13 @@ public:
 			.end();
 
 		// Create mutable texture
-		texture = bgfx::createTexture2D(Game::window.width, Game::window.height, false, 1, bgfx::TextureFormat::RGB8);
-		buffer = bgfx::alloc(Game::window.width * Game::window.height * 4); // Needs manual freeing?
-
-		// Fill a test texture with screen UV values
-		for (uint32_t i = 0; i < buffer->size / 3; i++) {
-			float xcoord = ((float)(i % Game::window.width)) / Game::window.width;
-			float ycoord = ((float)(i / Game::window.width)) / Game::window.height;
-
-			auto clr = Globals::Black;
-			clr = clr.Lerp(Globals::Red, xcoord);
-			clr = clr.Lerp(Globals::Green, ycoord);
-
-			buffer->data[i * 3 + 0] = clr.r;
-			buffer->data[i * 3 + 1] = clr.g;
-			buffer->data[i * 3 + 2] = clr.b;
-		}
-
-		bgfx::updateTexture2D(texture, 0, 0, 0, 0, Game::window.width, Game::window.height, buffer);
+		texture = bgfx::createTexture2D(Game::window.width, Game::window.height, false, 1, textureFormat);
+		
+		bgfx::TextureInfo info;
+		bgfx::calcTextureSize(info, Game::window.width, Game::window.height, 1, false, false, 1, textureFormat);
+		
+		bufferSize = info.storageSize;
+		buffer = (Color*)malloc(bufferSize);
 
 		u_texture = bgfx::createUniform("s_tex", bgfx::UniformType::Sampler);
 		u_mtx = bgfx::createUniform("u_mtx", bgfx::UniformType::Mat4);
@@ -82,7 +75,23 @@ public:
 	}
 
 	void TraceScene() {
-		
+
+		const bgfx::Memory* mem = bgfx::makeRef(buffer, (uint32_t)bufferSize);
+
+		// Modify the texture on cpu in a multithreaded function
+		// @TODO: Probably can optimize this with cache locality, loop order etc but it's fast enough for now
+		concurrency::parallel_for(size_t(0), size_t(bufferSize / 4), [&](size_t i) {
+			float xcoord = ((float)(i % Game::window.width)) / Game::window.width;
+			float ycoord = ((float)(i / Game::window.width)) / Game::window.height;
+			
+			xcoord = fmodf(xcoord + (float)Time::time * 0.1f, 1.0f);
+			ycoord = fmodf(ycoord + (float)Time::time * 0.1f, 1.0f);
+			
+			buffer[i] = Color((uint8_t)(xcoord * 255), (uint8_t)(ycoord * 255), 0x00, 0xff);
+		});
+
+		bgfx::updateTexture2D(texture, 0, 0, 0, 0, Game::window.width, Game::window.height, mem);
+
 		// Render a single triangle as a fullscreen pass
 		if (bgfx::getAvailTransientVertexBuffer(3, vtxLayout) == 3) {
 

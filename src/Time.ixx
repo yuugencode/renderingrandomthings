@@ -25,4 +25,9 @@ public:
 		time += deltaTime;
 		framecount++;
 	}
+
+	/// <summary> Returns the current accurate time, not tied to frame ticks </summary>
+	static double GetCurrentRealtime() {
+		return time + ((SDL_GetPerformanceCounter() - currTime) / (double)(SDL_GetPerformanceFrequency()));
+	}
 };
