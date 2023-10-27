@@ -12,7 +12,7 @@ export struct BgfxCallback : public bgfx::CallbackI {
 	virtual void fatal(const char* _filePath, uint16_t _line, bgfx::Fatal::Enum _code, const char* _str) override {
 		// Something unexpected happened, inform user and bail out.
 		// Must terminate, continuing will cause crash anyway.
-		Log::Formatted("Fatal error: {}, {}", (int)_code, _str);
+		Log::LineFormatted("Fatal error: {}, {}", (int)_code, _str);
 		abort();
 	}
 

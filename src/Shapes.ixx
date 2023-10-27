@@ -32,6 +32,10 @@ public:
 		nrm = glm::normalize(pt - pos);
 		return true;
 	}
+
+	float EstimatedDistanceTo(const glm::vec3& pos) const {
+		return glm::max(glm::distance(pos, this->pos) - radius, 0.0f);
+	}
 };
 
 /// <summary> Parametrized infinite plane </summary>
@@ -54,5 +58,12 @@ public:
 		pt = ro + rd * depth;
 		nrm = normal;
 		return true;
+	}
+
+	float EstimatedDistanceTo(const glm::vec3& pos) const {
+		float b = glm::dot(normal, pos - this->pos);
+		float c = glm::dot(normal, normal);
+		float a = b / c;
+		return glm::distance(pos, pos + normal * a);
 	}
 };

@@ -4,12 +4,14 @@
 #include <glm/glm.hpp>
 #include <sdl/SDL.h>
 
+import <filesystem>;
 import MiAllocator;
 import ImguiDrawer;
 import BgfxCallback;
 import Raytracer;
 import Game;
 import Timer;
+import Mesh;
 
 int main(int argc, char* argv[]) {
 
@@ -51,6 +53,9 @@ int main(int argc, char* argv[]) {
 	Raytracer raytracer;
 	Game::rootScene.entities.push_back(std::make_unique<Plane>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)));
 	Game::rootScene.entities.push_back(std::make_unique<Sphere>(glm::vec3(0.0f, 0.0f, 0.0f), 2.0f));
+	
+	auto mesh = std::make_shared<Mesh>(std::filesystem::path("ext/char.fbx"));
+	Game::rootScene.entities.push_back(std::make_unique<RenderedMesh>(mesh));
 
 	Timer raytraceTimer(64);
 	
@@ -95,7 +100,7 @@ int main(int argc, char* argv[]) {
 	}
 
 	// Exit cleanup
-	//ImguiDrawer::Quit();
+	ImguiDrawer::Quit();
 	Game::window.Destroy();
 	SDL_Quit();
 	if (init.callback != nullptr) delete init.callback; // Hack, see CreateBgfxCallback() comment

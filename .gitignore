@@ -32,10 +32,10 @@
 *.app
 
 # External stuff
-imgui
 include
 lib
 x64
+3rdparty
 
 # VS Files
 .editorconfig
@@ -50,3 +50,6 @@ imgui.ini
 
 # Compiled shaders
 *.bin
+
+# Other
+*.fbx

@@ -11,6 +11,7 @@ import Game;
 import Shapes;
 import <memory>;
 import <filesystem>;
+import <algorithm>;
 
 export class Raytracer {
 
@@ -114,6 +115,11 @@ public:
 		const glm::vec3 cameraPos = glm::vec3(0.0f, 1.0f, 5.0f);
 		const glm::vec3 origin = glm::vec3(0.0f, 0.0f, 0.0f);
 
+		// Sort scene objects
+		std::ranges::sort(Game::rootScene.entities, [&](const std::unique_ptr<Entity>& a, const std::unique_ptr<Entity>& b) {
+			return a->EstimatedDistanceTo(cameraPos) < b->EstimatedDistanceTo(cameraPos);
+		});
+		
 		// Matrices
 		auto view = glm::lookAt(cameraPos, origin, glm::vec3(0.0f, 1.0f, 0.0f));
 		auto proj = glm::perspectiveFov(glm::radians(90.0f), (float)Game::window.width, (float)Game::window.height, 0.05f, 1000.0f);

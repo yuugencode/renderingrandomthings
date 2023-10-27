@@ -2,7 +2,7 @@ module;
 
 #include <sdl/SDL.h>
 #include <bgfx/bgfx.h>
-#include "../imgui/imgui.h"
+#include "../3rdparty/imgui/imgui.h"
 #include <glm/glm.hpp>
 
 export module ImguiDrawer;

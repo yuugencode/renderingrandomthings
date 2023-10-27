@@ -33,7 +33,7 @@ public:
     
     /// <summary> Preformatted variable length print </summary>
     template <typename... Args>
-    static void Formatted(std::string_view str, const Args&... args) {
+    static void LineFormatted(std::string_view str, const Args&... args) {
         std::cout << std::vformat(str, std::make_format_args(args...)) << std::endl;
     }
 

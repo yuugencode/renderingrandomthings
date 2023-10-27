@@ -5,7 +5,6 @@ export module Scene;
 import <vector>;
 import <memory>;
 import Entity;
-import MiAllocator;
 
 export class Scene {
 
