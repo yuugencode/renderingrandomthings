@@ -4,14 +4,19 @@ module;
 #include <bx/allocator.h>
 #include <cassert>
 
-export module MiMallocator;
+export module MiAllocator;
 
-import Log;
+import <vector>;
 
-// Replace bgfx's CRT malloc with mimalloc
+// Replace CRT malloc with mimalloc
+export void* operator new(size_t size) { return mi_malloc(size); }
+export void operator delete(void* ptr) { mi_free(ptr); }
 
-// Just redirect the call to mimalloc
-export struct MiMallocator : bx::AllocatorI {
+// malloc/free (and stl containers?) are beyond saving, needs project-wide overriding with mimalloc_redirect
+
+// bgfx needs extra effort
+export struct MiAllocator : bx::AllocatorI {
+
 	virtual void* realloc(void* _ptr, size_t _size, size_t _align, const char* _filePath, uint32_t _line) {
 
 		// As per bgfx definition:

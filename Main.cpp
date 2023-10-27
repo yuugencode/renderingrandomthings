@@ -3,13 +3,13 @@
 #include <sdl/SDL.h>
 #include <glm/glm.hpp>
 #include <sdl/SDL.h>
-#include <sdl/SDL_syswm.h>
 
+import MiAllocator;
 import ImguiDrawer;
 import BgfxCallback;
-import MiMallocator;
 import Raytracer;
 import Game;
+import Timer;
 
 int main(int argc, char* argv[]) {
 
@@ -23,7 +23,7 @@ int main(int argc, char* argv[]) {
 	Game::window.Create(1024, 768);
 
 	// Init Bgfx
-	MiMallocator allocator;
+	MiAllocator allocator;
 	bgfx::Init init;
 	init.type = bgfx::RendererType::Direct3D11;
 	init.vendorId = BGFX_PCI_ID_NONE;
@@ -32,8 +32,6 @@ int main(int argc, char* argv[]) {
 	init.resolution.width = Game::window.width;
 	init.resolution.height = Game::window.height;
 	init.resolution.reset = BGFX_RESET_VSYNC | BGFX_RESET_FLIP_AFTER_RENDER | BGFX_RESET_FLUSH_AFTER_RENDER;
-	//init.resolution.reset = BGFX_RESET_FLUSH_AFTER_RENDER;
-	//init.resolution.reset = BGFX_RESET_FLIP_AFTER_RENDER;
 	init.callback = CreateBgfxCallback(); // Hack, read function comment
 	init.allocator = &allocator;
 
@@ -46,20 +44,23 @@ int main(int argc, char* argv[]) {
 	bgfx::setViewClear(MAIN_VIEW, BGFX_CLEAR_COLOR, 0x33333300);
 	bgfx::setViewRect(MAIN_VIEW, 0, 0, bgfx::BackbufferRatio::Equal);
 
-	Raytracer raytracer;
+	// Imgui
 	ImguiDrawer::Init();
 
-	bool showBgfxStats = false;
+	// Add something to scene
+	Raytracer raytracer;
+	Game::rootScene.entities.push_back(std::make_unique<Plane>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)));
+	Game::rootScene.entities.push_back(std::make_unique<Sphere>(glm::vec3(0.0f, 0.0f, 0.0f), 2.0f));
+
+	Timer raytraceTimer(64);
 	
-	std::vector<double> times;
-	times.reserve(64);
-	int timeI = 0;
+	bool showBgfxStats = false;
 
 	// Main loop
 	while (true) {
 		
 		Time::Tick();
-
+		
 		Input::UpdateKeys();
 		
 		if (Input::OnKeyDown(SDL_KeyCode::SDLK_ESCAPE) || Input::OnKeyDown(SDL_KeyCode::SDLK_RETURN)) break;
@@ -75,7 +76,7 @@ int main(int argc, char* argv[]) {
 		const bgfx::Stats* stats = bgfx::getStats();
 		
 		Log::Screen(0, "F1 to toggle stats");
-		Log::Screen(1, "Backbuffer {}W x {}H in pixels, debug text {}W x {}H in characters.", stats->width, stats->height, stats->textWidth, stats->textHeight);
+		Log::Screen(1, "Backbuffer: {}W x {}H", stats->width, stats->height);
 		Log::Screen(2, "Deltatime: {}, FPS: {}", Time::deltaTime, 1.0 / Time::smoothDeltaTime);
 		Log::Screen(3, "Time: {}", Time::time);
 		Log::Screen(4, "MouseLeft: {}", Input::MouseHeld(1));
@@ -83,17 +84,10 @@ int main(int argc, char* argv[]) {
 		Log::Screen(6, "MouseRight: {}", Input::MouseHeld(3));
 
 		// Trace the scene and print averaged time it took
-		auto tt = Time::GetCurrentRealtime();
+		raytraceTimer.Start();
 		raytracer.TraceScene();
-		tt = Time::GetCurrentRealtime() - tt;
-
-		if (times.size() < times.capacity()) times.push_back(tt);
-		else times[(timeI++) % times.size()] = tt;
-		double sum = 0.0;
-		for (size_t i = 0; i < times.size(); i++)
-			sum += times[i];
-		sum /= times.size();
-		Log::Screen(7, "Tracing (ms): {}", sum * 1000.0);
+		raytraceTimer.End();
+		Log::Screen(7, "Tracing (ms): {}", raytraceTimer.GetAveragedTime() * 1000.0);
 
 		bgfx::setDebug(showBgfxStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
 		

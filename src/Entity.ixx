@@ -1,20 +1,16 @@
 module;
 
 #include <bgfx/bgfx.h>
+#include <glm/glm.hpp>
 
 export module Entity;
 
+/// <summary> Abstract object in the scene, can be raytraced </summary>
 export class Entity {
-
 public:
 
-	bgfx::VertexBufferHandle vertexBuffer;
-	bgfx::IndexBufferHandle indexBuffer;
+	enum Type { Sphere, Plane, RenderedMesh };
+	Type type;
 
-	Entity() {
-		// Take in vertex + indice buffer and whatever else
-
-	}
-
-
+	
 };

@@ -10,6 +10,8 @@ export import Scene;
 export import Time;
 export import Entity;
 export import Input;
+export import Shapes;
+export import RenderedMesh;
 
 /// <summary> Top level class containing references to many common game functions </summary>
 export class Game {

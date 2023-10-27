@@ -4,9 +4,10 @@ module;
 
 export module Shapes;
 
-//using namespace glm; // Having this here breaks intellisense but compiles fine, sad coding
+import Entity;
 
-export struct Sphere {
+/// <summary> Parametrized sphere </summary>
+export struct Sphere : Entity {
 public:
 
 	glm::vec3 pos;
@@ -15,13 +16,14 @@ public:
 	Sphere(const glm::vec3& pos, const float& radius) {
 		this->pos = pos;
 		this->radius = radius;
+		type = Entity::Type::Sphere;
 	}
 
 	// Adapted from Inigo Quilez https://iquilezles.org/articles/
 	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, glm::vec3& pt, glm::vec3& nrm, float& depth) const {
 		glm::vec3 oc = ro - pos;
-		float b = dot(oc, rd);
-		float c = dot(oc, oc) - radius * radius;
+		float b = glm::dot(oc, rd);
+		float c = glm::dot(oc, oc) - radius * radius;
 		float h = b * b - c;
 		if (h < 0.0f) return false;
 		h = sqrt(h);
@@ -32,7 +34,8 @@ public:
 	}
 };
 
-export struct Plane {
+/// <summary> Parametrized infinite plane </summary>
+export struct Plane : Entity {
 public:
 
 	glm::vec3 pos;
@@ -41,6 +44,7 @@ public:
 	Plane(const glm::vec3& pos, const glm::vec3& normal) {
 		this->pos = pos;
 		this->normal = normal;
+		type = Entity::Type::Plane;
 	}
 
 	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, glm::vec3& pt, glm::vec3& nrm, float& depth) const {
