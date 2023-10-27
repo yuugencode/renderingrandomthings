@@ -45,9 +45,10 @@ public:
 
 	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, glm::vec3& pt, glm::vec3& nrm, float& depth) const {
 		auto d = glm::dot(normal, rd);
-		if (d < 0.0000001f) return 0.0f;
+		if (d > -0.00001f) return false;
 		depth = glm::dot(pos - ro, normal) / d;
 		pt = ro + rd * depth;
 		nrm = normal;
+		return true;
 	}
 };

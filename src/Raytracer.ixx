@@ -67,7 +67,7 @@ public:
 		const std::filesystem::path folder = "shaders/";
 		auto vShader = Utils::LoadShader(folder / "screenpass_vs.bin");
 		auto fShader = Utils::LoadShader(folder / "screenpass_fs.bin");
-			
+		
 		assert(vShader.idx != bgfx::kInvalidHandle);
 		assert(fShader.idx != bgfx::kInvalidHandle);
 
@@ -81,33 +81,28 @@ public:
 	Color TraceRay(const vec3& pos, const vec3& dir) {
 		
 		// Fake tracing
+		// @TODO: Scene hierarchy + accelerator
 
 		Color output;
-		float minDepth = 99999999.9f;
+		float minDepth = 999999.9f;
 
-		{
-			// Ground plane
-			const Plane plane(vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f));
-			vec3 hitpt, normal;
-			float depth;
-			if (plane.Intersect(pos, dir, hitpt, normal, depth)) {
-				if (depth < minDepth) {
-					minDepth = depth;
-					output = Color::FromFloat(0.5f, 0.5f, 0.5f, 1.0f);
-				}
+		// Ground plane
+		const Plane plane(vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f));
+		vec3 hitpt, normal;
+		float depth;
+		if (plane.Intersect(pos, dir, hitpt, normal, depth)) {
+			if (depth < minDepth) {
+				minDepth = depth;
+				output = Color::FromFloat(0.5f, 0.5f, 0.5f, 1.0f);
 			}
 		}
 		
-		{
-			// Sphere
-			const Sphere sphere(vec3(0.0f, 0.0f, 0.0f), 2.0f);
-			vec3 hitpt, normal;
-			float depth;
-			if (sphere.Intersect(pos, dir, hitpt, normal, depth)) {
-				if (depth < minDepth) {
-					minDepth = depth;
-					output = Color::FromVec(normal, 1.0f);
-				}
+		// Sphere
+		const Sphere sphere(vec3(0.0f, 0.0f, 0.0f), 2.0f);
+		if (sphere.Intersect(pos, dir, hitpt, normal, depth)) {
+			if (depth < minDepth) {
+				minDepth = depth;
+				output = Color::FromVec(normal, 1.0f);
 			}
 		}
 
