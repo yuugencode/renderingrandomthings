@@ -8,10 +8,13 @@ module;
 export module Raytracer;
 
 import Game;
+import Shapes;
 import <memory>;
 import <filesystem>;
 
 // @TODO: Look at 23-vectordisplay example
+
+using namespace glm;
 
 export class Raytracer {
 	
@@ -71,10 +74,57 @@ public:
 		program = bgfx::createProgram(vShader, fShader, true);
 		assert(program.idx != bgfx::kInvalidHandle);
 
+		bgfx::setViewClear(VIEW_LAYER, BGFX_CLEAR_COLOR, 0x000000ff);
 		bgfx::setViewRect(VIEW_LAYER, 0, 0, bgfx::BackbufferRatio::Equal);
 	}
 
+	Color TraceRay(const vec3& pos, const vec3& dir) {
+		
+		// Fake tracing
+
+		Color output;
+		float minDepth = 99999999.9f;
+
+		{
+			// Ground plane
+			const Plane plane(vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f));
+			vec3 hitpt, normal;
+			float depth;
+			if (plane.Intersect(pos, dir, hitpt, normal, depth)) {
+				if (depth < minDepth) {
+					minDepth = depth;
+					output = Color::FromFloat(0.5f, 0.5f, 0.5f, 1.0f);
+				}
+			}
+		}
+		
+		{
+			// Sphere
+			const Sphere sphere(vec3(0.0f, 0.0f, 0.0f), 2.0f);
+			vec3 hitpt, normal;
+			float depth;
+			if (sphere.Intersect(pos, dir, hitpt, normal, depth)) {
+				if (depth < minDepth) {
+					minDepth = depth;
+					output = Color::FromVec(normal, 1.0f);
+				}
+			}
+		}
+
+		return output;
+	}
+
 	void TraceScene() {
+
+		// Camera
+		const vec3 cameraPos = vec3(0.0f, 1.0f, 5.0f);
+		const vec3 origin = vec3(0.0f, 0.0f, 0.0f);
+
+		// Matrices
+		auto view = glm::lookAt(cameraPos, origin, glm::vec3(0.0f, 1.0f, 0.0f));
+		auto proj = glm::perspectiveFov(glm::radians(90.0f), (float)Game::window.width, (float)Game::window.height, 0.05f, 1000.0f);
+		auto viewInv = glm::inverse(view);
+		auto projInv = glm::inverse(proj);
 
 		const bgfx::Memory* mem = bgfx::makeRef(buffer, (uint32_t)bufferSize);
 
@@ -84,10 +134,17 @@ public:
 			float xcoord = ((float)(i % Game::window.width)) / Game::window.width;
 			float ycoord = ((float)(i / Game::window.width)) / Game::window.height;
 			
-			xcoord = fmodf(xcoord + (float)Time::time * 0.1f, 1.0f);
-			ycoord = fmodf(ycoord + (float)Time::time * 0.1f, 1.0f);
+			// Create view ray from proj/view matrices
+			vec2 pixel = vec2(xcoord, ycoord) * 2.0f - 1.0f;
+			vec4 px = vec4(pixel, 0.0f, 1.0f);
 			
-			buffer[i] = Color((uint8_t)(xcoord * 255), (uint8_t)(ycoord * 255), 0x00, 0xff);
+			px = projInv * px;
+			px.w = 0.0f;
+			vec3 dir = viewInv * px;
+			dir = normalize(dir);
+			
+			buffer[i] = TraceRay(cameraPos, dir);
+			//buffer[i] = Color::FromFloat(dir.x, dir.y, dir.z, 1.0f);
 		});
 
 		bgfx::updateTexture2D(texture, 0, 0, 0, 0, Game::window.width, Game::window.height, mem);
@@ -104,12 +161,6 @@ public:
 			vertex[1] = PosColorTexCoord0Vertex{ .pos = glm::vec3(Game::window.width, 0.0f, 0.0f),	.rgba = red, .uv = glm::vec2(2.0f, 0.0f) };
 			vertex[2] = PosColorTexCoord0Vertex{ .pos = glm::vec3(0.0f, Game::window.height, 0.0f),	.rgba = red, .uv = glm::vec2(0.0f, 2.0f) };
 
-			auto view = glm::lookAtLH(
-				glm::vec3(0.0f, 0.0f, 1.0f), 
-				glm::vec3(0.0f, 0.0f, 0.0f), 
-				glm::vec3(0.0f, 1.0f, 0.0f));
-
-			auto proj = glm::perspectiveFovLH(glm::radians(90.0f), (float)Game::window.width, (float)Game::window.height, 0.05f, 1000.0f);
 			bgfx::setViewTransform(VIEW_LAYER, &view, &proj);
 
 			bgfx::setTexture(0, u_texture, texture);

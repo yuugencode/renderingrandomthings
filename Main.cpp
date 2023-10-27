@@ -31,7 +31,9 @@ int main(int argc, char* argv[]) {
 	init.platformData.ndt = Game::window.displayHandle;
 	init.resolution.width = Game::window.width;
 	init.resolution.height = Game::window.height;
-	init.resolution.reset = BGFX_RESET_VSYNC;
+	init.resolution.reset = BGFX_RESET_VSYNC | BGFX_RESET_FLIP_AFTER_RENDER | BGFX_RESET_FLUSH_AFTER_RENDER;
+	//init.resolution.reset = BGFX_RESET_FLUSH_AFTER_RENDER;
+	//init.resolution.reset = BGFX_RESET_FLIP_AFTER_RENDER;
 	init.callback = CreateBgfxCallback(); // Hack, read function comment
 	init.allocator = &allocator;
 
@@ -74,7 +76,7 @@ int main(int argc, char* argv[]) {
 		
 		Log::Screen(0, "F1 to toggle stats");
 		Log::Screen(1, "Backbuffer {}W x {}H in pixels, debug text {}W x {}H in characters.", stats->width, stats->height, stats->textWidth, stats->textHeight);
-		Log::Screen(2, "Deltatime: {}", Time::deltaTime);
+		Log::Screen(2, "Deltatime: {}, FPS: {}", Time::deltaTime, 1.0 / Time::smoothDeltaTime);
 		Log::Screen(3, "Time: {}", Time::time);
 		Log::Screen(4, "MouseLeft: {}", Input::MouseHeld(1));
 		Log::Screen(5, "MouseMid: {}", Input::MouseHeld(2));
