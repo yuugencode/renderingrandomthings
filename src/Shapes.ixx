@@ -5,6 +5,7 @@ module;
 export module Shapes;
 
 import Entity;
+import Utils;
 
 /// <summary> Parametrized sphere </summary>
 export struct Sphere : Entity {
@@ -61,9 +62,8 @@ public:
 	}
 
 	float EstimatedDistanceTo(const glm::vec3& pos) const {
-		float b = glm::dot(normal, pos - this->pos);
-		float c = glm::dot(normal, normal);
-		float a = b / c;
-		return glm::distance(pos, pos + normal * a);
+		auto os = pos - this->pos;
+		os = Utils::Project(os, normal);
+		return glm::length(os);
 	}
 };

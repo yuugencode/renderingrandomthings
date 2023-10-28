@@ -80,7 +80,7 @@ public:
     auto operator<=>(const Color&) const = default;
 };
 
-// Make log work work color
+// Make log work for color
 export std::ostream& operator<<(std::ostream& target, const Color& c) {
     // uint8_t can't be <<'d
     target << '(' << (int)c.r << ", " << (int)c.g << ", " << (int)c.b << ", " << (int)c.a << ')';
@@ -90,6 +90,36 @@ export std::ostream& operator<<(std::ostream& target, const uint8_t& c) {
     target << (int)c; // uint8_t can't be <<'d
     return target;
 }
+
+/// <summary> Simple axis-aligned bounding box </summary>
+export class AABB {
+public:
+
+    glm::vec3 min, max;
+
+    AABB(const glm::vec3& min, const glm::vec3& max) {
+        this->min = min; this->max = max;
+    }
+
+    void Encapsulate(const glm::vec3& point) {
+        min = glm::min(point, min);
+        max = glm::max(point, max);
+    }
+
+    // Slab method
+    float Intersect(const glm::vec3& ro, const glm::vec3& rd) const {
+        auto invDir = 1.0f / rd;
+        auto a = (min - ro) * invDir;
+        auto b = (max - ro) * invDir;
+        auto mi = glm::min(a, b);
+        auto ma = glm::max(a, b);
+        auto minT = glm::max(glm::max(mi.x, mi.y), mi.z);
+        auto maxT = glm::min(glm::min(ma.x, ma.y), ma.z);
+        if (maxT < 0.0f) return 0.0f;
+        if (minT > maxT) return 0.0f;
+        return minT;
+    }
+};
 
 /// <summary> Various utility functions </summary>
 export class Utils {
@@ -102,6 +132,16 @@ public:
         auto buffer = LoadMemory(path);
         assert(buffer != nullptr);
         return bgfx::createShader(buffer);
+    }
+
+    /// <summary> Projects vector a onto b </summary>
+    static glm::vec3 Project(const glm::vec3& a, const glm::vec3& b) { 
+        return b * glm::dot(a, b); 
+    }
+
+    /// <summary> Projects vector vec onto plane </summary>
+    static glm::vec3 ProjectOnPlane(const glm::vec3& vec, const glm::vec3& normal) {
+        return vec - Project(vec, normal);
     }
 
 private:

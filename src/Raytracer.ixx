@@ -112,7 +112,7 @@ public:
 	void TraceScene() {
 
 		// Camera
-		const glm::vec3 cameraPos = glm::vec3(0.0f, 1.0f, 5.0f);
+		const glm::vec3 cameraPos = glm::vec3(3.0f, 2.0f, 5.0f);
 		const glm::vec3 origin = glm::vec3(0.0f, 0.0f, 0.0f);
 
 		// Sort scene objects
