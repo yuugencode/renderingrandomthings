@@ -20,6 +20,7 @@ public:
 	inline static Uint64 framecount = 0;
 	inline static double deltaTime = 0.001, time = 0.0;
 	inline static double smoothDeltaTime = 0.0;
+	inline static float deltaTimeF;
 
 	/// <summary> Updates time values, should be called once per frame </summary>
 	static void Tick() {
@@ -27,6 +28,7 @@ public:
 		currTime = SDL_GetPerformanceCounter();
 		deltaTime = ((currTime - prevTime) / (double)(SDL_GetPerformanceFrequency()));
 		if (framecount == 0) deltaTime = 0.001; // Fake deltatime for the first frame
+		deltaTimeF = (float)deltaTime;
 
 		if (deltaTimes.size() < 64) deltaTimes.push_back(deltaTime);
 		else deltaTimes[(deltaTimesI++) % deltaTimes.size()] = deltaTime;

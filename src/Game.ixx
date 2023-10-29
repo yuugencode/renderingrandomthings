@@ -12,6 +12,8 @@ export import Entity;
 export import Input;
 export import Shapes;
 export import RenderedMesh;
+export import Transform;
+export import Camera;
 
 /// <summary> Top level class containing references to many common game functions </summary>
 export class Game {
@@ -19,4 +21,5 @@ export class Game {
 public:
 	inline static Window window;
 	inline static Scene rootScene;
+	inline static Camera camera;
 };

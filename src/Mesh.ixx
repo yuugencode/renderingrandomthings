@@ -5,6 +5,7 @@ module;
 
 export module Mesh;
 
+import <memory>;
 import <filesystem>;
 import <fstream>;
 import <vector>;
@@ -13,8 +14,8 @@ import Log;
 export class Mesh {
 public:
 
-    std::vector<glm::vec3> vertices;
-    std::vector<uint32_t> triangles;
+    std::shared_ptr<std::vector<glm::vec3>> vertices;
+    std::shared_ptr<std::vector<uint32_t>> triangles;
 
 	Mesh(const std::filesystem::path& path) {
 
@@ -23,6 +24,9 @@ public:
         ufbx_scene* scene = ufbx_load_file(path.string().c_str(), &opts, &error);
         
         if (!scene) Log::FatalError("Failed to load: ", error.description.data);
+
+        vertices = std::make_shared<std::vector<glm::vec3>>();
+        triangles = std::make_shared<std::vector<uint32_t>>();
 
         uint32_t vertexCnt = 0;
 
@@ -38,32 +42,32 @@ public:
                 ufbx_vec3* meshVerts = node->mesh->vertices.data;
                 uint32_t* meshIndices = node->mesh->vertex_indices.data;
 
-                vertices.reserve(vertices.size() + node->mesh->vertices.count);
-                triangles.reserve(triangles.size() + node->mesh->max_face_triangles);
+                vertices->reserve(vertices->size() + node->mesh->vertices.count);
+                triangles->reserve(triangles->size() + node->mesh->max_face_triangles);
 
                 for (size_t i = 0; i < node->mesh->vertices.count; i++) {
                     auto vd = meshVerts[i]; // fbx data is in double
                     auto vf = glm::vec3((float)vd.x, (float)vd.y, (float)vd.z);
-                    vertices.push_back(vf);
+                    vertices->push_back(vf);
                 }
 
                 for (size_t i = 0; i < node->mesh->faces.count; i++) {
                     auto face = node->mesh->faces.data[i];
 
                     if (face.num_indices == 3) {
-                        triangles.push_back(vertexCnt + meshIndices[face.index_begin + 0]);
-                        triangles.push_back(vertexCnt + meshIndices[face.index_begin + 1]);
-                        triangles.push_back(vertexCnt + meshIndices[face.index_begin + 2]);
+                        triangles->push_back(vertexCnt + meshIndices[face.index_begin + 0]);
+                        triangles->push_back(vertexCnt + meshIndices[face.index_begin + 1]);
+                        triangles->push_back(vertexCnt + meshIndices[face.index_begin + 2]);
                     }
 
                     else if (face.num_indices == 4) {
-                        triangles.push_back(vertexCnt + meshIndices[face.index_begin + 0]);
-                        triangles.push_back(vertexCnt + meshIndices[face.index_begin + 1]);
-                        triangles.push_back(vertexCnt + meshIndices[face.index_begin + 2]);
+                        triangles->push_back(vertexCnt + meshIndices[face.index_begin + 0]);
+                        triangles->push_back(vertexCnt + meshIndices[face.index_begin + 1]);
+                        triangles->push_back(vertexCnt + meshIndices[face.index_begin + 2]);
 
-                        triangles.push_back(vertexCnt + meshIndices[face.index_begin + 2]);
-                        triangles.push_back(vertexCnt + meshIndices[face.index_begin + 3]);
-                        triangles.push_back(vertexCnt + meshIndices[face.index_begin + 0]);
+                        triangles->push_back(vertexCnt + meshIndices[face.index_begin + 2]);
+                        triangles->push_back(vertexCnt + meshIndices[face.index_begin + 3]);
+                        triangles->push_back(vertexCnt + meshIndices[face.index_begin + 0]);
                     }
                 }
 
@@ -73,12 +77,11 @@ public:
             //else Log::LineFormatted("Object: {}", node->name.data);
         }
 
-        Log::LineFormatted("Read a mesh with {} vertices and {} triangles.", vertices.size(), triangles.size() / 3);
+        Log::LineFormatted("Read a mesh with {} vertices and {} triangles.", vertices->size(), triangles->size() / 3);
 
         // Sanity check data
-        for (size_t i = 0; i < triangles.size(); i++) {
-            auto index = triangles[i];
-            if (index >= vertices.size()) Log::LineFormatted("Invalid triangle index: {}", index);
+        for (size_t i = 0; i < triangles->size(); i++) {
+            if (triangles->at(i) >= vertices->size()) Log::LineFormatted("Invalid triangle index: {}", triangles->at(i));
         }
 
         ufbx_free_scene(scene);

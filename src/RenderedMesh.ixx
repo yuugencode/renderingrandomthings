@@ -22,13 +22,17 @@ public:
 		// Construct a bvh
 	}
 
-	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, glm::vec3& pt, glm::vec3& nrm, float& depth) const {
+	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, float& depth) const {
 		// @TODO
 		return false;
 	}
 
 	float EstimatedDistanceTo(const glm::vec3& pos) const {
-		// @TODO
-		return 0.0f;
+		return 999.9f;
+		//return glm::length(pos - bvh.stack[0].aabb.Center());
 	}
+
+	Color GetColor(const glm::vec3& pos) const {
+		return Globals::Red;
+	};
 };

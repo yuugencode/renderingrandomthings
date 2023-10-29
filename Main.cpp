@@ -2,9 +2,10 @@
 #include <bgfx/platform.h>
 #include <sdl/SDL.h>
 #include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/transform.hpp>
 #include <sdl/SDL.h>
 
-import <filesystem>;
 import MiAllocator;
 import ImguiDrawer;
 import BgfxCallback;
@@ -33,7 +34,9 @@ int main(int argc, char* argv[]) {
 	init.platformData.ndt = Game::window.displayHandle;
 	init.resolution.width = Game::window.width;
 	init.resolution.height = Game::window.height;
-	init.resolution.reset = BGFX_RESET_VSYNC | BGFX_RESET_FLIP_AFTER_RENDER | BGFX_RESET_FLUSH_AFTER_RENDER;
+	init.resolution.reset = BGFX_RESET_VSYNC;// | BGFX_RESET_FLIP_AFTER_RENDER | BGFX_RESET_FLUSH_AFTER_RENDER;
+	//init.resolution.reset = BGFX_RESET_NONE;
+	init.resolution.maxFrameLatency = 1; // Some bug somewhere makes the rendering jittery if this is not set
 	init.callback = CreateBgfxCallback(); // Hack, read function comment
 	init.allocator = &allocator;
 
@@ -49,10 +52,19 @@ int main(int argc, char* argv[]) {
 	// Imgui
 	ImguiDrawer::Init();
 
-	// Add something to scene
+	// Camera
+	Game::camera = {
+		.transform = Utils::ModelMatrix(glm::vec3(2.0f, 1.0f, 3.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f)),
+		.fov = 70.0f,
+		.nearClip = 0.05f,
+		.farClip = 1000.0f,
+	};
+
+	// Add stuff to the scene
 	Raytracer raytracer;
-	Game::rootScene.entities.push_back(std::make_unique<Plane>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)));
-	Game::rootScene.entities.push_back(std::make_unique<Sphere>(glm::vec3(0.0f, 0.0f, 0.0f), 2.0f));
+	Game::rootScene.entities.push_back(std::make_unique<Disk>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 3.0f));
+	Game::rootScene.entities.push_back(std::make_unique<Sphere>(glm::vec3(2.0f, 0.5f, 0.0f), 0.5f));
+	Game::rootScene.entities.push_back(std::make_unique<Box>(glm::vec3(-2.0f, 0.5f, 0.0f), 0.5f));
 	
 	auto mesh = std::make_shared<Mesh>(std::filesystem::path("ext/char.fbx"));
 	Game::rootScene.entities.push_back(std::make_unique<RenderedMesh>(mesh));
@@ -68,34 +80,61 @@ int main(int argc, char* argv[]) {
 		
 		Input::UpdateKeys();
 		
+		// Clear view
+		bgfx::touch(MAIN_VIEW);
+
+		// Imgui
+		ImguiDrawer::NewFrame();
+		ImguiDrawer::TestDraws();
+
+		// System keys
 		if (Input::OnKeyDown(SDL_KeyCode::SDLK_ESCAPE) || Input::OnKeyDown(SDL_KeyCode::SDLK_RETURN)) break;
 		if (Input::OnKeyDown(SDL_KeyCode::SDLK_F1)) showBgfxStats = !showBgfxStats;
 
-		bgfx::touch(MAIN_VIEW); // Triggers viewClear pass
-		bgfx::dbgTextClear();
-		
-		ImguiDrawer::NewFrame();
-		ImguiDrawer::TestDraws();
-		ImguiDrawer::Render();
+		// Camera movement
+		auto offset = glm::vec3(0, 0, 0);
+		if (Input::KeyHeld(SDL_KeyCode::SDLK_w)) offset += glm::vec3(0,0, 1);
+		if (Input::KeyHeld(SDL_KeyCode::SDLK_s)) offset += glm::vec3(0,0,-1);
+		if (Input::KeyHeld(SDL_KeyCode::SDLK_a)) offset += glm::vec3(-1,0,0);
+		if (Input::KeyHeld(SDL_KeyCode::SDLK_d)) offset += glm::vec3( 1,0,0);
+		if (Input::KeyHeld(SDL_KeyCode::SDLK_e)) offset += glm::vec3(0, 1,0);
+		if (Input::KeyHeld(SDL_KeyCode::SDLK_q)) offset += glm::vec3(0,-1,0);
+		Game::camera.transform.LocalTranslate(offset * Time::deltaTimeF * 10.0f);
 
+		// Mouse rotation on right click
+		static int clickPos[2];
+		if (Input::OnMouseDown(SDL_BUTTON_RIGHT)) SDL_SetRelativeMouseMode(SDL_TRUE);
+		if (Input::OnMouseUp(SDL_BUTTON_RIGHT)) SDL_SetRelativeMouseMode(SDL_FALSE);
+		if (Input::MouseHeld(SDL_BUTTON_RIGHT)) {
+			auto rot = glm::quat(-glm::vec3(Input::mouseDelta[1], Input::mouseDelta[0], 0.0f) * 0.0075f);
+			Game::camera.transform.matrix *= glm::mat4x4(rot);
+			Game::camera.transform.LookAtDir(Game::camera.transform.Forward(), glm::vec3(0, 1, 0));
+		}
+
+		// Render debug info
+		bgfx::dbgTextClear();
+		bgfx::setDebug(showBgfxStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
 		const bgfx::Stats* stats = bgfx::getStats();
-		
+
 		Log::Screen(0, "F1 to toggle stats");
 		Log::Screen(1, "Backbuffer: {}W x {}H", stats->width, stats->height);
-		Log::Screen(2, "Deltatime: {}, FPS: {}", Time::deltaTime, 1.0 / Time::smoothDeltaTime);
-		Log::Screen(3, "Time: {}", Time::time);
-		Log::Screen(4, "MouseLeft: {}", Input::MouseHeld(1));
-		Log::Screen(5, "MouseMid: {}", Input::MouseHeld(2));
-		Log::Screen(6, "MouseRight: {}", Input::MouseHeld(3));
+		Log::Screen(2, "FPS: {}", Log::FormatFloat(1.0f / (float)Time::smoothDeltaTime));
+		Log::Screen(3, "Time: {}", Log::FormatFloat((float)Time::time));
+		Log::Screen(4, "Mouse Buttons: {} {} {}", Input::MouseHeld(SDL_BUTTON_LEFT), Input::MouseHeld(SDL_BUTTON_MIDDLE), Input::MouseHeld(SDL_BUTTON_RIGHT));
+		Log::Screen(5, "Mouse delta: {}, {}", Input::mouseDelta[0], Input::mouseDelta[1]);
+
+		const auto cPos = Game::camera.transform.Position();
+		Log::Screen(6, "Camera Pos: ({} {} {})", Log::FormatFloat(cPos.x), Log::FormatFloat(cPos.y), Log::FormatFloat(cPos.z));
 
 		// Trace the scene and print averaged time it took
 		raytraceTimer.Start();
 		raytracer.TraceScene();
 		raytraceTimer.End();
 		Log::Screen(7, "Tracing (ms): {}", raytraceTimer.GetAveragedTime() * 1000.0);
-
-		bgfx::setDebug(showBgfxStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
 		
+		ImguiDrawer::Render();
+
+		// Dump on screen
 		bgfx::frame();
 	}
 

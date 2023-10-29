@@ -77,52 +77,64 @@ public:
 		Color output;
 		float minDepth = std::numeric_limits<float>::max();
 
+		Entity* intersectedObj = nullptr;
+
 		// Loop all objects, could use something more sophisticated for larger scenes but a simple loop gets us pretty far
 		for (const auto& entity : Game::rootScene.entities) {
 			
-			glm::vec3 hitpt, normal; float depth;
 			bool intersect = false;
+
+			float depth;
 
 			// Switching here is faster than a virtual function call
 			switch (entity->type) {
 				case Entity::Type::Sphere:
-					intersect = ((Sphere*)entity.get())->Intersect(pos, dir, hitpt, normal, depth); break;
-				case Entity::Type::Plane: 
-					intersect = ((Plane*)entity.get())->Intersect(pos, dir, hitpt, normal, depth); break;
+					intersect = ((Sphere*)entity.get())->Intersect(pos, dir, depth); break;
+				case Entity::Type::Disk: 
+					intersect = ((Disk*)entity.get())->Intersect(pos, dir, depth); break;
+				case Entity::Type::Box:
+					intersect = ((Box*)entity.get())->Intersect(pos, dir, depth); break;
 				case Entity::Type::RenderedMesh: 
-					intersect = ((RenderedMesh*)entity.get())->Intersect(pos, dir, hitpt, normal, depth); break;
+					intersect = ((RenderedMesh*)entity.get())->Intersect(pos, dir, depth); break;
 				default: break;
 			}
 
 			// Check if hit something and it's the closest hit
 			if (intersect && depth < minDepth) {
 				minDepth = depth;
-				output = Color::FromVec(normal, 1.0f);
+				intersectedObj = entity.get();
 			}
 		}
 
-		// If we hit nothing, draw "Skybox"
-		if (minDepth == std::numeric_limits<float>::max()) {
+		if (intersectedObj != nullptr) {
+			// Hit something, color it
+			auto hitPt = pos + dir * minDepth;
+			output = intersectedObj->GetColor(hitPt);
+			//output = Color::FromVec(normal * (1.0f - Utils::InvLerpClamp(depth, 1.0f, 30.0f)), 1.0f);
+		}
+		else { 
+			// If we hit nothing, draw "Skybox"
 			output = Color(0x33, 0x33, 0x44, 0xff);
 		}
-
+		
 		return output;
 	}
 
 	void TraceScene() {
 
-		// Camera
-		const glm::vec3 cameraPos = glm::vec3(3.0f, 2.0f, 5.0f);
-		const glm::vec3 origin = glm::vec3(0.0f, 0.0f, 0.0f);
+		const Transform& camTransform = Game::camera.transform;
+		const glm::vec3 camPos = camTransform.Position();
 
 		// Sort scene objects
 		std::ranges::sort(Game::rootScene.entities, [&](const std::unique_ptr<Entity>& a, const std::unique_ptr<Entity>& b) {
-			return a->EstimatedDistanceTo(cameraPos) < b->EstimatedDistanceTo(cameraPos);
+			return a->EstimatedDistanceTo(camPos) < b->EstimatedDistanceTo(camPos);
 		});
 		
 		// Matrices
-		auto view = glm::lookAt(cameraPos, origin, glm::vec3(0.0f, 1.0f, 0.0f));
-		auto proj = glm::perspectiveFov(glm::radians(90.0f), (float)Game::window.width, (float)Game::window.height, 0.05f, 1000.0f);
+		glm::vec3 fwd = camTransform.Forward();
+		glm::vec3 up = camTransform.Up();
+		auto view = glm::lookAt(camTransform.Position(), camTransform.Position() + fwd, up);
+		auto proj = glm::perspectiveFov(glm::radians(Game::camera.fov), (float)Game::window.width, (float)Game::window.height, Game::camera.nearClip, Game::camera.farClip);
 		auto viewInv = glm::inverse(view);
 		auto projInv = glm::inverse(proj);
 
@@ -143,7 +155,7 @@ public:
 			glm::vec3 dir = viewInv * px;
 			dir = normalize(dir);
 			
-			textureBuffer[i] = TraceRay(cameraPos, dir);
+			textureBuffer[i] = TraceRay(camPos, dir);
 		});
 
 		bgfx::updateTexture2D(texture, 0, 0, 0, 0, Game::window.width, Game::window.height, mem);

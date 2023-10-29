@@ -1,18 +1,21 @@
 module;
 
 #include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/transform.hpp>
 #include <bgfx/bgfx.h>
 #include <cassert>
+#include <fstream>
 
 export module Utils;
 
 import <vector>;
 import <filesystem>;
-import <fstream>;
+
+import Log;
 
 /// <summary> Color structure for 4 byte colors </summary>
-export class Color {
-public:
+export struct Color {
     uint8_t r = 0, g = 0, b = 0, a = 0;
     
     Color() {}
@@ -26,6 +29,15 @@ public:
         c.g = static_cast<uint8_t>(glm::clamp(g * 255.0f, 0.0f, 255.0f)); 
         c.b = static_cast<uint8_t>(glm::clamp(b * 255.0f, 0.0f, 255.0f)); 
         c.a = static_cast<uint8_t>(glm::clamp(a * 255.0f, 0.0f, 255.0f));
+        return c;
+    }
+    /// <summary> Turns a float (0...1) to rgb byte color with 1.0 alpha </summary>
+    static auto FromFloat(const float& x) {
+        Color c;
+        c.r = static_cast<uint8_t>(glm::clamp(x * 255.0f, 0.0f, 255.0f));
+        c.g = static_cast<uint8_t>(glm::clamp(x * 255.0f, 0.0f, 255.0f));
+        c.b = static_cast<uint8_t>(glm::clamp(x * 255.0f, 0.0f, 255.0f));
+        c.a = 255;
         return c;
     }
 
@@ -92,14 +104,20 @@ export std::ostream& operator<<(std::ostream& target, const uint8_t& c) {
 }
 
 /// <summary> Simple axis-aligned bounding box </summary>
-export class AABB {
-public:
-
+export struct AABB {
     glm::vec3 min, max;
 
+    AABB() {}
     AABB(const glm::vec3& min, const glm::vec3& max) {
         this->min = min; this->max = max;
     }
+
+    AABB(const glm::vec3& pos) {
+        this->min = pos; this->max = pos;
+    }
+
+    glm::vec3 Center() const { return max * 0.5f + min * 0.5f; }
+    glm::vec3 Size() const { return max - min; }
 
     void Encapsulate(const glm::vec3& point) {
         min = glm::min(point, min);
@@ -122,42 +140,58 @@ public:
 };
 
 /// <summary> Various utility functions </summary>
-export class Utils {
-    // MSVC incorrectly complains about internal linkage when using namespaces so they're classes
-    Utils() = delete;
-public:
+export namespace Utils {
 
     /// <summary> Attempts to load a compiled bgfx shader, hard exits on fail </summary>
-    static bgfx::ShaderHandle LoadShader(const std::filesystem::path& path) {
-        auto buffer = LoadMemory(path);
+    bgfx::ShaderHandle LoadShader(const std::filesystem::path& path) {
+        assert(std::filesystem::exists(path));
+        
+        std::ifstream file = std::ifstream(path, std::ios::binary | std::ios::ate);
+        std::streamsize size = file.tellg();
+        file.seekg(0, std::ios::beg);
+        
+        const bgfx::Memory* buffer = bgfx::alloc(uint32_t(size + 1));
+        if (file.read((char*)buffer->data, size)) {
+            buffer->data[buffer->size - 1] = '\0';
+        }
+        
         assert(buffer != nullptr);
         return bgfx::createShader(buffer);
     }
 
     /// <summary> Projects vector a onto b </summary>
-    static glm::vec3 Project(const glm::vec3& a, const glm::vec3& b) { 
+    glm::vec3 Project(const glm::vec3& a, const glm::vec3& b) { 
         return b * glm::dot(a, b); 
     }
 
     /// <summary> Projects vector vec onto plane </summary>
-    static glm::vec3 ProjectOnPlane(const glm::vec3& vec, const glm::vec3& normal) {
+    glm::vec3 ProjectOnPlane(const glm::vec3& vec, const glm::vec3& normal) {
         return vec - Project(vec, normal);
     }
 
-private:
+    /// <summary> Returns where val is between min...max as 0...1 percentage </summary>
+    float InvLerp(const float& val, const float& min, const float& max) {
+        return (val - min) / (max - min); 
+    }
+    /// <summary> Returns where val is between min...max as 0...1 percentage </summary>
+    float InvLerpClamp(const float& val, const float& min, const float& max) {
+        return InvLerp(glm::clamp(val, min, max), min, max);
+    }
 
-    static const bgfx::Memory* LoadMemory(const std::filesystem::path& path) {
-        if (!std::filesystem::exists(path)) return nullptr;
-        std::ifstream file(path, std::ios::binary | std::ios::ate);
-        std::streamsize size = file.tellg();
-        file.seekg(0, std::ios::beg);
+    /// <summary> Constructs a model matrix from given pos/fwd/up/scale </summary>
+    glm::mat4x4 ModelMatrix(const glm::vec3& pos, const glm::vec3& lookAtTarget, const glm::vec3& scale) {
+        auto mat_pos = glm::translate(glm::mat4x4(1.0f), pos);
+        auto mat_rot = glm::mat4x4(glm::quatLookAt(glm::normalize(lookAtTarget - pos), glm::vec3(0, 1, 0)));
+        auto mat_scl = glm::scale(glm::vec3(1.0f, 1.0f, 1.0f));
+        return mat_pos * mat_rot * mat_scl;
+    }
 
-        const bgfx::Memory* mem = bgfx::alloc(uint32_t(size + 1)); // Bgfx deals with freeing; leaks on read fail?
-        if (file.read((char*)mem->data, size)) {
-            mem->data[mem->size - 1] = '\0';
-            return mem;
-        }
-        return nullptr;
+    void PrintMatrix(const glm::mat4x4& matrix) {
+        Log::Line("Matrix4x4:");
+        Log::LineFormatted("({}, {}, {}, {})", Log::FormatFloat(matrix[0][0]), Log::FormatFloat(matrix[1][0]), Log::FormatFloat(matrix[2][0]), Log::FormatFloat(matrix[3][0]));
+        Log::LineFormatted("({}, {}, {}, {})", Log::FormatFloat(matrix[0][1]), Log::FormatFloat(matrix[1][1]), Log::FormatFloat(matrix[2][1]), Log::FormatFloat(matrix[3][1]));
+        Log::LineFormatted("({}, {}, {}, {})", Log::FormatFloat(matrix[0][2]), Log::FormatFloat(matrix[1][2]), Log::FormatFloat(matrix[2][2]), Log::FormatFloat(matrix[3][2]));
+        Log::LineFormatted("({}, {}, {}, {})", Log::FormatFloat(matrix[0][3]), Log::FormatFloat(matrix[1][3]), Log::FormatFloat(matrix[2][3]), Log::FormatFloat(matrix[3][3]));
     }
 };
 

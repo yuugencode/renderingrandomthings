@@ -49,4 +49,11 @@ public:
         auto temp = std::string(std::vformat(str, std::make_format_args(args...)));
         Log::Screen(line, temp.c_str());
     }
+
+    /// <summary> Hacky way to print floats with 2 decimals so that indentation stays despite sign changing </summary>
+    static std::string FormatFloat(const float& val) {
+        std::string ret = std::format("{:.2f}", val);
+        if (ret.size() > 4) return ret;
+        else return " " + ret;
+    }
 };
