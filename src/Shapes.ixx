@@ -74,7 +74,12 @@ public:
 	}
 
 	Color GetColor(const glm::vec3& pos) const {
-		return Color(0xaa, 0xaa, 0xbb, 0xff);
+
+		// Simple grid
+		auto f = glm::fract(pos * 2.0f);
+		f = glm::abs(f - 0.5f) * 2.0f;
+		float a = glm::min(f.x, glm::min(f.y, f.z));
+		return Color::FromFloat(0.3f + Utils::InvLerpClamp(1.0f - a, 0.95f, 1.0f)); //Color(0xaa, 0xaa, 0xbb, 0xff);
 	};
 };
 

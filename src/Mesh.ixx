@@ -93,4 +93,16 @@ public:
             vertices->data()[i] = rotation * vertices->data()[i];
     }
 
+    void ScaleVertices(const float& scale) {
+        for (size_t i = 0; i < vertices->size(); i++) {
+            vertices->data()[i] = vertices->data()[i] * scale;
+        }
+    }
+
+    void OffsetVertices(const glm::vec3& offset) {
+        for (size_t i = 0; i < vertices->size(); i++) {
+            vertices->data()[i] = vertices->data()[i] + offset;
+        }
+    }
+
 };

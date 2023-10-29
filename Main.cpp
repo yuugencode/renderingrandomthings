@@ -65,15 +65,22 @@ int main(int argc, char* argv[]) {
 		.farClip = 1000.0f,
 	};
 
+	auto& camTf = Game::camera.transform; // Shorter alias
+
 	// Add stuff to the scene
 	Raytracer raytracer;
 	Game::rootScene.entities.push_back(std::make_unique<Disk>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 3.0f));
 	Game::rootScene.entities.push_back(std::make_unique<Sphere>(glm::vec3(2.0f, 0.5f, 0.0f), 0.5f));
 	Game::rootScene.entities.push_back(std::make_unique<Box>(glm::vec3(-2.0f, 0.5f, 0.0f), 0.5f));
 	
-	auto mesh = std::make_shared<Mesh>(std::filesystem::path("ext/char.fbx"));
-	mesh->RotateVertices( glm::quat(glm::vec3( glm::radians(-90.0f), 0.0f, 0.0f)));
+	//auto mesh = std::make_shared<Mesh>(std::filesystem::path("ext/char.fbx"));
+	auto mesh = std::make_shared<Mesh>(std::filesystem::path("ext/dragon.obj"));
+	mesh->ScaleVertices(0.01f);
+	mesh->OffsetVertices(glm::vec3(0, 0.5f, 0));
+	//mesh->RotateVertices( glm::quat(glm::vec3( glm::radians(-90.0f), 0.0f, 0.0f)));
 	Game::rootScene.entities.push_back(std::make_unique<RenderedMesh>(mesh));
+	
+	((RenderedMesh*)Game::rootScene.entities.back().get())->GenerateBVH(camTf.Forward());
 
 	Timer raytraceTimer(64);
 	bool showBgfxStats = false;
@@ -95,8 +102,6 @@ int main(int argc, char* argv[]) {
 		// System keys
 		if (Input::OnKeyDown(SDL_KeyCode::SDLK_ESCAPE) || Input::OnKeyDown(SDL_KeyCode::SDLK_RETURN)) break;
 		if (Input::OnKeyDown(SDL_KeyCode::SDLK_F1)) showBgfxStats = !showBgfxStats;
-
-		auto& camTf = Game::camera.transform; // Shorter alias
 
 		// Camera movement
 		auto offset = glm::vec3(0, 0, 0);
@@ -125,7 +130,7 @@ int main(int argc, char* argv[]) {
 		const bgfx::Stats* stats = bgfx::getStats();
 
 		Log::Screen(0, "F1 to toggle stats");
-		Log::Screen(1, "Backbuffer: {}W x {}H", stats->width, stats->height);
+		Log::Screen(1, "Backbuffer: {}x{}", stats->width, stats->height);
 		Log::Screen(2, "FPS: {}", Log::FormatFloat(1.0f / (float)Time::smoothDeltaTime));
 		Log::Screen(3, "Time: {}", Log::FormatFloat((float)Time::time));
 		Log::Screen(4, "Mouse Buttons: {} {} {}", Input::MouseHeld(SDL_BUTTON_LEFT), Input::MouseHeld(SDL_BUTTON_MIDDLE), Input::MouseHeld(SDL_BUTTON_RIGHT));
@@ -138,8 +143,10 @@ int main(int argc, char* argv[]) {
 		raytraceTimer.Start();
 		raytracer.TraceScene();
 		raytraceTimer.End();
-		Log::Screen(7, "Tracing (ms): {}", raytraceTimer.GetAveragedTime() * 1000.0);
+		Log::Screen(7, "Tracing (ms): {}", Log::FormatFloat((float)raytraceTimer.GetAveragedTime() * 1000.0f));
 		
+		Log::Screen(8, "{} vertices, {} triangles", mesh->vertices->size(), mesh->triangles->size() / 3);
+
 		ImguiDrawer::Render();
 
 		// Dump on screen
