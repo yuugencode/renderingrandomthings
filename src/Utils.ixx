@@ -125,8 +125,7 @@ export struct AABB {
     }
 
     // Slab method
-    float Intersect(const glm::vec3& ro, const glm::vec3& rd) const {
-        auto invDir = 1.0f / rd;
+    float Intersect(const glm::vec3& ro, const glm::vec3& rd, const glm::vec3& invDir) const {
         auto a = (min - ro) * invDir;
         auto b = (max - ro) * invDir;
         auto mi = glm::min(a, b);
@@ -136,6 +135,11 @@ export struct AABB {
         if (maxT < 0.0f) return 0.0f;
         if (minT > maxT) return 0.0f;
         return minT;
+    }
+
+    float Intersect(const glm::vec3& ro, const glm::vec3& rd) const {
+        const auto& invDir = 1.0f / rd;
+        return Intersect(ro, rd, invDir);
     }
 };
 

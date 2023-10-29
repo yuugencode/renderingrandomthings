@@ -1,3 +1,5 @@
+#define GLM_FORCE_LEFT_HANDED 1
+
 #include <bgfx/bgfx.h>
 #include <bgfx/platform.h>
 #include <sdl/SDL.h>
@@ -54,7 +56,10 @@ int main(int argc, char* argv[]) {
 
 	// Camera
 	Game::camera = {
-		.transform = Utils::ModelMatrix(glm::vec3(2.0f, 1.0f, 3.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f)),
+		.transform = { 
+			.position = glm::vec3(2.0f, 1.0f * 4.0f, 3.0f) * 0.25f, 
+			.rotation = glm::quatLookAt(glm::normalize(-glm::vec3(2.0f, 1.0f, 3.0f)), glm::vec3(0,1,0)),
+			.scale = glm::vec3(1,1,1) },
 		.fov = 70.0f,
 		.nearClip = 0.05f,
 		.farClip = 1000.0f,
@@ -67,10 +72,10 @@ int main(int argc, char* argv[]) {
 	Game::rootScene.entities.push_back(std::make_unique<Box>(glm::vec3(-2.0f, 0.5f, 0.0f), 0.5f));
 	
 	auto mesh = std::make_shared<Mesh>(std::filesystem::path("ext/char.fbx"));
+	mesh->RotateVertices( glm::quat(glm::vec3( glm::radians(-90.0f), 0.0f, 0.0f)));
 	Game::rootScene.entities.push_back(std::make_unique<RenderedMesh>(mesh));
 
 	Timer raytraceTimer(64);
-	
 	bool showBgfxStats = false;
 
 	// Main loop
@@ -91,6 +96,8 @@ int main(int argc, char* argv[]) {
 		if (Input::OnKeyDown(SDL_KeyCode::SDLK_ESCAPE) || Input::OnKeyDown(SDL_KeyCode::SDLK_RETURN)) break;
 		if (Input::OnKeyDown(SDL_KeyCode::SDLK_F1)) showBgfxStats = !showBgfxStats;
 
+		auto& camTf = Game::camera.transform; // Shorter alias
+
 		// Camera movement
 		auto offset = glm::vec3(0, 0, 0);
 		if (Input::KeyHeld(SDL_KeyCode::SDLK_w)) offset += glm::vec3(0,0, 1);
@@ -99,16 +106,17 @@ int main(int argc, char* argv[]) {
 		if (Input::KeyHeld(SDL_KeyCode::SDLK_d)) offset += glm::vec3( 1,0,0);
 		if (Input::KeyHeld(SDL_KeyCode::SDLK_e)) offset += glm::vec3(0, 1,0);
 		if (Input::KeyHeld(SDL_KeyCode::SDLK_q)) offset += glm::vec3(0,-1,0);
-		Game::camera.transform.LocalTranslate(offset * Time::deltaTimeF * 10.0f);
+		camTf.position += camTf.rotation * offset * Time::deltaTimeF * 10.0f;
 
 		// Mouse rotation on right click
 		static int clickPos[2];
 		if (Input::OnMouseDown(SDL_BUTTON_RIGHT)) SDL_SetRelativeMouseMode(SDL_TRUE);
 		if (Input::OnMouseUp(SDL_BUTTON_RIGHT)) SDL_SetRelativeMouseMode(SDL_FALSE);
 		if (Input::MouseHeld(SDL_BUTTON_RIGHT)) {
-			auto rot = glm::quat(-glm::vec3(Input::mouseDelta[1], Input::mouseDelta[0], 0.0f) * 0.0075f);
-			Game::camera.transform.matrix *= glm::mat4x4(rot);
-			Game::camera.transform.LookAtDir(Game::camera.transform.Forward(), glm::vec3(0, 1, 0));
+			auto xy = glm::vec2(Input::mouseDelta[0], Input::mouseDelta[1]) * 0.0075f;
+			auto os1 = glm::angleAxis(xy.x, glm::vec3(0,1,0));
+			auto os2 = glm::angleAxis(xy.y, glm::vec3(1,0,0));
+			camTf.rotation = (os1 * camTf.rotation) * os2;
 		}
 
 		// Render debug info

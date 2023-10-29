@@ -1,14 +1,15 @@
 module;
 
 #include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <../3rdparty/ufbx/ufbx.h>
+#include <vector> // Intellisense breaks if this is an import...
 
 export module Mesh;
 
 import <memory>;
 import <filesystem>;
 import <fstream>;
-import <vector>;
 import Log;
 
 export class Mesh {
@@ -86,5 +87,10 @@ public:
 
         ufbx_free_scene(scene);
 	}
+
+    void RotateVertices(const glm::quat& rotation) {
+        for (size_t i = 0; i < vertices->size(); i++)
+            vertices->data()[i] = rotation * vertices->data()[i];
+    }
 
 };
