@@ -7,7 +7,11 @@ module;
 
 export module Raytracer;
 
-import Game;
+import Utils;
+import Window;
+import Entity;
+import Scene;
+import Transform;
 import Shapes;
 import RenderedMesh;
 import <memory>;
@@ -15,7 +19,6 @@ import <filesystem>;
 import <algorithm>;
 
 export class Raytracer {
-
 public:
 
 	// bgfx Rendering layer
@@ -40,7 +43,13 @@ public:
 	};
 	bgfx::VertexLayout vtxLayout;
 
-	Raytracer() {
+	const Window* window;
+
+	Timer timer;
+
+	void Create(const Window& window) {
+
+		this->window = &window;
 
 		vtxLayout
 			.begin()
@@ -50,10 +59,10 @@ public:
 			.end();
 
 		// Create mutable texture
-		texture = bgfx::createTexture2D(Game::window.width, Game::window.height, false, 1, textureFormat);
+		texture = bgfx::createTexture2D(window.width, window.height, false, 1, textureFormat);
 		
 		bgfx::TextureInfo info;
-		bgfx::calcTextureSize(info, Game::window.width, Game::window.height, 1, false, false, 1, textureFormat);
+		bgfx::calcTextureSize(info, window.width, window.height, 1, false, false, 1, textureFormat);
 		textureBufferSize = info.storageSize;
 		textureBuffer = new Color[textureBufferSize]; // (Color*)malloc(textureBufferSize);
 
@@ -73,7 +82,7 @@ public:
 		bgfx::setViewRect(VIEW_LAYER, 0, 0, bgfx::BackbufferRatio::Equal);
 	}
 
-	Color TraceRay(const glm::vec3& pos, const glm::vec3& dir) {
+	Color TraceRay(const Scene& scene, const glm::vec3& pos, const glm::vec3& dir) {
 		
 		Color output;
 		float minDepth = std::numeric_limits<float>::max();
@@ -82,7 +91,7 @@ public:
 		Entity* intersectedObj = nullptr;
 
 		// Loop all objects, could use something more sophisticated for larger scenes but a simple loop gets us pretty far
-		for (const auto& entity : Game::rootScene.entities) {
+		for (const auto& entity : scene.entities) {
 			
 			bool intersect;
 			float depth;
@@ -113,7 +122,6 @@ public:
 			// Hit something, color it
 			auto hitPt = pos + dir * minDepth;
 			output = intersectedObj->GetColor(hitPt, extraData);
-			//output = Color::FromVec(normal * (1.0f - Utils::InvLerpClamp(depth, 1.0f, 30.0f)), 1.0f);
 		}
 		else { 
 			// If we hit nothing, draw "Skybox"
@@ -123,31 +131,28 @@ public:
 		return output;
 	}
 
-	void TraceScene() {
+	void TraceScene(const Scene& scene) {
 
-		const Transform& camTransform = Game::camera.transform;
-		const glm::vec3 camPos = camTransform.Position();
+		timer.Start();
 
-		// Sort scene objects
-		std::ranges::sort(Game::rootScene.entities, [&](const std::unique_ptr<Entity>& a, const std::unique_ptr<Entity>& b) {
-			return a->EstimatedDistanceTo(camPos) < b->EstimatedDistanceTo(camPos);
-		});
+		const Transform& camTransform = scene.camera.transform;
+		const glm::vec3 camPos = camTransform.position;
 		
 		// Matrices
 		glm::vec3 fwd = camTransform.Forward();
 		glm::vec3 up = camTransform.Up();
-		auto view = glm::lookAt(camTransform.Position(), camTransform.Position() + fwd, up);
-		auto proj = glm::perspectiveFov(glm::radians(Game::camera.fov), (float)Game::window.width, (float)Game::window.height, Game::camera.nearClip, Game::camera.farClip);
+		auto view = glm::lookAt(camTransform.position, camTransform.position + fwd, up);
+		auto proj = glm::perspectiveFov(glm::radians(scene.camera.fov), (float)window->width, (float)window->height, scene.camera.nearClip, scene.camera.farClip);
 		auto viewInv = glm::inverse(view);
 		auto projInv = glm::inverse(proj);
 
 		const bgfx::Memory* mem = bgfx::makeRef(textureBuffer, (uint32_t)textureBufferSize);
 
 		// Modify the texture on cpu in a multithreaded function
-		// @TODO: Probably can optimize this with cache locality, loop order etc but it's fast enough for now
+		// @TODO: Probably can optimize this with cache locality, loop order etc
 		concurrency::parallel_for(size_t(0), size_t(textureBufferSize / 4), [&](size_t i) {
-			float xcoord = ((float)(i % Game::window.width)) / Game::window.width;
-			float ycoord = ((float)(i / Game::window.width)) / Game::window.height;
+			float xcoord = (float)(i % window->width) / window->width;
+			float ycoord = (float)(i / window->width) / window->height;
 			
 			// Create view ray from proj/view matrices
 			glm::vec2 pixel = glm::vec2(xcoord, ycoord) * 2.0f - 1.0f;
@@ -158,10 +163,10 @@ public:
 			glm::vec3 dir = viewInv * px;
 			dir = normalize(dir);
 			
-			textureBuffer[i] = TraceRay(camPos, dir);
+			textureBuffer[i] = TraceRay(scene, camPos, dir);
 		});
 
-		bgfx::updateTexture2D(texture, 0, 0, 0, 0, Game::window.width, Game::window.height, mem);
+		bgfx::updateTexture2D(texture, 0, 0, 0, 0, window->width, window->height, mem);
 
 		// Render a single triangle as a fullscreen pass
 		if (bgfx::getAvailTransientVertexBuffer(3, vtxLayout) == 3) {
@@ -173,9 +178,9 @@ public:
 
 			// Vertices
 			const Color clr(0x00, 0x00, 0x00, 0xff);
-			vertex[0] = PosColorTexCoord0Vertex{ .pos = glm::vec3(0.0f, 0.0f, 0.0f),				.rgba = clr, .uv = glm::vec2(0.0f, 0.0f) };
-			vertex[1] = PosColorTexCoord0Vertex{ .pos = glm::vec3(Game::window.width, 0.0f, 0.0f),	.rgba = clr, .uv = glm::vec2(2.0f, 0.0f) };
-			vertex[2] = PosColorTexCoord0Vertex{ .pos = glm::vec3(0.0f, Game::window.height, 0.0f),	.rgba = clr, .uv = glm::vec2(0.0f, 2.0f) };
+			vertex[0] = PosColorTexCoord0Vertex{ .pos = glm::vec3(0.0f, 0.0f, 0.0f),			.rgba = clr, .uv = glm::vec2(0.0f, 0.0f) };
+			vertex[1] = PosColorTexCoord0Vertex{ .pos = glm::vec3(window->width, 0.0f, 0.0f),	.rgba = clr, .uv = glm::vec2(2.0f, 0.0f) };
+			vertex[2] = PosColorTexCoord0Vertex{ .pos = glm::vec3(0.0f, window->height, 0.0f),	.rgba = clr, .uv = glm::vec2(0.0f, 2.0f) };
 
 			// Set data and submit
 			bgfx::setViewTransform(VIEW_LAYER, &view, &proj);
@@ -184,6 +189,8 @@ public:
 			bgfx::setVertexBuffer(0, &vb);
 			bgfx::submit(VIEW_LAYER, program);
 		}
+
+		timer.End();
 	}
 
 	~Raytracer() {

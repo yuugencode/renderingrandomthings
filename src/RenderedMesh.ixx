@@ -9,8 +9,7 @@ import <memory>;
 import Entity;
 import Mesh;
 import Bvh;
-import Timer;
-import Log;
+import Utils;
 
 /// <summary> A mesh consisting of triangles that can be raytraced </summary>
 export struct RenderedMesh : Entity {
@@ -78,11 +77,17 @@ public:
 		// Barycentric interpolation as if we were a real shader
 		const auto b = Barycentric(pos, p0, p1, p2);
 		
-		const auto uv = uv0 * b.x + uv1 * b.y + uv2 * b.z;
-		return Color::FromFloat(uv.x, uv.y, 0.0f, 1.0f);
+		//const auto uv = uv0 * b.x + uv1 * b.y + uv2 * b.z;
+		//return Color::FromFloat(uv.x, uv.y, 0.0f, 1.0f);
 
-		//auto ret = n0 * b.x + n1 * b.y + n2 * b.z;
-		//return Color::FromVec(ret, 1.0f);
+		if (mesh->hasNormals) {
+			auto ret = n0 * b.x + n1 * b.y + n2 * b.z;
+			return Color::FromVec(ret, 1.0f);
+		}
+		else {
+			auto ret = glm::normalize(glm::cross(p0 - p1, p0 - p2));
+			return Color::FromVec(ret, 1.0f);
+		}
 
 		//const auto clr = (c0 * b.x + c1 * b.y + c2 * b.z);
 		//return Color::FromVec(clr);

@@ -4,7 +4,6 @@ module;
 
 export module Bvh;
 
-import <memory>;
 import <vector>;
 import Utils;
 import Log;

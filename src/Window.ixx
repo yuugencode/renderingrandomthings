@@ -9,8 +9,6 @@ export module Window;
 
 import Log;
 
-struct SDL_Window;
-
 /// <summary> Simple wrapper for SDL_Window </summary>
 export class Window {
 public:

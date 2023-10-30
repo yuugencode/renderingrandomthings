@@ -8,6 +8,7 @@
 #include <glm/gtx/transform.hpp>
 #include <sdl/SDL.h>
 
+import <algorithm>;
 import MiAllocator;
 import ImguiDrawer;
 import BgfxCallback;
@@ -15,7 +16,9 @@ import Raytracer;
 import Game;
 import Timer;
 import Mesh;
+import Shapes;
 import RenderedMesh;
+import Utils;
 
 int main(int argc, char* argv[]) {
 
@@ -56,7 +59,7 @@ int main(int argc, char* argv[]) {
 	ImguiDrawer::Init();
 
 	// Camera
-	Game::camera = {
+	Game::scene.camera = {
 		.transform = { 
 			.position = glm::vec3(2.0f, 1.0f + 1.0f, 3.0f) * 0.5f, 
 			.rotation = glm::quatLookAt(glm::normalize(-glm::vec3(2.0f, 1.0f, 3.0f)), glm::vec3(0,1,0)),
@@ -66,16 +69,16 @@ int main(int argc, char* argv[]) {
 		.farClip = 1000.0f,
 	};
 
-	auto& camTf = Game::camera.transform; // Shorter alias
+	auto& camTf = Game::scene.camera.transform; // Shorter alias
 
-	Raytracer raytracer;
-	
+	// Create renderer
+	Game::raytracer.Create(Game::window);
+
 	// Add stuff to the scene
-	
 	// Parametric shapes
-	Game::rootScene.entities.push_back(std::make_unique<Disk>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 3.0f));
-	Game::rootScene.entities.push_back(std::make_unique<Sphere>(glm::vec3(2.0f, 0.5f, 0.0f), 0.5f));
-	Game::rootScene.entities.push_back(std::make_unique<Box>(glm::vec3(-2.0f, 0.5f, 0.0f), 0.5f));
+	Game::scene.entities.push_back(std::make_unique<Disk>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 3.0f));
+	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(2.0f, 0.5f, 0.0f), 0.5f));
+	Game::scene.entities.push_back(std::make_unique<Box>(glm::vec3(-2.0f, 0.5f, 0.0f), 0.5f));
 	
 	// Mesh 1
 	auto mesh = std::make_shared<Mesh>(std::filesystem::path("ext/char.fbx"));
@@ -83,7 +86,7 @@ int main(int argc, char* argv[]) {
 
 	auto rendMesh = std::make_unique<RenderedMesh>(mesh);
 	rendMesh->GenerateBVH();
-	Game::rootScene.entities.push_back(std::move(rendMesh));
+	Game::scene.entities.push_back(std::move(rendMesh));
 
 	// Mesh 2
 	auto mesh2 = std::make_shared<Mesh>(std::filesystem::path("ext/dragon.obj"));
@@ -92,7 +95,7 @@ int main(int argc, char* argv[]) {
 	
 	auto rendMesh2 = std::make_unique<RenderedMesh>(mesh2);
 	rendMesh2->GenerateBVH();
-	Game::rootScene.entities.push_back(std::move(rendMesh2));
+	Game::scene.entities.push_back(std::move(rendMesh2));
 
 	// Mesh 3
 	auto mesh3 = std::make_shared<Mesh>(std::filesystem::path("ext/rock.fbx"));
@@ -100,10 +103,8 @@ int main(int argc, char* argv[]) {
 
 	auto rendMesh3 = std::make_unique<RenderedMesh>(mesh3);
 	rendMesh3->GenerateBVH();
-	Game::rootScene.entities.push_back(std::move(rendMesh3));
+	Game::scene.entities.push_back(std::move(rendMesh3));
 
-	// Debug stuff
-	Timer raytraceTimer(64);
 	bool showBgfxStats = false;
 
 	// Main loop
@@ -118,7 +119,7 @@ int main(int argc, char* argv[]) {
 
 		// Imgui
 		ImguiDrawer::NewFrame();
-		ImguiDrawer::TestDraws();
+		ImguiDrawer::DrawUI();
 
 		// System keys
 		if (Input::OnKeyDown(SDL_KeyCode::SDLK_ESCAPE) || Input::OnKeyDown(SDL_KeyCode::SDLK_RETURN)) break;
@@ -146,34 +147,17 @@ int main(int argc, char* argv[]) {
 			camTf.rotation = (os1 * camTf.rotation) * os2;
 		}
 
-		// Render debug info
+		// Bgfx debug info
 		bgfx::dbgTextClear();
 		bgfx::setDebug(showBgfxStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
-		const bgfx::Stats* stats = bgfx::getStats();
 
-		Log::Screen(0, "Backbuffer: {}x{}", stats->width, stats->height);
-		Log::Screen(1, "FPS: {}", Log::FormatFloat(1.0f / (float)Time::smoothDeltaTime));
-		Log::Screen(2, "Time: {}", Log::FormatFloat((float)Time::time));
-		Log::Screen(3, "Mouse Buttons: {} {} {}", Input::MouseHeld(SDL_BUTTON_LEFT), Input::MouseHeld(SDL_BUTTON_MIDDLE), Input::MouseHeld(SDL_BUTTON_RIGHT));
-		Log::Screen(4, "Mouse delta: {}, {}", Input::mouseDelta[0], Input::mouseDelta[1]);
+		// Sort scene objects
+		std::ranges::sort(Game::scene.entities, [&](const std::unique_ptr<Entity>& a, const std::unique_ptr<Entity>& b) {
+			return a->EstimatedDistanceTo(camTf.position) < b->EstimatedDistanceTo(camTf.position);
+		});
 
-		const auto cPos = Game::camera.transform.Position();
-		Log::Screen(5, "Camera Pos: ({} {} {})", Log::FormatFloat(cPos.x), Log::FormatFloat(cPos.y), Log::FormatFloat(cPos.z));
-
-		// Trace the scene and print averaged time it took
-		raytraceTimer.Start();
-		raytracer.TraceScene();
-		raytraceTimer.End();
-		Log::Screen(6, "Tracing (ms): {}", Log::FormatFloat((float)raytraceTimer.GetAveragedTime() * 1000.0f));
-		
-		uint32_t totalVertices = 0, totalTris = 0;
-		for (const auto& entity : Game::rootScene.entities) {
-			if (entity->type == Entity::Type::RenderedMesh) {
-				totalVertices += (uint32_t)((RenderedMesh*)entity.get())->mesh->vertices.size();
-				totalTris += (uint32_t)((RenderedMesh*)entity.get())->mesh->triangles.size() / 3;
-			}
-		}
-		Log::Screen(7, "{} vertices, {} triangles", totalVertices, totalTris / 3);
+		// Trace the scene
+		Game::raytracer.TraceScene(Game::scene);
 
 		ImguiDrawer::Render();
 

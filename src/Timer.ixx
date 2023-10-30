@@ -11,6 +11,7 @@ public:
 
 	std::vector<double> times;
 
+	Timer() { times.reserve(32); }
 	Timer(size_t size) {
 		times.reserve(size);
 	}

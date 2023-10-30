@@ -12,7 +12,11 @@ export module Utils;
 import <vector>;
 import <filesystem>;
 
-import Log;
+// Standalone common imports
+export import Log;
+export import Input;
+export import Time;
+export import Timer;
 
 /// <summary> Color structure for 4 byte colors </summary>
 export struct Color {

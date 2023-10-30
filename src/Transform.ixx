@@ -6,7 +6,6 @@ module;
 
 export module Transform;
 
-import Log;
 import Utils;
 
 /// <summary> Wrapper from mat4x4 and some utility functions </summary>
@@ -16,7 +15,6 @@ export struct Transform {
 	glm::quat rotation;
 	glm::vec3 scale;
 
-	glm::vec3 Position() const { return  position; }
 	glm::vec3 Forward() const { return rotation * glm::vec3(0, 0, 1); }
 	glm::vec3 Up() const { return  rotation * glm::vec3(0, 1, 0); }
 	glm::vec3 Right() const { return  rotation * glm::vec3(1, 0, 0); }
