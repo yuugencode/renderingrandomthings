@@ -11,7 +11,6 @@ export import Time;
 export import Entity;
 export import Input;
 export import Shapes;
-export import RenderedMesh;
 export import Transform;
 export import Camera;
 

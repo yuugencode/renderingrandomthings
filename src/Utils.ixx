@@ -42,24 +42,22 @@ export struct Color {
     }
 
     /// <summary> Turns a float vector (0...1) to a byte color </summary>
-    static auto FromVec(glm::vec3 v, const float& alpha) {
-        v = glm::clamp(v * 255.0f, 0.0f, 255.0f);
+    static auto FromVec(const glm::vec3& v, const float& alpha) {
         Color c;
-        c.r = static_cast<uint8_t>(v.x);
-        c.g = static_cast<uint8_t>(v.y);
-        c.b = static_cast<uint8_t>(v.z);
+        c.r = static_cast<uint8_t>(glm::clamp(v.x * 255.0f, 0.0f, 255.0f));
+        c.g = static_cast<uint8_t>(glm::clamp(v.y * 255.0f, 0.0f, 255.0f));
+        c.b = static_cast<uint8_t>(glm::clamp(v.z * 255.0f, 0.0f, 255.0f));
         c.a = static_cast<uint8_t>(alpha);
         return c;
     }
 
     /// <summary> Turns a float vector (0...1) to a byte color </summary>
-    static auto FromVec(glm::vec4 v) {
-        v = glm::clamp(v * 255.0f, 0.0f, 255.0f);
+    static auto FromVec(const glm::vec4& v) {
         Color c;
-        c.r = static_cast<uint8_t>(v.x);
-        c.g = static_cast<uint8_t>(v.y);
-        c.b = static_cast<uint8_t>(v.z);
-        c.a = static_cast<uint8_t>(v.w);
+        c.r = static_cast<uint8_t>(glm::clamp(v.x * 255.0f, 0.0f, 255.0f));
+        c.g = static_cast<uint8_t>(glm::clamp(v.y * 255.0f, 0.0f, 255.0f));
+        c.b = static_cast<uint8_t>(glm::clamp(v.z * 255.0f, 0.0f, 255.0f));
+        c.a = static_cast<uint8_t>(glm::clamp(v.w * 255.0f, 0.0f, 255.0f));
         return c;
     }
 
@@ -74,7 +72,7 @@ export struct Color {
     }
 
     /// <summary> Lerps color towards another using t = 0...1 </summary>
-    Color Lerp(const Color& other, float t) {
+    Color Lerp(const Color& other, const float& t) const {
         return Color::Lerp(*this, other, t);
     }
 
@@ -124,16 +122,16 @@ export struct AABB {
         max = glm::max(point, max);
     }
 
-    // Slab method
+    // Standard slab method
     float Intersect(const glm::vec3& ro, const glm::vec3& rd, const glm::vec3& invDir) const {
-        auto a = (min - ro) * invDir;
-        auto b = (max - ro) * invDir;
-        auto mi = glm::min(a, b);
-        auto ma = glm::max(a, b);
-        auto minT = glm::max(glm::max(mi.x, mi.y), mi.z);
-        auto maxT = glm::min(glm::min(ma.x, ma.y), ma.z);
-        if (maxT < 0.0f) return 0.0f;
+        const auto a = (min - ro) * invDir;
+        const auto b = (max - ro) * invDir;
+        const auto mi = glm::min(a, b);
+        const auto ma = glm::max(a, b);
+        const auto minT = glm::max(glm::max(mi.x, mi.y), mi.z);
+        const auto maxT = glm::min(glm::min(ma.x, ma.y), ma.z);
         if (minT > maxT) return 0.0f;
+        if (maxT < 0.0f) return maxT;
         return minT;
     }
 
@@ -155,9 +153,8 @@ export namespace Utils {
         file.seekg(0, std::ios::beg);
         
         const bgfx::Memory* buffer = bgfx::alloc(uint32_t(size + 1));
-        if (file.read((char*)buffer->data, size)) {
+        if (file.read((char*)buffer->data, size))
             buffer->data[buffer->size - 1] = '\0';
-        }
         
         assert(buffer != nullptr);
         return bgfx::createShader(buffer);

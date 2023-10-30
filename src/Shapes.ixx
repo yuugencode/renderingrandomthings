@@ -37,7 +37,7 @@ public:
 		return glm::max(glm::distance(pos, this->pos) - radius, 0.0f);
 	}
 
-	Color GetColor(const glm::vec3& pos) const {
+	Color GetColor(const glm::vec3& pos, const uint32_t& extraData) const {
 		auto nrm = glm::normalize(pos - this->pos);
 		return Color::FromVec(nrm, 1.0f);
 	};
@@ -73,7 +73,7 @@ public:
 		return glm::length(os);
 	}
 
-	Color GetColor(const glm::vec3& pos) const {
+	Color GetColor(const glm::vec3& pos, const uint32_t& extraData) const {
 
 		// Simple grid
 		auto f = glm::fract(pos * 2.0f);
@@ -107,7 +107,7 @@ public:
 		return glm::max(glm::distance(pos, aabb.Center()) - aabb.Size().x, 0.0f);
 	}
 
-	Color GetColor(const glm::vec3& pos) const {
+	Color GetColor(const glm::vec3& pos, const uint32_t& extraData) const {
 	
 		auto nrm = pos - aabb.Center();
 		

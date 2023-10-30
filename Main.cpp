@@ -15,6 +15,7 @@ import Raytracer;
 import Game;
 import Timer;
 import Mesh;
+import RenderedMesh;
 
 int main(int argc, char* argv[]) {
 
@@ -57,7 +58,7 @@ int main(int argc, char* argv[]) {
 	// Camera
 	Game::camera = {
 		.transform = { 
-			.position = glm::vec3(2.0f, 1.0f * 4.0f, 3.0f) * 0.25f, 
+			.position = glm::vec3(2.0f, 1.0f + 1.0f, 3.0f) * 0.5f, 
 			.rotation = glm::quatLookAt(glm::normalize(-glm::vec3(2.0f, 1.0f, 3.0f)), glm::vec3(0,1,0)),
 			.scale = glm::vec3(1,1,1) },
 		.fov = 70.0f,
@@ -67,21 +68,41 @@ int main(int argc, char* argv[]) {
 
 	auto& camTf = Game::camera.transform; // Shorter alias
 
-	// Add stuff to the scene
 	Raytracer raytracer;
+	
+	// Add stuff to the scene
+	
+	// Parametric shapes
 	Game::rootScene.entities.push_back(std::make_unique<Disk>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 3.0f));
 	Game::rootScene.entities.push_back(std::make_unique<Sphere>(glm::vec3(2.0f, 0.5f, 0.0f), 0.5f));
 	Game::rootScene.entities.push_back(std::make_unique<Box>(glm::vec3(-2.0f, 0.5f, 0.0f), 0.5f));
 	
-	//auto mesh = std::make_shared<Mesh>(std::filesystem::path("ext/char.fbx"));
-	auto mesh = std::make_shared<Mesh>(std::filesystem::path("ext/dragon.obj"));
-	mesh->ScaleVertices(0.01f);
-	mesh->OffsetVertices(glm::vec3(0, 0.5f, 0));
-	//mesh->RotateVertices( glm::quat(glm::vec3( glm::radians(-90.0f), 0.0f, 0.0f)));
-	Game::rootScene.entities.push_back(std::make_unique<RenderedMesh>(mesh));
-	
-	((RenderedMesh*)Game::rootScene.entities.back().get())->GenerateBVH(camTf.Forward());
+	// Mesh 1
+	auto mesh = std::make_shared<Mesh>(std::filesystem::path("ext/char.fbx"));
+	mesh->RotateVertices( glm::quat(glm::vec3( glm::radians(-90.0f), 0.0f, 0.0f)));
 
+	auto rendMesh = std::make_unique<RenderedMesh>(mesh);
+	rendMesh->GenerateBVH();
+	Game::rootScene.entities.push_back(std::move(rendMesh));
+
+	// Mesh 2
+	auto mesh2 = std::make_shared<Mesh>(std::filesystem::path("ext/dragon.obj"));
+	mesh2->ScaleVertices(0.01f);
+	mesh2->OffsetVertices(glm::vec3(0, 0.5f, 0));
+	
+	auto rendMesh2 = std::make_unique<RenderedMesh>(mesh2);
+	rendMesh2->GenerateBVH();
+	Game::rootScene.entities.push_back(std::move(rendMesh2));
+
+	// Mesh 3
+	auto mesh3 = std::make_shared<Mesh>(std::filesystem::path("ext/rock.fbx"));
+	mesh3->ScaleVertices(0.1f);
+
+	auto rendMesh3 = std::make_unique<RenderedMesh>(mesh3);
+	rendMesh3->GenerateBVH();
+	Game::rootScene.entities.push_back(std::move(rendMesh3));
+
+	// Debug stuff
 	Timer raytraceTimer(64);
 	bool showBgfxStats = false;
 
@@ -111,7 +132,8 @@ int main(int argc, char* argv[]) {
 		if (Input::KeyHeld(SDL_KeyCode::SDLK_d)) offset += glm::vec3( 1,0,0);
 		if (Input::KeyHeld(SDL_KeyCode::SDLK_e)) offset += glm::vec3(0, 1,0);
 		if (Input::KeyHeld(SDL_KeyCode::SDLK_q)) offset += glm::vec3(0,-1,0);
-		camTf.position += camTf.rotation * offset * Time::deltaTimeF * 10.0f;
+		if (Input::KeyHeld(SDL_KeyCode::SDLK_LSHIFT)) offset *= 0.2f;
+		camTf.position += camTf.rotation * offset * Time::deltaTimeF * 4.0f;
 
 		// Mouse rotation on right click
 		static int clickPos[2];
@@ -129,23 +151,29 @@ int main(int argc, char* argv[]) {
 		bgfx::setDebug(showBgfxStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
 		const bgfx::Stats* stats = bgfx::getStats();
 
-		Log::Screen(0, "F1 to toggle stats");
-		Log::Screen(1, "Backbuffer: {}x{}", stats->width, stats->height);
-		Log::Screen(2, "FPS: {}", Log::FormatFloat(1.0f / (float)Time::smoothDeltaTime));
-		Log::Screen(3, "Time: {}", Log::FormatFloat((float)Time::time));
-		Log::Screen(4, "Mouse Buttons: {} {} {}", Input::MouseHeld(SDL_BUTTON_LEFT), Input::MouseHeld(SDL_BUTTON_MIDDLE), Input::MouseHeld(SDL_BUTTON_RIGHT));
-		Log::Screen(5, "Mouse delta: {}, {}", Input::mouseDelta[0], Input::mouseDelta[1]);
+		Log::Screen(0, "Backbuffer: {}x{}", stats->width, stats->height);
+		Log::Screen(1, "FPS: {}", Log::FormatFloat(1.0f / (float)Time::smoothDeltaTime));
+		Log::Screen(2, "Time: {}", Log::FormatFloat((float)Time::time));
+		Log::Screen(3, "Mouse Buttons: {} {} {}", Input::MouseHeld(SDL_BUTTON_LEFT), Input::MouseHeld(SDL_BUTTON_MIDDLE), Input::MouseHeld(SDL_BUTTON_RIGHT));
+		Log::Screen(4, "Mouse delta: {}, {}", Input::mouseDelta[0], Input::mouseDelta[1]);
 
 		const auto cPos = Game::camera.transform.Position();
-		Log::Screen(6, "Camera Pos: ({} {} {})", Log::FormatFloat(cPos.x), Log::FormatFloat(cPos.y), Log::FormatFloat(cPos.z));
+		Log::Screen(5, "Camera Pos: ({} {} {})", Log::FormatFloat(cPos.x), Log::FormatFloat(cPos.y), Log::FormatFloat(cPos.z));
 
 		// Trace the scene and print averaged time it took
 		raytraceTimer.Start();
 		raytracer.TraceScene();
 		raytraceTimer.End();
-		Log::Screen(7, "Tracing (ms): {}", Log::FormatFloat((float)raytraceTimer.GetAveragedTime() * 1000.0f));
+		Log::Screen(6, "Tracing (ms): {}", Log::FormatFloat((float)raytraceTimer.GetAveragedTime() * 1000.0f));
 		
-		Log::Screen(8, "{} vertices, {} triangles", mesh->vertices.size(), mesh->triangles.size() / 3);
+		uint32_t totalVertices = 0, totalTris = 0;
+		for (const auto& entity : Game::rootScene.entities) {
+			if (entity->type == Entity::Type::RenderedMesh) {
+				totalVertices += (uint32_t)((RenderedMesh*)entity.get())->mesh->vertices.size();
+				totalTris += (uint32_t)((RenderedMesh*)entity.get())->mesh->triangles.size() / 3;
+			}
+		}
+		Log::Screen(7, "{} vertices, {} triangles", totalVertices, totalTris / 3);
 
 		ImguiDrawer::Render();
 

@@ -38,7 +38,8 @@ public:
 
 	// Abstraction for a single triangle
 	struct BvhTriangle { 
-		glm::vec3 v0, v1, v2; 
+		glm::vec3 v0, v1, v2;
+		uint32_t originalIndex; // These are sorted around so need to save this, alternatively could have 1 added indirection
 		glm::vec3 Centroid() const { return (v0 + v1 + v2) * 0.3333333333f; }
 	};
 
@@ -63,6 +64,7 @@ public:
 				.v0 = srcVertices.data()[srcTriangles.data()[i]],
 				.v1 = srcVertices.data()[srcTriangles.data()[i + 1]],
 				.v2 = srcVertices.data()[srcTriangles.data()[i + 2]],
+				.originalIndex = (uint32_t)i
 			});
 		}
 
@@ -178,25 +180,26 @@ public:
 	}
 
 	/// <summary> Intersects a ray against this bvh </summary>
-	float Intersect(const glm::vec3& ro, const glm::vec3& rd, float& depth, int& minIndex) const {
+	float Intersect(const glm::vec3& ro, const glm::vec3& rd, float& depth, uint32_t& minIndex) const {
 		depth = 99999999.9f;
-		minIndex = -1;
+		minIndex = -1; // Overflows to max val
 		IntersectNode(0, ro, rd, 1.0f / rd, minIndex, depth);
 		return minIndex != -1;
 	}
 
 	// Recursed func
-	void IntersectNode(const int& nodeIndex, const glm::vec3& ro, const glm::vec3& rd, const glm::vec3& inv_rd, int& minTriIdx, float& minDist) const {
+	void IntersectNode(const int& nodeIndex, const glm::vec3& ro, const glm::vec3& rd, const glm::vec3& inv_rd, uint32_t& minTriIdx, float& minDist) const {
 
 		const auto& node = stack[nodeIndex];
 
 		// Leaf -> Check tris
 		if (node.IsLeaf()) {
 			for (int i = node.GetLeftIndex(); i < node.GetRightIndex(); i++) {
-				const auto res = ray_tri_intersect(ro, rd, triangles[i]);
+				const auto& tri = triangles[i];
+				const auto res = ray_tri_intersect(ro, rd, tri);
 				if (res > 0.0f && res < minDist) {
 					minDist = res;
-					minTriIdx = i;
+					minTriIdx = tri.originalIndex;
 				}
 			}
 			return;
@@ -211,7 +214,7 @@ public:
 			const auto intersectB = stack[right].aabb.Intersect(ro, rd, inv_rd);
 
 			// This nested if/else seems faster than swapping the values
-			if (intersectA > 0.0f && intersectB > 0.0f) {
+			if (intersectA != 0.0f && intersectB != 0.0f) {
 				if (intersectA < intersectB) {
 					if (intersectA < minDist) IntersectNode(left, ro, rd, inv_rd, minTriIdx, minDist);
 					if (intersectB < minDist) IntersectNode(right, ro, rd, inv_rd, minTriIdx, minDist);
@@ -221,9 +224,9 @@ public:
 					if (intersectA < minDist) IntersectNode(left, ro, rd, inv_rd, minTriIdx, minDist);
 				}
 			}
-			else if (intersectA > 0.0f && intersectA < minDist)
+			else if (intersectA != 0.0f && intersectA < minDist)
 				IntersectNode(left, ro, rd, inv_rd, minTriIdx, minDist);
-			else if (intersectB > 0.0f && intersectB < minDist)
+			else if (intersectB != 0.0f && intersectB < minDist)
 				IntersectNode(right, ro, rd, inv_rd, minTriIdx, minDist);
 		}
 

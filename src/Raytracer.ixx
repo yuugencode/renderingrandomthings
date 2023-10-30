@@ -9,6 +9,7 @@ export module Raytracer;
 
 import Game;
 import Shapes;
+import RenderedMesh;
 import <memory>;
 import <filesystem>;
 import <algorithm>;
@@ -76,15 +77,16 @@ public:
 		
 		Color output;
 		float minDepth = std::numeric_limits<float>::max();
+		uint32_t extraData;
 
 		Entity* intersectedObj = nullptr;
 
 		// Loop all objects, could use something more sophisticated for larger scenes but a simple loop gets us pretty far
 		for (const auto& entity : Game::rootScene.entities) {
 			
-			bool intersect = false;
-
+			bool intersect;
 			float depth;
+			uint32_t data;
 
 			// Switching here is faster than a virtual function call
 			switch (entity->type) {
@@ -95,13 +97,14 @@ public:
 				case Entity::Type::Box:
 					intersect = ((Box*)entity.get())->Intersect(pos, dir, depth); break;
 				case Entity::Type::RenderedMesh: 
-					intersect = ((RenderedMesh*)entity.get())->Intersect(pos, dir, depth); break;
+					intersect = ((RenderedMesh*)entity.get())->Intersect(pos, dir, depth, data); break;
 				default: break;
 			}
 
 			// Check if hit something and it's the closest hit
 			if (intersect && depth < minDepth) {
 				minDepth = depth;
+				extraData = data;
 				intersectedObj = entity.get();
 			}
 		}
@@ -109,7 +112,7 @@ public:
 		if (intersectedObj != nullptr) {
 			// Hit something, color it
 			auto hitPt = pos + dir * minDepth;
-			output = intersectedObj->GetColor(hitPt);
+			output = intersectedObj->GetColor(hitPt, extraData);
 			//output = Color::FromVec(normal * (1.0f - Utils::InvLerpClamp(depth, 1.0f, 30.0f)), 1.0f);
 		}
 		else { 

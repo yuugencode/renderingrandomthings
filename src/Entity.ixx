@@ -14,5 +14,5 @@ public:
 	Type type;
 	virtual float EstimatedDistanceTo(const glm::vec3& pos) const = 0;
 
-	virtual Color GetColor(const glm::vec3& pos) const = 0;
+	virtual Color GetColor(const glm::vec3& pos, const uint32_t& extraData) const = 0;
 };
