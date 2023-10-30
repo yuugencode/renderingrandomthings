@@ -10,7 +10,6 @@ export module Mesh;
 import <memory>;
 import <filesystem>;
 import <fstream>;
-import Log;
 import Utils;
 
 export class Mesh {
@@ -115,7 +114,7 @@ public:
             if (triangles.at(i) >= vertices.size())
                 Log::LineFormatted("Invalid triangle index: {}", triangles.at(i));
 
-        assert(vertices.size() == uvs.size() == colors.size() == normals.size());
+        assert(vertices.size() == uvs.size() && uvs.size() == colors.size() && colors.size() == normals.size());
         
         Log::LineFormatted("Read a mesh with {} vertices and {} triangles.", vertices.size(), triangles.size() / 3);
         Log::LineFormatted("Has UVs: {}, Has Normals: {}, Has Colors: {}", hasUVs, hasNormals, hasColors);

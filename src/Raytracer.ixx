@@ -82,34 +82,31 @@ public:
 		bgfx::setViewRect(VIEW_LAYER, 0, 0, bgfx::BackbufferRatio::Equal);
 	}
 
-	Color TraceRay(const Scene& scene, const glm::vec3& pos, const glm::vec3& dir) {
+	Color TraceRay(const Scene& scene, const glm::vec3& ro, const glm::vec3& rd, const glm::vec3& invDir) {
 		
-		Color output;
 		float minDepth = std::numeric_limits<float>::max();
 		uint32_t extraData;
-
 		Entity* intersectedObj = nullptr;
 
-		// Loop all objects, could use something more sophisticated for larger scenes but a simple loop gets us pretty far
+		// Loop all objects, could use something more sophisticated but a simple loop gets us pretty far
 		for (const auto& entity : scene.entities) {
 			
+			// Early rejection for missed rays
+			if (entity->aabb.Intersect(ro, rd, invDir) == 0.0f) continue;
+
 			bool intersect;
 			float depth;
-			uint32_t data;
+			uint32_t data = 0;
 
-			// Switching here is faster than a virtual function call
+			// Switching here is inelegant but seems significantly faster than a virtual function call
 			switch (entity->type) {
-				case Entity::Type::Sphere:
-					intersect = ((Sphere*)entity.get())->Intersect(pos, dir, depth); break;
-				case Entity::Type::Disk: 
-					intersect = ((Disk*)entity.get())->Intersect(pos, dir, depth); break;
-				case Entity::Type::Box:
-					intersect = ((Box*)entity.get())->Intersect(pos, dir, depth); break;
-				case Entity::Type::RenderedMesh: 
-					intersect = ((RenderedMesh*)entity.get())->Intersect(pos, dir, depth, data); break;
-				default: break;
+				case Entity::Type::Sphere: intersect = ((Sphere*)entity.get())->Intersect(ro, rd, depth); break;
+				case Entity::Type::Disk: intersect = ((Disk*)entity.get())->Intersect(ro, rd, depth); break;
+				case Entity::Type::Box: intersect = ((Box*)entity.get())->Intersect(ro, rd, depth); break;
+				case Entity::Type::RenderedMesh: intersect = ((RenderedMesh*)entity.get())->Intersect(ro, rd, invDir, depth, data); break;
+			default: break;
 			}
-
+			
 			// Check if hit something and it's the closest hit
 			if (intersect && depth < minDepth) {
 				minDepth = depth;
@@ -120,15 +117,22 @@ public:
 
 		if (intersectedObj != nullptr) {
 			// Hit something, color it
-			auto hitPt = pos + dir * minDepth;
-			output = intersectedObj->GetColor(hitPt, extraData);
+			const auto hitPt = ro + rd * minDepth;
+			
+			// Switching here seems faster than a virtual function call
+			switch (intersectedObj->type) {
+				case Entity::Type::Sphere: return ((Sphere*)intersectedObj)->GetColor(hitPt, extraData);
+				case Entity::Type::Disk: return ((Disk*)intersectedObj)->GetColor(hitPt, extraData);
+				case Entity::Type::Box: return ((Box*)intersectedObj)->GetColor(hitPt, extraData);
+				case Entity::Type::RenderedMesh: return ((RenderedMesh*)intersectedObj)->GetColor(hitPt, extraData);
+				default: return Color(0x33, 0x33, 0x44, 0xff);
+			}
 		}
 		else { 
 			// If we hit nothing, draw "Skybox"
-			output = Color(0x33, 0x33, 0x44, 0xff);
+			return Color(0x33, 0x33, 0x44, 0xff);
 		}
 		
-		return output;
 	}
 
 	void TraceScene(const Scene& scene) {
@@ -163,7 +167,7 @@ public:
 			glm::vec3 dir = viewInv * px;
 			dir = normalize(dir);
 			
-			textureBuffer[i] = TraceRay(scene, camPos, dir);
+			textureBuffer[i] = TraceRay(scene, camPos, dir, 1.0f / dir);
 		});
 
 		bgfx::updateTexture2D(texture, 0, 0, 0, 0, window->width, window->height, mem);

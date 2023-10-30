@@ -96,33 +96,6 @@ public:
 		ImGui::NewFrame();
 	}
 
-	/*
-	
-			Log::Screen(0, "Backbuffer: {}x{}", stats->width, stats->height);
-		Log::Screen(1, "FPS: {}", Log::FormatFloat(1.0f / (float)Time::smoothDeltaTime));
-		Log::Screen(2, "Time: {}", Log::FormatFloat((float)Time::time));
-		Log::Screen(3, "Mouse Buttons: {} {} {}", Input::MouseHeld(SDL_BUTTON_LEFT), Input::MouseHeld(SDL_BUTTON_MIDDLE), Input::MouseHeld(SDL_BUTTON_RIGHT));
-		Log::Screen(4, "Mouse delta: {}, {}", Input::mouseDelta[0], Input::mouseDelta[1]);
-
-		const auto cPos = Game::camera.transform.Position();
-		Log::Screen(5, "Camera Pos: ({} {} {})", Log::FormatFloat(cPos.x), Log::FormatFloat(cPos.y), Log::FormatFloat(cPos.z));
-
-		// Trace the scene and print averaged time it took
-		raytraceTimer.Start();
-		raytracer.TraceScene();
-		raytraceTimer.End();
-		Log::Screen(6, "Tracing (ms): {}", Log::FormatFloat((float)raytraceTimer.GetAveragedTime() * 1000.0f));
-		
-		uint32_t totalVertices = 0, totalTris = 0;
-		for (const auto& entity : Game::rootScene.entities) {
-			if (entity->type == Entity::Type::RenderedMesh) {
-				totalVertices += (uint32_t)((RenderedMesh*)entity.get())->mesh->vertices.size();
-				totalTris += (uint32_t)((RenderedMesh*)entity.get())->mesh->triangles.size() / 3;
-			}
-		}
-		Log::Screen(7, "{} vertices, {} triangles", totalVertices, totalTris / 3);
-	*/
-
 	static void DrawUI() {
 		//ImGui::ShowDemoWindow();
 
@@ -166,20 +139,24 @@ public:
 		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 1, 1, 1));
 		ImGui::Text("%.2fms", Game::raytracer.timer.GetAveragedTime() * 1000.0);
 		ImGui::PopStyleColor();
+		ImGui::SameLine();
+		auto mrays = (double)(Game::window.width * Game::window.height) / Game::raytracer.timer.GetAveragedTime();
+		ImGui::Text("(%.1f MRays/s)", mrays / 1000000.0);
 
 		// Vtx count
 		uint32_t meshes = 0, parametrics = 0;
 		uint32_t totalVertices = 0, totalTris = 0;
 		for (const auto& entity : Game::scene.entities) {
 			if (entity->type == Entity::Type::RenderedMesh) {
-				totalVertices += (uint32_t)((RenderedMesh*)entity.get())->mesh->vertices.size();
-				totalTris += (uint32_t)((RenderedMesh*)entity.get())->mesh->triangles.size() / 3;
+				const auto* mesh = ((RenderedMesh*)entity.get())->GetMesh();
+				totalVertices += (uint32_t)mesh->vertices.size();
+				totalTris += (uint32_t)mesh->triangles.size() / 3;
 				meshes++;
 			}
 			else parametrics++;
 		}
 		ImGui::Text("%d meshes, %d parametric shapes", meshes, parametrics);
-		ImGui::Text("%d vertices, %d triangles", totalVertices, totalTris / 3);
+		ImGui::Text("%d vertices, %d triangles", totalVertices, totalTris);
 
 		ImGui::PopItemWidth();
 		ImGui::End();

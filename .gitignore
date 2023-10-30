@@ -53,3 +53,6 @@ imgui.ini
 
 # Other
 *.fbx
+*.obj
+*.png
+*.jpg

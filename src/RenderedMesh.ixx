@@ -10,30 +10,31 @@ import Entity;
 import Mesh;
 import Bvh;
 import Utils;
+import Texture;
+import Assets;
 
 /// <summary> A mesh consisting of triangles that can be raytraced </summary>
 export struct RenderedMesh : Entity {
 public:
 
-	std::shared_ptr<Mesh> mesh;
-	Bvh bvh;
-
-	RenderedMesh(const std::shared_ptr<Mesh>& mesh) {
-		type = Entity::Type::RenderedMesh;
-		this->mesh = mesh;
+	RenderedMesh(const int& meshHandle) {
+		this->type = Entity::Type::RenderedMesh;
+		this->meshHandle = meshHandle;
+		this->textureHandle = -1;
 	}
 
 	void GenerateBVH() {
 		// Construct a bvh
 		Timer t(1);
 		t.Start();
-		bvh.Generate(mesh->vertices, mesh->triangles); 
+		bvh.Generate(GetMesh()->vertices, GetMesh()->triangles);
+		aabb = bvh.stack[0].aabb;
 		t.End();
 		Log::Line("bvh gen", Log::FormatFloat((float)t.GetAveragedTime() * 1000.0f), "ms");
 	}
 
-	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, float& depth, uint32_t& triIdx) const {
-		return bvh.Intersect(ro, rd, depth, triIdx);
+	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, const glm::vec3& invDir, float& depth, uint32_t& triIdx) const {
+		return bvh.Intersect(ro, rd, invDir, depth, triIdx);
 	}
 
 	float EstimatedDistanceTo(const glm::vec3& pos) const {
@@ -58,6 +59,8 @@ public:
 		// Samples the color of this rendered mesh at pos and tri index
 		
 		// Compiler removes all the unused soup
+
+		const auto& mesh = Assets::Meshes[meshHandle];
 		const auto& v0i = mesh->triangles[triIndex + 0];
 		const auto& v1i = mesh->triangles[triIndex + 1];
 		const auto& v2i = mesh->triangles[triIndex + 2];
@@ -77,19 +80,20 @@ public:
 		// Barycentric interpolation as if we were a real shader
 		const auto b = Barycentric(pos, p0, p1, p2);
 		
-		//const auto uv = uv0 * b.x + uv1 * b.y + uv2 * b.z;
-		//return Color::FromFloat(uv.x, uv.y, 0.0f, 1.0f);
+		// Texture sample
+		if (HasTexture()) {
+			const auto uv = uv0 * b.x + uv1 * b.y + uv2 * b.z;
+			return Assets::Textures[textureHandle]->SampleUVClamp(uv);
+		}
 
-		if (mesh->hasNormals) {
+		// Vertex normals
+		if (HasMesh() && Assets::Meshes[meshHandle]->hasNormals) {
 			auto ret = n0 * b.x + n1 * b.y + n2 * b.z;
 			return Color::FromVec(ret, 1.0f);
 		}
-		else {
-			auto ret = glm::normalize(glm::cross(p0 - p1, p0 - p2));
-			return Color::FromVec(ret, 1.0f);
-		}
 
-		//const auto clr = (c0 * b.x + c1 * b.y + c2 * b.z);
-		//return Color::FromVec(clr);
+		// Face normals
+		auto ret = glm::normalize(glm::cross(p0 - p1, p0 - p2));
+		return Color::FromVec(ret, 1.0f);
 	};
 };

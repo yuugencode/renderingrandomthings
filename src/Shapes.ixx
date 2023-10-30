@@ -11,21 +11,22 @@ import Utils;
 export struct Sphere : Entity {
 public:
 
-	glm::vec3 pos;
-	float radius;
+	const glm::vec3& GetPos() const { return transform.position; }
 
 	Sphere(const glm::vec3& pos, const float& radius) {
-		this->pos = pos;
-		this->radius = radius;
+		aabb = AABB(pos, radius);
+		transform.position = pos;
+		transform.scale = glm::vec3(radius);
 		type = Entity::Type::Sphere;
 	}
 
-	// Adapted from Inigo Quilez https://iquilezles.org/articles/
+	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, float& depth, uint32_t& data) const { return Intersect(ro, rd, depth); }
 	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, float& depth) const {
-		glm::vec3 oc = ro - pos;
+		// Adapted from Inigo Quilez https://iquilezles.org/articles/
+		glm::vec3 oc = ro - transform.position;
 		float b = glm::dot(oc, rd);
 		if (b > 0.0f) return false;
-		float c = glm::dot(oc, oc) - radius * radius;
+		float c = glm::dot(oc, oc) - transform.scale.x * transform.scale.x;
 		float h = b * b - c;
 		if (h < 0.0f) return false;
 		h = sqrt(h);
@@ -34,11 +35,11 @@ public:
 	}
 
 	float EstimatedDistanceTo(const glm::vec3& pos) const {
-		return glm::max(glm::distance(pos, this->pos) - radius, 0.0f);
+		return glm::max(glm::distance(pos, transform.position) - transform.scale.x, 0.0f);
 	}
 
 	Color GetColor(const glm::vec3& pos, const uint32_t& extraData) const {
-		auto nrm = glm::normalize(pos - this->pos);
+		auto nrm = glm::normalize(pos - transform.position);
 		return Color::FromVec(nrm, 1.0f);
 	};
 };
@@ -47,29 +48,30 @@ public:
 export struct Disk : Entity {
 public:
 
-	glm::vec3 pos;
-	glm::vec3 normal;
-	float radius;
+	// Disk is fine with 1 normal as orientation, save quat calculations by packing it to rotation xyz
+	const glm::vec3& Normal() const { return *((glm::vec3*)&transform.rotation); }
 
 	Disk(const glm::vec3& pos, const glm::vec3& normal, const float& radius) {
-		this->pos = pos;
-		this->normal = normal;
-		this->radius = radius;
+		aabb = AABB(pos, radius);
+		transform.position = pos;
+		memcpy(&transform.rotation, &normal, sizeof(glm::vec3));
+		transform.scale = glm::vec3(radius);
 		type = Entity::Type::Disk;
 	}
 
+	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, float& depth, uint32_t& data) const { return Intersect(ro, rd, depth); }
 	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, float& depth) const {
-		glm::vec3 o = ro - pos;
-		depth = -glm::dot(normal, o) / glm::dot(rd, normal);
+		glm::vec3 o = ro - transform.position;
+		depth = -glm::dot(Normal(), o) / glm::dot(rd, Normal());
 		if (depth < 0.0f) return false;
 		glm::vec3  q = o + rd * depth;
-		if (dot(q, q) < radius * radius) return true;
+		if (dot(q, q) < transform.scale.x * transform.scale.x) return true;
 		return false;
 	}
 
 	float EstimatedDistanceTo(const glm::vec3& pos) const {
-		auto os = pos - this->pos;
-		os = Utils::Project(os, normal);
+		auto os = pos - this->transform.position;
+		os = Utils::Project(os, Normal());
 		return glm::length(os);
 	}
 
@@ -87,13 +89,14 @@ public:
 export struct Box : Entity {
 public:
 
-	AABB aabb;
-
 	Box(const glm::vec3& pos, const float& radius) {
+		transform.position = pos;
+		transform.scale = glm::vec3(radius);
 		aabb = AABB(pos - radius, pos + radius);
 		type = Entity::Type::Box;
 	}
 
+	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, float& depth, uint32_t& data) const { return Intersect(ro, rd, depth); }
 	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, float& depth) const {
 		auto res = aabb.Intersect(ro, rd);
 		if (res > 0.0f) {

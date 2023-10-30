@@ -16,9 +16,11 @@ import Raytracer;
 import Game;
 import Timer;
 import Mesh;
+import Texture;
 import Shapes;
 import RenderedMesh;
 import Utils;
+import Assets;
 
 int main(int argc, char* argv[]) {
 
@@ -81,27 +83,28 @@ int main(int argc, char* argv[]) {
 	Game::scene.entities.push_back(std::make_unique<Box>(glm::vec3(-2.0f, 0.5f, 0.0f), 0.5f));
 	
 	// Mesh 1
-	auto mesh = std::make_shared<Mesh>(std::filesystem::path("ext/char.fbx"));
-	mesh->RotateVertices( glm::quat(glm::vec3( glm::radians(-90.0f), 0.0f, 0.0f)));
-
-	auto rendMesh = std::make_unique<RenderedMesh>(mesh);
+	auto meshHandle = Assets::NewMesh(std::filesystem::path("ext/char.fbx"));
+	Assets::Meshes[meshHandle]->RotateVertices( glm::quat(glm::vec3( glm::radians(-90.0f), 0.0f, 0.0f)));
+	
+	auto rendMesh = std::make_unique<RenderedMesh>(meshHandle);
 	rendMesh->GenerateBVH();
+	rendMesh->textureHandle = Assets::NewTexture(std::filesystem::path("ext/tex.png"));
 	Game::scene.entities.push_back(std::move(rendMesh));
 
 	// Mesh 2
-	auto mesh2 = std::make_shared<Mesh>(std::filesystem::path("ext/dragon.obj"));
-	mesh2->ScaleVertices(0.01f);
-	mesh2->OffsetVertices(glm::vec3(0, 0.5f, 0));
+	auto meshHandle2 = Assets::NewMesh(std::filesystem::path("ext/dragon.obj"));
+	Assets::Meshes[meshHandle2]->ScaleVertices(0.01f);
+	Assets::Meshes[meshHandle2]->OffsetVertices(glm::vec3(0, 0.5f, 0));
 	
-	auto rendMesh2 = std::make_unique<RenderedMesh>(mesh2);
+	auto rendMesh2 = std::make_unique<RenderedMesh>(meshHandle2);
 	rendMesh2->GenerateBVH();
 	Game::scene.entities.push_back(std::move(rendMesh2));
 
 	// Mesh 3
-	auto mesh3 = std::make_shared<Mesh>(std::filesystem::path("ext/rock.fbx"));
-	mesh3->ScaleVertices(0.1f);
+	auto meshHandle3 = Assets::NewMesh(std::filesystem::path("ext/rock.fbx"));
+	Assets::Meshes[meshHandle3]->ScaleVertices(0.1f);
 
-	auto rendMesh3 = std::make_unique<RenderedMesh>(mesh3);
+	auto rendMesh3 = std::make_unique<RenderedMesh>(meshHandle3);
 	rendMesh3->GenerateBVH();
 	Game::scene.entities.push_back(std::move(rendMesh3));
 
@@ -153,7 +156,7 @@ int main(int argc, char* argv[]) {
 
 		// Sort scene objects
 		std::ranges::sort(Game::scene.entities, [&](const std::unique_ptr<Entity>& a, const std::unique_ptr<Entity>& b) {
-			return a->EstimatedDistanceTo(camTf.position) < b->EstimatedDistanceTo(camTf.position);
+			return Utils::SqrLength(a->transform.position - camTf.position) < Utils::SqrLength(b->transform.position - camTf.position);
 		});
 
 		// Trace the scene

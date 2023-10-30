@@ -33,8 +33,7 @@ public:
 
 export class Bvh {
 public:
-	Bvh(){}
-
+	
 	// Abstraction for a single triangle
 	struct BvhTriangle { 
 		glm::vec3 v0, v1, v2;
@@ -44,6 +43,8 @@ public:
 
 	std::vector<BvhNode> stack;
 	std::vector<BvhTriangle> triangles;
+
+	bool Exists() const { return stack.size() != 0; }
 
 	static const int maxNodeEntries = 3;
 
@@ -179,11 +180,16 @@ public:
 	}
 
 	/// <summary> Intersects a ray against this bvh </summary>
-	float Intersect(const glm::vec3& ro, const glm::vec3& rd, float& depth, uint32_t& minIndex) const {
+	float Intersect(const glm::vec3& ro, const glm::vec3& rd, const glm::vec3& invDir, float& depth, uint32_t& minIndex) const {
 		depth = 99999999.9f;
 		minIndex = -1; // Overflows to max val
-		IntersectNode(0, ro, rd, 1.0f / rd, minIndex, depth);
+		IntersectNode(0, ro, rd, invDir, minIndex, depth);
 		return minIndex != -1;
+	}
+
+	/// <summary> Intersects a ray against this bvh </summary>
+	float Intersect(const glm::vec3& ro, const glm::vec3& rd, float& depth, uint32_t& minIndex) const {
+		return Intersect(ro, rd, 1.0f / rd, depth, minIndex);
 	}
 
 	// Recursed func
@@ -212,8 +218,16 @@ public:
 			const auto intersectA = stack[left].aabb.Intersect(ro, rd, inv_rd);
 			const auto intersectB = stack[right].aabb.Intersect(ro, rd, inv_rd);
 
-			// This nested if/else seems faster than swapping the values
-			if (intersectA != 0.0f && intersectB != 0.0f) {
+			// Check if either is inside
+			if (intersectA < 0.0f && intersectB < 0.0f) {
+				if (stack[left].aabb.Contains(ro)) 
+					IntersectNode(left, ro, rd, inv_rd, minTriIdx, minDist);
+				else if (stack[right].aabb.Contains(ro)) 
+					IntersectNode(right, ro, rd, inv_rd, minTriIdx, minDist);
+			}
+
+			// Check if both hit
+			else if (intersectA != 0.0f && intersectB != 0.0f) {
 				if (intersectA < intersectB) {
 					if (intersectA < minDist) IntersectNode(left, ro, rd, inv_rd, minTriIdx, minDist);
 					if (intersectB < minDist) IntersectNode(right, ro, rd, inv_rd, minTriIdx, minDist);
@@ -223,12 +237,13 @@ public:
 					if (intersectA < minDist) IntersectNode(left, ro, rd, inv_rd, minTriIdx, minDist);
 				}
 			}
+
+			// Check if either hit
 			else if (intersectA != 0.0f && intersectA < minDist)
 				IntersectNode(left, ro, rd, inv_rd, minTriIdx, minDist);
 			else if (intersectB != 0.0f && intersectB < minDist)
 				IntersectNode(right, ro, rd, inv_rd, minTriIdx, minDist);
 		}
-
 	}
 };
 

@@ -109,17 +109,19 @@ export std::ostream& operator<<(std::ostream& target, const uint8_t& c) {
 export struct AABB {
     glm::vec3 min, max;
 
-    AABB() {}
-    AABB(const glm::vec3& min, const glm::vec3& max) {
-        this->min = min; this->max = max;
-    }
-
-    AABB(const glm::vec3& pos) {
-        this->min = pos; this->max = pos;
-    }
+    AABB() { min = max = glm::vec3(0); }
+    AABB(const glm::vec3& min, const glm::vec3& max) { this->min = min; this->max = max; }
+    AABB(const glm::vec3& pos) { this->min = pos; this->max = pos; }
+    AABB(const glm::vec3& pos, const float& radius) { this->min = pos - radius; this->max = pos + radius; }
 
     glm::vec3 Center() const { return max * 0.5f + min * 0.5f; }
     glm::vec3 Size() const { return max - min; }
+
+    bool Contains(const glm::vec3& pt) const {
+        return pt.x >= min.x && pt.x <= max.x &&
+               pt.y >= min.y && pt.y <= max.y &&
+               pt.z >= min.z && pt.z <= max.z;
+    }
 
     void Encapsulate(const glm::vec3& point) {
         min = glm::min(point, min);
@@ -181,6 +183,10 @@ export namespace Utils {
     /// <summary> Returns where val is between min...max as 0...1 percentage </summary>
     float InvLerpClamp(const float& val, const float& min, const float& max) {
         return InvLerp(glm::clamp(val, min, max), min, max);
+    }
+
+    float SqrLength(const glm::vec3& a) {
+        return glm::dot(a, a);
     }
 
     /// <summary> Constructs a model matrix from given pos/fwd/up/scale </summary>
