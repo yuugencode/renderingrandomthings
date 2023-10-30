@@ -145,7 +145,7 @@ int main(int argc, char* argv[]) {
 		raytraceTimer.End();
 		Log::Screen(7, "Tracing (ms): {}", Log::FormatFloat((float)raytraceTimer.GetAveragedTime() * 1000.0f));
 		
-		Log::Screen(8, "{} vertices, {} triangles", mesh->vertices->size(), mesh->triangles->size() / 3);
+		Log::Screen(8, "{} vertices, {} triangles", mesh->vertices.size(), mesh->triangles.size() / 3);
 
 		ImguiDrawer::Render();
 

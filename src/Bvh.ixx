@@ -36,34 +36,42 @@ export class Bvh {
 public:
 	Bvh(){}
 
+	// Abstraction for a single triangle
+	struct BvhTriangle { 
+		glm::vec3 v0, v1, v2; 
+		glm::vec3 Centroid() const { return (v0 + v1 + v2) * 0.3333333333f; }
+	};
+
 	std::vector<BvhNode> stack;
-	std::shared_ptr<std::vector<glm::vec3>> vertices;
-	std::shared_ptr<std::vector<uint32_t>> triangleIndices;
+	std::vector<BvhTriangle> triangles;
 
-	// Abstraction for triangles as 3 indices
-	struct BvhTriangle { int v0i, v1i, v2i; };
-	BvhTriangle* triangles() const { return (BvhTriangle*)triangleIndices->data(); }
-
-	static const int maxNodeEntries = 20;
+	static const int maxNodeEntries = 3;
 
 	/// <summary> Generates a new BVH from given vertices/tris </summary>
-	void Generate(std::shared_ptr<std::vector<glm::vec3>> srcVertices, std::shared_ptr<std::vector<uint32_t>> srcTriangles) {
+	void Generate(const std::vector<glm::vec3>& srcVertices, const std::vector<uint32_t>& srcTriangles) {
 		
-		this->vertices = srcVertices;
-		this->triangleIndices = srcTriangles;
-
-		if (vertices->size() == 0) return;
+		if (srcVertices.size() == 0) return;
 
 		stack.clear();
+		triangles.clear();
+
+		triangles.reserve(srcTriangles.size());
+
+		// Remove indirection at the cost of an additional buffer
+		for (size_t i = 0; i < srcTriangles.size(); i += 3) {
+			triangles.push_back(BvhTriangle{
+				.v0 = srcVertices.data()[srcTriangles.data()[i]],
+				.v1 = srcVertices.data()[srcTriangles.data()[i + 1]],
+				.v2 = srcVertices.data()[srcTriangles.data()[i + 2]],
+			});
+		}
 
 		// Generate root
 		BvhNode root;
-		root.aabb = AABB(vertices->size() != 0 ? vertices->at(0) : glm::vec3(0.0f, 0.0f, 0.0f));
-		for (size_t i = 0; i < vertices->size(); i++)
-			root.aabb.Encapsulate(vertices->at(i));
-
 		root.SetLeftIndex(0);
-		root.SetRightIndex((uint32_t)srcTriangles->size() / 3);
+		root.SetRightIndex((int)triangles.size());
+		CalculateNodeAABB(root);
+
 		stack.push_back(root);
 
 		SplitNode(0);
@@ -76,18 +84,40 @@ public:
 		const auto splitPos = node.aabb.Center();
 		const auto aabbSize = node.aabb.Size();
 
-		// Split naively on the largest aabb axis, @TODO: SAH
-		auto splitPoint = node.GetLeftIndex() + node.TriangleCount() / 2;
+		// @IDEA: For the first ray traversal it might be possible to optimize building using camera information
+		// for example partition using dot(viewdir, nrm) + dot(viewdir, ro - tripos) + (pos.x/y/z on largest_axis)
+		// this should split backfacing triangles out very quick and prefer tris that are pointing at the cam
+		// indirect bounces would have to use a standard bvh
 
-		if (aabbSize.x > aabbSize.y && aabbSize.x > aabbSize.z)
-			splitPoint = Partition(node.GetLeftIndex(), node.GetRightIndex(), splitPos.x, 0);
-		else if (aabbSize.y > aabbSize.z)
-			splitPoint = Partition(node.GetLeftIndex(), node.GetRightIndex(), splitPos.y, 1);
-		else
-			splitPoint = Partition(node.GetLeftIndex(), node.GetRightIndex(), splitPos.z, 2);
+		// Split naively on the largest aabb axis, @TODO: maybe SAH?
+		int splitPoint;
+
+		uint32_t axis = 2;
+		if (aabbSize.x > aabbSize.y && aabbSize.x > aabbSize.z) axis = 0;
+		else if (aabbSize.y > aabbSize.z) axis = 1;
+
+		splitPoint = Partition(node.GetLeftIndex(), node.GetRightIndex(), splitPos, axis);
+
+		if (splitPoint == node.GetLeftIndex() || splitPoint == node.GetRightIndex()) {
+			
+			// Couldn't split the data any further, try the other 2 axes
+
+			int axisA = (axis + 1) % 3, axisB = (axis + 2) % 3;
+
+			if (aabbSize[axisA] > aabbSize[axisB]) {
+				splitPoint = Partition(node.GetLeftIndex(), node.GetRightIndex(), splitPos, axisA);
+				if (splitPoint == node.GetLeftIndex() || splitPoint == node.GetRightIndex())
+					splitPoint = Partition(node.GetLeftIndex(), node.GetRightIndex(), splitPos, axisB);
+			}
+			else {
+				splitPoint = Partition(node.GetLeftIndex(), node.GetRightIndex(), splitPos, axisB);
+				if (splitPoint == node.GetLeftIndex() || splitPoint == node.GetRightIndex())
+					splitPoint = Partition(node.GetLeftIndex(), node.GetRightIndex(), splitPos, axisA);
+			}
+		}
 
 		if (splitPoint == node.GetLeftIndex() || splitPoint == node.GetRightIndex())
-			return; // Couldn't split the data any further
+			return; // Can't split in any axis anymore, data is probably overlapping, just return
 
 		// Generate new left / right nodes and split further
 		BvhNode left, right;
@@ -114,39 +144,28 @@ public:
 		if (right.TriangleCount() > maxNodeEntries) SplitNode(rightStackIndex);
 	}
 
-	/// <summary> Partitions data to 2 sides based on given pivot. RightIndex is EXCLUSIVE. </summary>
-	int Partition(const int& low, const int& high, const float& pivot, const int& axis) {
+	/// Partitions data to 2 sides based on given pos and axis. Right index is exclusive.
+	int Partition(const int& low, const int& high, const glm::vec3& splitPos, const int& axis) {
 		int pt = low;
-		for (int i = low; i < high; i++) {
-			
-			const auto& arr = triangles();
-			const auto& tri = arr[i];
-
-			// Could precompute this centroid but maybe not worth?
-			glm::vec3 centroid = (vertices->at(tri.v0i) + vertices->at(tri.v1i) + vertices->at(tri.v2i)) / 3.0f;
-
-			if (centroid[axis] < pivot)
-				std::swap(arr[i], arr[pt++]); // Swap index i and pt in triangles array
-		}
+		for (int i = low; i < high; i++)
+			if (triangles[i].Centroid()[axis] < splitPos[axis])
+				std::swap(triangles[i], triangles[pt++]); // Swap index i and pt in triangles array
 		return pt;
 	}
 
 	void CalculateNodeAABB(BvhNode& node) {
-		const BvhTriangle* tris = triangles();
-		node.aabb = AABB(vertices->data()[tris[node.GetLeftIndex()].v0i]);
+		node.aabb = AABB(triangles[node.GetLeftIndex()].v0);
 		for (int i = node.GetLeftIndex(); i < node.GetRightIndex(); i++) {
-			node.aabb.Encapsulate(vertices->data()[tris[i].v0i]);
-			node.aabb.Encapsulate(vertices->data()[tris[i].v1i]);
-			node.aabb.Encapsulate(vertices->data()[tris[i].v2i]);
+			const auto& tri = triangles[i];
+			node.aabb.Encapsulate(tri.v0);
+			node.aabb.Encapsulate(tri.v1);
+			node.aabb.Encapsulate(tri.v2);
 		}
 	}
 
 	// Adapted from Inigo Quilez https://iquilezles.org/articles/
-	float ray_tri_intersect(glm::vec3 ro, glm::vec3 rd, const BvhTriangle& tri) const {
-		const auto& v0 = vertices->data()[tri.v0i];
-		const auto& v1 = vertices->data()[tri.v1i];
-		const auto& v2 = vertices->data()[tri.v2i];
-		const auto v1v0 = v1 - v0, v2v0 = v2 - v0, rov0 = ro - v0;
+	float ray_tri_intersect(const glm::vec3& ro, const glm::vec3& rd, const BvhTriangle& tri) const {
+		const auto v1v0 = tri.v1 - tri.v0, v2v0 = tri.v2 - tri.v0, rov0 = ro - tri.v0;
 		const auto n = glm::cross(v1v0, v2v0);
 		const auto q = glm::cross(rov0, rd);
 		const auto d = 1.0f / glm::dot(n, rd);
@@ -159,11 +178,11 @@ public:
 	}
 
 	/// <summary> Intersects a ray against this bvh </summary>
-	float Intersect(const glm::vec3& ro, const glm::vec3& rd, float& depth) const {
+	float Intersect(const glm::vec3& ro, const glm::vec3& rd, float& depth, int& minIndex) const {
 		depth = 99999999.9f;
-		int minIdx = -1;
-		IntersectNode(0, ro, rd, 1.0f / rd, minIdx, depth);
-		return minIdx != -1;
+		minIndex = -1;
+		IntersectNode(0, ro, rd, 1.0f / rd, minIndex, depth);
+		return minIndex != -1;
 	}
 
 	// Recursed func
@@ -171,10 +190,10 @@ public:
 
 		const auto& node = stack[nodeIndex];
 
+		// Leaf -> Check tris
 		if (node.IsLeaf()) {
 			for (int i = node.GetLeftIndex(); i < node.GetRightIndex(); i++) {
-				const auto& tri = triangles()[i];
-				auto res = ray_tri_intersect(ro, rd, tri);
+				const auto res = ray_tri_intersect(ro, rd, triangles[i]);
 				if (res > 0.0f && res < minDist) {
 					minDist = res;
 					minTriIdx = i;
@@ -183,6 +202,7 @@ public:
 			return;
 		}
 
+		// Node -> Check left/right node
 		else {
 
 			const auto left = node.GetLeftChild();
