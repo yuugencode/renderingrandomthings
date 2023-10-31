@@ -20,7 +20,6 @@ public:
 	RenderedMesh(const int& meshHandle) {
 		this->type = Entity::Type::RenderedMesh;
 		this->meshHandle = meshHandle;
-		this->textureHandle = -1;
 	}
 
 	void GenerateBVH() {
@@ -58,8 +57,6 @@ public:
 	Color GetColor(const glm::vec3& pos, const uint32_t& triIndex) const {
 		// Samples the color of this rendered mesh at pos and tri index
 		
-		// Compiler removes all the unused soup
-
 		const auto& mesh = Assets::Meshes[meshHandle];
 		const auto& v0i = mesh->triangles[triIndex + 0];
 		const auto& v1i = mesh->triangles[triIndex + 1];
@@ -76,14 +73,17 @@ public:
 		const auto& uv0 = mesh->uvs[v0i];
 		const auto& uv1 = mesh->uvs[v1i];
 		const auto& uv2 = mesh->uvs[v2i];
+		const auto& material = mesh->materials[triIndex / 3];
 
 		// Barycentric interpolation as if we were a real shader
 		const auto b = Barycentric(pos, p0, p1, p2);
-		
+
 		// Texture sample
 		if (HasTexture()) {
 			const auto uv = uv0 * b.x + uv1 * b.y + uv2 * b.z;
-			return Assets::Textures[textureHandle]->SampleUVClamp(uv);
+
+			const auto& texID = textureHandles[material];
+			return Assets::Textures[texID]->SampleUVClamp(uv);
 		}
 
 		// Vertex normals
@@ -91,7 +91,7 @@ public:
 			auto ret = n0 * b.x + n1 * b.y + n2 * b.z;
 			return Color::FromVec(ret, 1.0f);
 		}
-
+		
 		// Face normals
 		auto ret = glm::normalize(glm::cross(p0 - p1, p0 - p2));
 		return Color::FromVec(ret, 1.0f);

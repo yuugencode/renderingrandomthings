@@ -20,7 +20,7 @@ public:
 	inline static Uint64 framecount = 0;
 	inline static double deltaTime = 0.001, time = 0.0;
 	inline static double smoothDeltaTime = 0.0;
-	inline static float deltaTimeF;
+	inline static float deltaTimeF, timeF;
 
 	/// <summary> Updates time values, should be called once per frame </summary>
 	static void Tick() {
@@ -39,6 +39,7 @@ public:
 		smoothDeltaTime /= deltaTimes.size();
 
 		time += deltaTime;
+		timeF = (float)time;
 		framecount++;
 	}
 

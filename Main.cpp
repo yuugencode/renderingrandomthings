@@ -31,7 +31,7 @@ int main(int argc, char* argv[]) {
 	}
 
 	// Create window
-	Game::window.Create(1024, 768);
+	Game::window.Create(1920, 1080);
 
 	// Init Bgfx
 	MiAllocator allocator;
@@ -81,14 +81,23 @@ int main(int argc, char* argv[]) {
 	Game::scene.entities.push_back(std::make_unique<Disk>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 3.0f));
 	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(2.0f, 0.5f, 0.0f), 0.5f));
 	Game::scene.entities.push_back(std::make_unique<Box>(glm::vec3(-2.0f, 0.5f, 0.0f), 0.5f));
-	
+
 	// Mesh 1
 	auto meshHandle = Assets::NewMesh(std::filesystem::path("ext/char.fbx"));
 	Assets::Meshes[meshHandle]->RotateVertices( glm::quat(glm::vec3( glm::radians(-90.0f), 0.0f, 0.0f)));
 	
 	auto rendMesh = std::make_unique<RenderedMesh>(meshHandle);
 	rendMesh->GenerateBVH();
-	rendMesh->textureHandle = Assets::NewTexture(std::filesystem::path("ext/tex.png"));
+	
+	// Hardcoded mesh 1 textures, kind of like materials without materials
+	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex4.png"), true));
+	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex1.png"), true));
+	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex3.png"), true));
+	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex3.png"), true));
+	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex5.png"), true));
+	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex2.png"), true));
+	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex3.png"), true));
+
 	Game::scene.entities.push_back(std::move(rendMesh));
 
 	// Mesh 2

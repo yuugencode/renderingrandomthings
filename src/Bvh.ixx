@@ -39,6 +39,8 @@ public:
 		glm::vec3 v0, v1, v2;
 		uint32_t originalIndex; // These are sorted around so need to save this, alternatively could have 1 added indirection
 		glm::vec3 Centroid() const { return (v0 + v1 + v2) * 0.3333333333f; }
+		glm::vec3 Min() const { return glm::min(glm::min(v0, v1), v2); }
+		glm::vec3 Max() const { return glm::max(glm::max(v0, v1), v2); }
 	};
 
 	std::vector<BvhNode> stack;
@@ -81,27 +83,62 @@ public:
 
 	void SplitNode(const int& nodeIdx) {
 
-		auto& node = stack[nodeIdx];
-
-		const auto splitPos = node.aabb.Center();
-		const auto aabbSize = node.aabb.Size();
-
 		// @IDEA: For the first ray traversal it might be possible to optimize building using camera information
 		// for example partition using dot(viewdir, nrm) + dot(viewdir, ro - tripos) + (pos.x/y/z on largest_axis)
 		// this should split backfacing triangles out very quick and prefer tris that are pointing at the cam
 		// indirect bounces would have to use a standard bvh
+		
+		auto& node = stack[nodeIdx];
+		const auto aabbSize = node.aabb.Size();
 
-		// Split naively on the largest aabb axis, @TODO: maybe SAH?
-		int splitPoint;
+#if true // SAH Splits
+
+		int minAxis = 0;
+		auto minSplitPos = node.aabb.Center();
+		float minCost = std::numeric_limits<float>::max();
+		const float invNodeArea = 1.0f / node.aabb.AreaHeuristic();
+		
+		// Naive = 22.5ms, 6 = 19.7ms, 10 = 19.6ms, 20 = 19.4ms, 100 = 19.0ms
+		const float stepsize = 1.0f / 6.0f;
+		
+		for (uint32_t axis = 0; axis < 3; axis++) {
+			for (float t = stepsize; t < 1.0f; t += stepsize) {
+				
+				const glm::vec3 splitPos = node.aabb.min + aabbSize * t;
+				const int splitPoint = Partition(node.GetLeftIndex(), node.GetRightIndex(), splitPos, axis);
+				
+				if (splitPoint == node.GetLeftIndex() || splitPoint == node.GetRightIndex())
+					continue; // Couldn't split
+		
+				AABB aabbLeft = CalculateAABB(node.GetLeftIndex(), splitPoint);
+				AABB aabbRight = CalculateAABB(splitPoint, node.GetRightIndex());
+		
+				int numRight = node.GetRightIndex() - splitPoint;
+				int numLeft = splitPoint - node.GetLeftIndex();
+
+				float cost = 1.0f + (numLeft * aabbLeft.AreaHeuristic() + numRight * aabbRight.AreaHeuristic()) * invNodeArea;
+
+				if (cost < minCost) {
+					minSplitPos = splitPos;
+					minAxis = axis;
+					minCost = cost;
+				}
+			}
+		}
+		
+		int splitPoint = Partition(node.GetLeftIndex(), node.GetRightIndex(), minSplitPos, minAxis);
+
+#else // Naive mid split
 
 		uint32_t axis = 2;
 		if (aabbSize.x > aabbSize.y && aabbSize.x > aabbSize.z) axis = 0;
 		else if (aabbSize.y > aabbSize.z) axis = 1;
 
-		splitPoint = Partition(node.GetLeftIndex(), node.GetRightIndex(), splitPos, axis);
+		const auto splitPos = node.aabb.Center();
+		int splitPoint = Partition(node.GetLeftIndex(), node.GetRightIndex(), splitPos, axis);
 
 		if (splitPoint == node.GetLeftIndex() || splitPoint == node.GetRightIndex()) {
-			
+
 			// Couldn't split the data any further, try the other 2 axes
 
 			int axisA = (axis + 1) % 3, axisB = (axis + 2) % 3;
@@ -117,6 +154,7 @@ public:
 					splitPoint = Partition(node.GetLeftIndex(), node.GetRightIndex(), splitPos, axisA);
 			}
 		}
+#endif
 
 		if (splitPoint == node.GetLeftIndex() || splitPoint == node.GetRightIndex())
 			return; // Can't split in any axis anymore, data is probably overlapping, just return
@@ -150,18 +188,27 @@ public:
 	int Partition(const int& low, const int& high, const glm::vec3& splitPos, const int& axis) {
 		int pt = low;
 		for (int i = low; i < high; i++)
-			if (triangles[i].Centroid()[axis] < splitPos[axis])
+			if (triangles[i].Max()[axis] < splitPos[axis])
 				std::swap(triangles[i], triangles[pt++]); // Swap index i and pt in triangles array
 		return pt;
+	}
+
+	AABB CalculateAABB(const uint32_t& left, const uint32_t& right) const {
+		AABB ret = AABB(triangles[left].v0);
+		for (uint32_t i = left; i < right; i++) {
+			ret.Encapsulate(triangles[i].v0);
+			ret.Encapsulate(triangles[i].v1);
+			ret.Encapsulate(triangles[i].v2);
+		}
+		return ret;
 	}
 
 	void CalculateNodeAABB(BvhNode& node) {
 		node.aabb = AABB(triangles[node.GetLeftIndex()].v0);
 		for (int i = node.GetLeftIndex(); i < node.GetRightIndex(); i++) {
-			const auto& tri = triangles[i];
-			node.aabb.Encapsulate(tri.v0);
-			node.aabb.Encapsulate(tri.v1);
-			node.aabb.Encapsulate(tri.v2);
+			node.aabb.Encapsulate(triangles[i].v0);
+			node.aabb.Encapsulate(triangles[i].v1);
+			node.aabb.Encapsulate(triangles[i].v2);
 		}
 	}
 
@@ -202,6 +249,7 @@ public:
 			for (int i = node.GetLeftIndex(); i < node.GetRightIndex(); i++) {
 				const auto& tri = triangles[i];
 				const auto res = ray_tri_intersect(ro, rd, tri);
+
 				if (res > 0.0f && res < minDist) {
 					minDist = res;
 					minTriIdx = tri.originalIndex;
@@ -218,15 +266,28 @@ public:
 			const auto intersectA = stack[left].aabb.Intersect(ro, rd, inv_rd);
 			const auto intersectB = stack[right].aabb.Intersect(ro, rd, inv_rd);
 
-			// Check if either is inside
+			// Both either behind or one is inside -> check the one we're inside of
 			if (intersectA < 0.0f && intersectB < 0.0f) {
 				if (stack[left].aabb.Contains(ro)) 
 					IntersectNode(left, ro, rd, inv_rd, minTriIdx, minDist);
-				else if (stack[right].aabb.Contains(ro)) 
+				if (stack[right].aabb.Contains(ro)) 
 					IntersectNode(right, ro, rd, inv_rd, minTriIdx, minDist);
 			}
-
-			// Check if both hit
+			// Check if A inside and B outside or miss
+			else if (intersectA < 0.0f) {
+				if (stack[left].aabb.Contains(ro))
+					IntersectNode(left, ro, rd, inv_rd, minTriIdx, minDist);
+				if (intersectB != 0.0f && intersectB < minDist)
+					IntersectNode(right, ro, rd, inv_rd, minTriIdx, minDist);
+			}
+			// Check if B inside and A outside or miss
+			else if (intersectB < 0.0f) {
+				if (stack[right].aabb.Contains(ro))
+					IntersectNode(right, ro, rd, inv_rd, minTriIdx, minDist);
+				if (intersectA != 0.0f && intersectA < minDist)
+					IntersectNode(left, ro, rd, inv_rd, minTriIdx, minDist);
+			}
+			// Check if both hit and check closer first
 			else if (intersectA != 0.0f && intersectB != 0.0f) {
 				if (intersectA < intersectB) {
 					if (intersectA < minDist) IntersectNode(left, ro, rd, inv_rd, minTriIdx, minDist);
@@ -237,7 +298,6 @@ public:
 					if (intersectA < minDist) IntersectNode(left, ro, rd, inv_rd, minTriIdx, minDist);
 				}
 			}
-
 			// Check if either hit
 			else if (intersectA != 0.0f && intersectA < minDist)
 				IntersectNode(left, ro, rd, inv_rd, minTriIdx, minDist);

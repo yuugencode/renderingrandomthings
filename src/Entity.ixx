@@ -22,14 +22,13 @@ public:
 	Transform transform;
 	AABB aabb;
 	Bvh bvh;
-	int textureHandle;
+	std::vector<uint32_t> textureHandles;
 	int meshHandle;
 
-	bool HasTexture() const { return textureHandle >= 0; }
+	bool HasTexture() const { return textureHandles.size() != 0; }
 	bool HasMesh() const { return meshHandle >= 0; }
 	bool HasBVH() const { return bvh.Exists(); }
 	bool HasAABB() const { return aabb.min != aabb.max; }
 
 	const Mesh* GetMesh() const { return Assets::Meshes[meshHandle].get(); }
-	const Texture* GetTexture() const { return Assets::Textures[textureHandle].get(); }
 };

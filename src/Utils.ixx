@@ -128,6 +128,11 @@ export struct AABB {
         max = glm::max(point, max);
     }
 
+    float AreaHeuristic() const {
+        const auto temp = max - min;
+        return temp.x + temp.y + temp.z;
+    }
+
     // Standard slab method
     float Intersect(const glm::vec3& ro, const glm::vec3& rd, const glm::vec3& invDir) const {
         const auto a = (min - ro) * invDir;
@@ -176,6 +181,11 @@ export namespace Utils {
         return vec - Project(vec, normal);
     }
 
+    /// <summary> Returns a interpolated towards b using t = 0...1 </summary>
+    glm::vec3 Lerp(const glm::vec3& a, const glm::vec3& b, const float& t) {
+        return a * (1.0f - t) + b * t;
+    }
+
     /// <summary> Returns where val is between min...max as 0...1 percentage </summary>
     float InvLerp(const float& val, const float& min, const float& max) {
         return (val - min) / (max - min); 
@@ -212,4 +222,5 @@ export namespace Globals {
     export const Color Blue = Color(0x00, 0x00, 0xff, 0xff);
     export const Color White = Color(0xff, 0xff, 0xff, 0xff);
     export const Color Black = Color(0x00, 0x00, 0x00, 0xff);
+    export const float PI = 3.14159265358979f;
 }
