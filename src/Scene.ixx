@@ -8,6 +8,7 @@ import Entity;
 import Shapes;
 import RenderedMesh;
 import Camera;
+import Light;
 
 export class Scene {
 
@@ -18,8 +19,10 @@ public:
 	
 	std::vector<std::unique_ptr<Entity>> entities;
 
+	std::vector<Light> lights;
+
 	Camera camera;
-	
+
 	Scene() {
 		//entities.reserve(32);
 	}

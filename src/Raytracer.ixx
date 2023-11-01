@@ -82,25 +82,15 @@ public:
 		bgfx::setViewRect(VIEW_LAYER, 0, 0, bgfx::BackbufferRatio::Equal);
 	}
 
-	inline Color GetColor(const Entity* intersectedObj, const glm::vec3& hitPt, const uint32_t& extraData) const {
+	inline Color GetColor(const Scene& scene, const Entity* intersectedObj, const glm::vec3& hitPt, const glm::vec3& normal, const uint32_t& extraData) const {
+		
 		// Switching here seems faster than a virtual function call
 		switch (intersectedObj->type) {
-			case Entity::Type::Sphere: return ((Sphere*)intersectedObj)->GetColor(hitPt, extraData);
-			case Entity::Type::Disk: return ((Disk*)intersectedObj)->GetColor(hitPt, extraData);
-			case Entity::Type::Box: return ((Box*)intersectedObj)->GetColor(hitPt, extraData);
-			case Entity::Type::RenderedMesh: return ((RenderedMesh*)intersectedObj)->GetColor(hitPt, extraData);
+			case Entity::Type::Sphere: return ((Sphere*)intersectedObj)->GetColor(hitPt, normal, extraData, scene.lights);
+			case Entity::Type::Disk: return ((Disk*)intersectedObj)->GetColor(hitPt, normal, extraData, scene.lights);
+			case Entity::Type::Box: return ((Box*)intersectedObj)->GetColor(hitPt, normal, extraData, scene.lights);
+			case Entity::Type::RenderedMesh: return ((RenderedMesh*)intersectedObj)->GetColor(hitPt, normal, extraData, scene.lights);
 			default: return Color(0x33, 0x33, 0x44, 0xff);
-		}
-	}
-
-	inline glm::vec3 GetNormal(const Entity* intersectedObj, const glm::vec3& hitPt, const uint32_t& extraData) const {
-		// Switching here seems faster than a virtual function call
-		switch (intersectedObj->type) {
-			case Entity::Type::Sphere: return ((Sphere*)intersectedObj)->Normal(hitPt);
-			case Entity::Type::Disk: return ((Disk*)intersectedObj)->Normal();
-			case Entity::Type::Box: return ((Box*)intersectedObj)->Normal(hitPt);
-			case Entity::Type::RenderedMesh: return ((RenderedMesh*)intersectedObj)->Normal(extraData);
-			default: return glm::vec3();
 		}
 	}
 
@@ -151,11 +141,11 @@ public:
 				const auto newRd = glm::reflect(rd, normal);
 			
 				Color reflColor = TraceRay(scene, newRo, newRd, 1.0f / newRd, ++recursionDepth);
-				Color ownColor = GetColor(intersectedObj, hitPt, extraData);
+				Color ownColor = GetColor(scene, intersectedObj, hitPt, normal, extraData);
 				return Color::Lerp(ownColor, reflColor, intersectedObj->reflectivity);
 			}
 
-			return GetColor(intersectedObj, hitPt, extraData);
+			return GetColor(scene, intersectedObj, hitPt, normal, extraData);
 		}
 		else {
 			// If we hit nothing, draw "Skybox"

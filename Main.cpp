@@ -18,6 +18,7 @@ import Timer;
 import Mesh;
 import Texture;
 import Shapes;
+import Light;
 import RenderedMesh;
 import Utils;
 import Assets;
@@ -77,12 +78,16 @@ int main(int argc, char* argv[]) {
 	Game::raytracer.Create(Game::window);
 
 	// Add stuff to the scene
+	
+	// Light
+	Game::scene.lights.push_back(Light(glm::vec3(0.0f, 4.0f, 3.0f), 15.0f, 1.0f));
+
 	// Parametric shapes
 	Game::scene.entities.push_back(std::make_unique<Disk>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 5.0f));
 	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(2.0f, 0.6f, -2.0f), 1.0f));
-	Game::scene.entities.back()->reflectivity = 0.9f;
+	Game::scene.entities.back()->reflectivity = 0.5f;
 	Game::scene.entities.push_back(std::make_unique<Box>(glm::vec3(-2.0f, 0.5f, 0.0f), glm::vec3(0.5f, 2.0f, 2.0f)));
-	Game::scene.entities.back()->reflectivity = 0.9f;
+	Game::scene.entities.back()->reflectivity = 0.5f;
 
 	// Mesh 1
 	auto meshHandle = Assets::NewMesh(std::filesystem::path("ext/char.fbx"));

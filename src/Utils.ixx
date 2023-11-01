@@ -80,6 +80,10 @@ export struct Color {
         return Color::Lerp(*this, other, t);
     }
 
+    glm::vec4 ToVec4() const {
+        return glm::vec4(r, g, b, a) / 255.0f;
+    }
+
     Color operator+(const Color& c) {
         Color ret;
         ret.r = r + c.r; ret.g = r + c.g; ret.b = r + c.b; ret.a = r + c.a;

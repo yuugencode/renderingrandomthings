@@ -12,6 +12,7 @@ import Bvh;
 import Utils;
 import Texture;
 import Assets;
+import Light;
 
 /// <summary> A mesh consisting of triangles that can be raytraced </summary>
 export struct RenderedMesh : Entity {
@@ -54,9 +55,11 @@ public:
 		return glm::vec3(u, v, w);
 	}
 
-	Color GetColor(const glm::vec3& pos, const uint32_t& triIndex) const {
+	Color GetColor(const glm::vec3& pos, const glm::vec3& normal, const uint32_t& triIndex, const std::vector<Light>& lights) const {
 		// Samples the color of this rendered mesh at pos and tri index
 		
+		using namespace glm;
+
 		const auto& mesh = Assets::Meshes[meshHandle];
 		const auto& v0i = mesh->triangles[triIndex + 0];
 		const auto& v1i = mesh->triangles[triIndex + 1];
@@ -78,33 +81,31 @@ public:
 		// Barycentric interpolation as if we were a real shader
 		const auto b = Barycentric(pos, p0, p1, p2);
 
+		vec4 diffuse;
+
 		// Texture sample
 		if (HasTexture()) {
 			const auto uv = uv0 * b.x + uv1 * b.y + uv2 * b.z;
-
 			const auto& texID = textureHandles[material];
-			return Assets::Textures[texID]->SampleUVClamp(uv);
-		}
-
-		// Vertex normals
-		if (HasMesh() && Assets::Meshes[meshHandle]->hasNormals) {
-			auto ret = n0 * b.x + n1 * b.y + n2 * b.z;
-			return Color::FromVec(ret, 1.0f);
+			diffuse = Assets::Textures[texID]->SampleUVClamp(uv).ToVec4();
 		}
 		
+		// Vertex normals
+		else if (HasMesh() && Assets::Meshes[meshHandle]->hasNormals)
+			diffuse = vec4(n0 * b.x + n1 * b.y + n2 * b.z, 1.0f);
+		
 		// Face normals
-		auto ret = glm::normalize(glm::cross(p0 - p1, p0 - p2));
-		return Color::FromVec(ret, 1.0f);
-	};
+		else
+			diffuse = vec4(normalize(cross(p0 - p1, p0 - p2)), 1.0f);
 
-	glm::vec3 Normal(const uint32_t& triIndex) const {
-		const auto& mesh = Assets::Meshes[meshHandle];
-		const auto& v0i = mesh->triangles[triIndex + 0];
-		const auto& v1i = mesh->triangles[triIndex + 1];
-		const auto& v2i = mesh->triangles[triIndex + 2];
-		const auto& p0 = mesh->vertices[v0i];
-		const auto& p1 = mesh->vertices[v1i];
-		const auto& p2 = mesh->vertices[v2i];
-		return glm::normalize(glm::cross(p0 - p2, p0 - p1));
-	}
+
+		// Loop lights
+		for (const auto& light : lights) {
+			float atten, nl;
+			light.CalcGenericLighting(pos, normal, atten, nl);
+			diffuse *= nl * atten;
+		}
+
+		return Color::FromFloat(diffuse.x, diffuse.y, diffuse.z, diffuse.w);
+	};
 };

@@ -6,6 +6,7 @@ export module Shapes;
 
 import Entity;
 import Utils;
+import Light;
 
 /// <summary> Parametrized sphere </summary>
 export struct Sphere : Entity {
@@ -44,9 +45,18 @@ public:
 		return glm::normalize(pos - transform.position);
 	}
 
-	Color GetColor(const glm::vec3& pos, const uint32_t& extraData) const {
-		auto nrm = glm::normalize(pos - transform.position);
-		return Color::FromVec(nrm, 1.0f);
+	Color GetColor(const glm::vec3& pos, const glm::vec3& normal, const uint32_t& extraData, const std::vector<Light>& lights) const {
+		
+		glm::vec4 diffuse = glm::vec4(glm::normalize(pos - transform.position), 1.0f);
+
+		// Loop lights
+		for (const auto& light : lights) {
+			float atten, nl;
+			light.CalcGenericLighting(pos, normal, atten, nl);
+			diffuse *= nl * atten;
+		}
+
+		return Color::FromVec(diffuse);
 	};
 };
 
@@ -82,13 +92,22 @@ public:
 		return glm::length(os);
 	}
 
-	Color GetColor(const glm::vec3& pos, const uint32_t& extraData) const {
+	Color GetColor(const glm::vec3& pos, const glm::vec3& normal, const uint32_t& extraData, const std::vector<Light>& lights) const {
 
 		// Simple grid
 		auto f = glm::fract(pos * 2.0f);
 		f = glm::abs(f - 0.5f) * 2.0f;
 		float a = glm::min(f.x, glm::min(f.y, f.z));
-		return Color::FromFloat(0.3f + Utils::InvLerpClamp(1.0f - a, 0.95f, 1.0f)); //Color(0xaa, 0xaa, 0xbb, 0xff);
+		float res = 0.3f + Utils::InvLerpClamp(1.0f - a, 0.95f, 1.0f);
+
+		// Loop lights
+		for (const auto& light : lights) {
+			float atten, nl;
+			light.CalcGenericLighting(pos, normal, atten, nl);
+			res *= nl * atten;
+		}
+
+		return Color::FromFloat(res); //Color(0xaa, 0xaa, 0xbb, 0xff);
 	};
 };
 
@@ -128,7 +147,16 @@ public:
 			return nrm.z < 0.0f ? glm::vec3(0.0f, 0.0f, -1.0f) : glm::vec3(0.0f, 0.0f, 1.0f);
 	}
 
-	Color GetColor(const glm::vec3& pos, const uint32_t& extraData) const {
-		return Color::FromVec(glm::abs(Normal(pos)), 1.0f);
+	Color GetColor(const glm::vec3& pos, const glm::vec3& normal, const uint32_t& extraData, const std::vector<Light>& lights) const {
+		glm::vec4 diffuse = glm::vec4(glm::abs(Normal(pos)), 1.0f);
+
+		// Loop lights
+		for (const auto& light : lights) {
+			float atten, nl;
+			light.CalcGenericLighting(pos, normal, atten, nl);
+			diffuse *= nl * atten;
+		}
+
+		return Color::FromVec(diffuse);
 	};
 };
