@@ -199,6 +199,32 @@ export namespace Utils {
         return glm::dot(a, a);
     }
 
+    /// <summary> Returns a random direction on dir's hemisphere </summary>
+    glm::vec3 GenRandomVec(const glm::vec3& dir, const float& hashA, const float& hashB) {
+        auto temp1 = glm::cross(dir, glm::vec3(0.0f, 1.0f, 0.0f));
+        if (glm::dot(temp1, temp1) < 0.0001f) temp1 = glm::cross(dir, glm::vec3(1.0f, 0.0f, 0.0f));
+        const auto temp2 = glm::cross(dir, temp1);
+        return glm::normalize(dir + temp1 * hashA + temp2 * hashB);
+    }
+
+    // Nice hash functions from https://www.shadertoy.com/view/4djSRW
+    float Hash11(float p) {
+        p = glm::fract(p * 0.1031f);
+        p *= p + 33.33f;
+        p *= p + p;
+        return glm::fract(p);
+    }
+    float Hash13(glm::vec3 p3) {
+        p3 = glm::fract(p3 * 0.1031f);
+        p3 += glm::dot(p3, glm::vec3(p3.y, p3.z, p3.x) + 33.33f);
+        return glm::fract((p3.x + p3.y) * p3.z);
+    }
+    glm::vec3 Hash32(const glm::vec2& p) {
+        glm::vec3 p3 = glm::fract(glm::vec3(p.x, p.y, p.x) * glm::vec3(0.1031f, 0.1030f, 0.0973f));
+        p3 += glm::dot(p3, glm::vec3(p3.y, p3.x, p3.z) + 33.33f);
+        return glm::fract((glm::vec3(p3.x, p3.x, p3.y) + glm::vec3(p3.y, p3.z, p3.z)) * glm::vec3(p3.z, p3.y, p3.x));
+    }
+
     /// <summary> Constructs a model matrix from given pos/fwd/up/scale </summary>
     glm::mat4x4 ModelMatrix(const glm::vec3& pos, const glm::vec3& lookAtTarget, const glm::vec3& scale) {
         auto mat_pos = glm::translate(glm::mat4x4(1.0f), pos);

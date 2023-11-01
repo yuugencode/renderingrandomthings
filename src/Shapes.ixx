@@ -18,10 +18,11 @@ public:
 		transform.position = pos;
 		transform.scale = glm::vec3(radius);
 		type = Entity::Type::Sphere;
+		reflectivity = 1.0f;
 	}
 
-	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, float& depth, uint32_t& data) const { return Intersect(ro, rd, depth); }
-	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, float& depth) const {
+	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, glm::vec3& normal, float& depth, uint32_t& data) const { return Intersect(ro, rd, normal, depth); }
+	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, glm::vec3& normal, float& depth) const {
 		// Adapted from Inigo Quilez https://iquilezles.org/articles/
 		glm::vec3 oc = ro - transform.position;
 		float b = glm::dot(oc, rd);
@@ -31,11 +32,16 @@ public:
 		if (h < 0.0f) return false;
 		h = sqrt(h);
 		depth = -b - h;
+		normal = glm::normalize(ro - transform.position);
 		return true;
 	}
 
 	float EstimatedDistanceTo(const glm::vec3& pos) const {
 		return glm::max(glm::distance(pos, transform.position) - transform.scale.x, 0.0f);
+	}
+
+	glm::vec3 Normal(const glm::vec3& pos) const {
+		return glm::normalize(pos - transform.position);
 	}
 
 	Color GetColor(const glm::vec3& pos, const uint32_t& extraData) const {
@@ -59,9 +65,10 @@ public:
 		type = Entity::Type::Disk;
 	}
 
-	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, float& depth, uint32_t& data) const { return Intersect(ro, rd, depth); }
-	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, float& depth) const {
+	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, glm::vec3& normal, float& depth, uint32_t& data) const { return Intersect(ro, rd, normal, depth); }
+	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, glm::vec3& normal, float& depth) const {
 		glm::vec3 o = ro - transform.position;
+		normal = Normal();
 		depth = -glm::dot(Normal(), o) / glm::dot(rd, Normal());
 		if (depth < 0.0f) return false;
 		glm::vec3  q = o + rd * depth;
@@ -89,18 +96,19 @@ public:
 export struct Box : Entity {
 public:
 
-	Box(const glm::vec3& pos, const float& radius) {
+	Box(const glm::vec3& pos, const glm::vec3& size) {
 		transform.position = pos;
-		transform.scale = glm::vec3(radius);
-		aabb = AABB(pos - radius, pos + radius);
+		transform.scale = size;
+		aabb = AABB(pos - size, pos + size);
 		type = Entity::Type::Box;
 	}
 
-	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, float& depth, uint32_t& data) const { return Intersect(ro, rd, depth); }
-	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, float& depth) const {
+	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, glm::vec3& normal, float& depth, uint32_t& data) const { return Intersect(ro, rd, normal, depth); }
+	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, glm::vec3& normal, float& depth) const {
 		auto res = aabb.Intersect(ro, rd);
 		if (res > 0.0f) {
 			depth = res;
+			normal = Normal(ro + rd * res);
 			return true;
 		}
 		return false;
@@ -110,17 +118,17 @@ public:
 		return glm::max(glm::distance(pos, aabb.Center()) - aabb.Size().x, 0.0f);
 	}
 
-	Color GetColor(const glm::vec3& pos, const uint32_t& extraData) const {
-	
-		auto nrm = pos - aabb.Center();
-		
+	glm::vec3 Normal(const glm::vec3& pos) const {
+		const auto nrm = (pos - aabb.Center()) / transform.scale;
 		if (glm::abs(nrm.x) > glm::abs(nrm.y) && glm::abs(nrm.x) > glm::abs(nrm.z))
-			nrm = nrm.x < 0.0f ? glm::vec3(1, 1, 0) : glm::vec3(1, 0, 0);
+			return nrm.x < 0.0f ? glm::vec3(-1.0f, 0.0f, 0.0f) : glm::vec3(1.0f, 0.0f, 0.0f);
 		else if (glm::abs(nrm.y) > glm::abs(nrm.z))
-			nrm = nrm.y < 0.0f ? glm::vec3(0, 1, 1) : glm::vec3(0, 1, 0);
+			return nrm.y < 0.0f ? glm::vec3(0.0f, -1.0f, 0.0f) : glm::vec3(0.0f, 1.0f, 0.0f);
 		else
-			nrm = nrm.z < 0.0f ? glm::vec3(1, 0, 1) : glm::vec3(0, 0, 1);
+			return nrm.z < 0.0f ? glm::vec3(0.0f, 0.0f, -1.0f) : glm::vec3(0.0f, 0.0f, 1.0f);
+	}
 
-		return Color::FromVec(nrm, 1.0f);
+	Color GetColor(const glm::vec3& pos, const uint32_t& extraData) const {
+		return Color::FromVec(glm::abs(Normal(pos)), 1.0f);
 	};
 };

@@ -82,11 +82,34 @@ public:
 		bgfx::setViewRect(VIEW_LAYER, 0, 0, bgfx::BackbufferRatio::Equal);
 	}
 
-	Color TraceRay(const Scene& scene, const glm::vec3& ro, const glm::vec3& rd, const glm::vec3& invDir) {
+	inline Color GetColor(const Entity* intersectedObj, const glm::vec3& hitPt, const uint32_t& extraData) const {
+		// Switching here seems faster than a virtual function call
+		switch (intersectedObj->type) {
+			case Entity::Type::Sphere: return ((Sphere*)intersectedObj)->GetColor(hitPt, extraData);
+			case Entity::Type::Disk: return ((Disk*)intersectedObj)->GetColor(hitPt, extraData);
+			case Entity::Type::Box: return ((Box*)intersectedObj)->GetColor(hitPt, extraData);
+			case Entity::Type::RenderedMesh: return ((RenderedMesh*)intersectedObj)->GetColor(hitPt, extraData);
+			default: return Color(0x33, 0x33, 0x44, 0xff);
+		}
+	}
+
+	inline glm::vec3 GetNormal(const Entity* intersectedObj, const glm::vec3& hitPt, const uint32_t& extraData) const {
+		// Switching here seems faster than a virtual function call
+		switch (intersectedObj->type) {
+			case Entity::Type::Sphere: return ((Sphere*)intersectedObj)->Normal(hitPt);
+			case Entity::Type::Disk: return ((Disk*)intersectedObj)->Normal();
+			case Entity::Type::Box: return ((Box*)intersectedObj)->Normal(hitPt);
+			case Entity::Type::RenderedMesh: return ((RenderedMesh*)intersectedObj)->Normal(extraData);
+			default: return glm::vec3();
+		}
+	}
+
+	Color TraceRay(const Scene& scene, const glm::vec3& ro, const glm::vec3& rd, const glm::vec3& invDir, int& recursionDepth) {
 		
 		float minDepth = std::numeric_limits<float>::max();
 		uint32_t extraData;
 		Entity* intersectedObj = nullptr;
+		glm::vec3 normal;
 
 		// Loop all objects, could use something more sophisticated but a simple loop gets us pretty far
 		for (const auto& entity : scene.entities) {
@@ -97,13 +120,14 @@ public:
 			bool intersect;
 			float depth;
 			uint32_t data = 0;
+			glm::vec3 nrm;
 
 			// Switching here is inelegant but seems significantly faster than a virtual function call
 			switch (entity->type) {
-				case Entity::Type::Sphere: intersect = ((Sphere*)entity.get())->Intersect(ro, rd, depth); break;
-				case Entity::Type::Disk: intersect = ((Disk*)entity.get())->Intersect(ro, rd, depth); break;
-				case Entity::Type::Box: intersect = ((Box*)entity.get())->Intersect(ro, rd, depth); break;
-				case Entity::Type::RenderedMesh: intersect = ((RenderedMesh*)entity.get())->Intersect(ro, rd, invDir, depth, data); break;
+				case Entity::Type::Sphere: intersect = ((Sphere*)entity.get())->Intersect(ro, rd, nrm, depth); break;
+				case Entity::Type::Disk: intersect = ((Disk*)entity.get())->Intersect(ro, rd, nrm, depth); break;
+				case Entity::Type::Box: intersect = ((Box*)entity.get())->Intersect(ro, rd, nrm, depth); break;
+				case Entity::Type::RenderedMesh: intersect = ((RenderedMesh*)entity.get())->Intersect(ro, rd, invDir, nrm, depth, data); break;
 			default: break;
 			}
 			
@@ -111,6 +135,7 @@ public:
 			if (intersect && depth < minDepth) {
 				minDepth = depth;
 				extraData = data;
+				normal = nrm;
 				intersectedObj = entity.get();
 			}
 		}
@@ -119,20 +144,23 @@ public:
 			// Hit something, color it
 			const auto hitPt = ro + rd * minDepth;
 			
-			// Switching here seems faster than a virtual function call
-			switch (intersectedObj->type) {
-				case Entity::Type::Sphere: return ((Sphere*)intersectedObj)->GetColor(hitPt, extraData);
-				case Entity::Type::Disk: return ((Disk*)intersectedObj)->GetColor(hitPt, extraData);
-				case Entity::Type::Box: return ((Box*)intersectedObj)->GetColor(hitPt, extraData);
-				case Entity::Type::RenderedMesh: return ((RenderedMesh*)intersectedObj)->GetColor(hitPt, extraData);
-				default: return Color(0x33, 0x33, 0x44, 0xff);
+			// Indirect bounce
+			if (intersectedObj->reflectivity != 0.0f && recursionDepth < 2) {
+			
+				const auto newRo = glm::vec3(hitPt + normal * 0.000001f);
+				const auto newRd = glm::reflect(rd, normal);
+			
+				Color reflColor = TraceRay(scene, newRo, newRd, 1.0f / newRd, ++recursionDepth);
+				Color ownColor = GetColor(intersectedObj, hitPt, extraData);
+				return Color::Lerp(ownColor, reflColor, intersectedObj->reflectivity);
 			}
+
+			return GetColor(intersectedObj, hitPt, extraData);
 		}
-		else { 
+		else {
 			// If we hit nothing, draw "Skybox"
-			return Color(0x33, 0x33, 0x44, 0xff);
+			return Color(0x55, 0x55, 0x77, 0xff);
 		}
-		
 	}
 
 	void TraceScene(const Scene& scene) {
@@ -167,7 +195,8 @@ public:
 			glm::vec3 dir = viewInv * px;
 			dir = normalize(dir);
 			
-			textureBuffer[i] = TraceRay(scene, camPos, dir, 1.0f / dir);
+			int recursionDepth = 0;
+			textureBuffer[i] = TraceRay(scene, camPos, dir, 1.0f / dir, recursionDepth);
 		});
 
 		bgfx::updateTexture2D(texture, 0, 0, 0, 0, window->width, window->height, mem);

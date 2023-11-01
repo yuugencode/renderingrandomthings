@@ -32,12 +32,12 @@ public:
 		Log::Line("bvh gen", Log::FormatFloat((float)t.GetAveragedTime() * 1000.0f), "ms");
 	}
 
-	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, const glm::vec3& invDir, float& depth, uint32_t& triIdx) const {
-		return bvh.Intersect(ro, rd, invDir, depth, triIdx);
+	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, const glm::vec3& invDir, glm::vec3& normal, float& depth, uint32_t& triIdx) const {
+		return bvh.Intersect(ro, rd, invDir, normal, depth, triIdx);
 	}
 
 	float EstimatedDistanceTo(const glm::vec3& pos) const {
-		return glm::length(pos); // @TODO
+		return glm::length(pos - transform.position);
 	}
 
 	glm::vec3 Barycentric(const glm::vec3& p, const glm::vec3& a, const glm::vec3& b, const glm::vec3& c) const {
@@ -96,4 +96,15 @@ public:
 		auto ret = glm::normalize(glm::cross(p0 - p1, p0 - p2));
 		return Color::FromVec(ret, 1.0f);
 	};
+
+	glm::vec3 Normal(const uint32_t& triIndex) const {
+		const auto& mesh = Assets::Meshes[meshHandle];
+		const auto& v0i = mesh->triangles[triIndex + 0];
+		const auto& v1i = mesh->triangles[triIndex + 1];
+		const auto& v2i = mesh->triangles[triIndex + 2];
+		const auto& p0 = mesh->vertices[v0i];
+		const auto& p1 = mesh->vertices[v1i];
+		const auto& p2 = mesh->vertices[v2i];
+		return glm::normalize(glm::cross(p0 - p2, p0 - p1));
+	}
 };

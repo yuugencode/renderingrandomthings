@@ -23,7 +23,8 @@ public:
 	AABB aabb;
 	Bvh bvh;
 	std::vector<uint32_t> textureHandles;
-	int meshHandle;
+	int meshHandle = -1;
+	float reflectivity = 0.0f;
 
 	bool HasTexture() const { return textureHandles.size() != 0; }
 	bool HasMesh() const { return meshHandle >= 0; }
