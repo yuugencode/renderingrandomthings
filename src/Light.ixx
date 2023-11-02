@@ -20,10 +20,10 @@ public:
 	// Calculates boring lighting for given pos/nrm
 	void CalcGenericLighting(const glm::vec3& pos, const glm::vec3& nrm, float& attenuation, float& nl) const {
 		using namespace glm;
-		vec3 lightDir = position - pos;
-		float lightDirSqr = dot(lightDir, lightDir);
-		lightDir /= sqrt(lightDirSqr) + 0.000001f;
-		nl = dot(lightDir, nrm) * 0.5f + 0.5f;
-		attenuation = clamp(range / lightDirSqr, 0.0f, 10.0f) * intensity;
+		vec3 os = position - pos;
+		float distSqr = dot(os, os);
+		os /= sqrt(distSqr) + 0.000001f;
+		nl = dot(os, nrm) * 0.5f + 0.5f;
+		attenuation = clamp((range / distSqr) * intensity, 0.0f, 1.0f);
 	}
 };

@@ -7,6 +7,9 @@ module;
 
 export module Raytracer;
 
+import <memory>;
+import <filesystem>;
+import <algorithm>;
 import Utils;
 import Window;
 import Entity;
@@ -14,12 +17,21 @@ import Scene;
 import Transform;
 import Shapes;
 import RenderedMesh;
-import <memory>;
-import <filesystem>;
-import <algorithm>;
+import Assets;
+
+// Raycast result
+export struct RayResult {
+	float depth;
+	glm::vec3 normal;
+	uint32_t data;
+	Entity* obj;
+	bool Hit() const { return obj != nullptr; }
+};
 
 export class Raytracer {
 public:
+
+	inline static Raytracer* Instance;
 
 	// bgfx Rendering layer
 	const bgfx::ViewId VIEW_LAYER = 0;
@@ -49,6 +61,7 @@ public:
 
 	void Create(const Window& window) {
 
+		Instance = this;
 		this->window = &window;
 
 		vtxLayout
@@ -82,76 +95,8 @@ public:
 		bgfx::setViewRect(VIEW_LAYER, 0, 0, bgfx::BackbufferRatio::Equal);
 	}
 
-	inline Color GetColor(const Scene& scene, const Entity* intersectedObj, const glm::vec3& hitPt, const glm::vec3& normal, const uint32_t& extraData) const {
-		
-		// Switching here seems faster than a virtual function call
-		switch (intersectedObj->type) {
-			case Entity::Type::Sphere: return ((Sphere*)intersectedObj)->GetColor(hitPt, normal, extraData, scene.lights);
-			case Entity::Type::Disk: return ((Disk*)intersectedObj)->GetColor(hitPt, normal, extraData, scene.lights);
-			case Entity::Type::Box: return ((Box*)intersectedObj)->GetColor(hitPt, normal, extraData, scene.lights);
-			case Entity::Type::RenderedMesh: return ((RenderedMesh*)intersectedObj)->GetColor(hitPt, normal, extraData, scene.lights);
-			default: return Color(0x33, 0x33, 0x44, 0xff);
-		}
-	}
-
-	Color TraceRay(const Scene& scene, const glm::vec3& ro, const glm::vec3& rd, const glm::vec3& invDir, int& recursionDepth) {
-		
-		float minDepth = std::numeric_limits<float>::max();
-		uint32_t extraData;
-		Entity* intersectedObj = nullptr;
-		glm::vec3 normal;
-
-		// Loop all objects, could use something more sophisticated but a simple loop gets us pretty far
-		for (const auto& entity : scene.entities) {
-			
-			// Early rejection for missed rays
-			if (entity->aabb.Intersect(ro, rd, invDir) == 0.0f) continue;
-
-			bool intersect;
-			float depth;
-			uint32_t data = 0;
-			glm::vec3 nrm;
-
-			// Switching here is inelegant but seems significantly faster than a virtual function call
-			switch (entity->type) {
-				case Entity::Type::Sphere: intersect = ((Sphere*)entity.get())->Intersect(ro, rd, nrm, depth); break;
-				case Entity::Type::Disk: intersect = ((Disk*)entity.get())->Intersect(ro, rd, nrm, depth); break;
-				case Entity::Type::Box: intersect = ((Box*)entity.get())->Intersect(ro, rd, nrm, depth); break;
-				case Entity::Type::RenderedMesh: intersect = ((RenderedMesh*)entity.get())->Intersect(ro, rd, invDir, nrm, depth, data); break;
-			default: break;
-			}
-			
-			// Check if hit something and it's the closest hit
-			if (intersect && depth < minDepth) {
-				minDepth = depth;
-				extraData = data;
-				normal = nrm;
-				intersectedObj = entity.get();
-			}
-		}
-
-		if (intersectedObj != nullptr) {
-			// Hit something, color it
-			const auto hitPt = ro + rd * minDepth;
-			
-			// Indirect bounce
-			if (intersectedObj->reflectivity != 0.0f && recursionDepth < 2) {
-			
-				const auto newRo = glm::vec3(hitPt + normal * 0.000001f);
-				const auto newRd = glm::reflect(rd, normal);
-			
-				Color reflColor = TraceRay(scene, newRo, newRd, 1.0f / newRd, ++recursionDepth);
-				Color ownColor = GetColor(scene, intersectedObj, hitPt, normal, extraData);
-				return Color::Lerp(ownColor, reflColor, intersectedObj->reflectivity);
-			}
-
-			return GetColor(scene, intersectedObj, hitPt, normal, extraData);
-		}
-		else {
-			// If we hit nothing, draw "Skybox"
-			return Color(0x55, 0x55, 0x77, 0xff);
-		}
-	}
+	RayResult TraceScene(const Scene& scene, const Ray& ray) const;
+	glm::vec4 TraceRay(const Scene& scene, const Ray& ray, int& recursionDepth) const;
 
 	void TraceScene(const Scene& scene) {
 
@@ -186,7 +131,9 @@ public:
 			dir = normalize(dir);
 			
 			int recursionDepth = 0;
-			textureBuffer[i] = TraceRay(scene, camPos, dir, 1.0f / dir, recursionDepth);
+			Ray ray { .ro = camPos, .rd = dir, .inv_rd = 1.0f / dir, .mask = (uint32_t)-1 };
+			glm::vec4 result = TraceRay(scene, ray, recursionDepth);
+			textureBuffer[i] = Color::FromVec(result);
 		});
 
 		bgfx::updateTexture2D(texture, 0, 0, 0, 0, window->width, window->height, mem);

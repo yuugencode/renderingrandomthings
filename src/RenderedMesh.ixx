@@ -21,6 +21,8 @@ public:
 	RenderedMesh(const int& meshHandle) {
 		this->type = Entity::Type::RenderedMesh;
 		this->meshHandle = meshHandle;
+		id = idCount++;
+		shaderType = Shader::Textured;
 	}
 
 	void GenerateBVH() {
@@ -33,8 +35,8 @@ public:
 		Log::Line("bvh gen", Log::FormatFloat((float)t.GetAveragedTime() * 1000.0f), "ms");
 	}
 
-	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, const glm::vec3& invDir, glm::vec3& normal, float& depth, uint32_t& triIdx) const {
-		return bvh.Intersect(ro, rd, invDir, normal, depth, triIdx);
+	bool Intersect(const Ray& ray, glm::vec3& normal, uint32_t& triIdx, float& depth) const {
+		return bvh.Intersect(ray, normal, triIdx, depth);
 	}
 
 	float EstimatedDistanceTo(const glm::vec3& pos) const {
@@ -55,15 +57,16 @@ public:
 		return glm::vec3(u, v, w);
 	}
 
-	Color GetColor(const glm::vec3& pos, const glm::vec3& normal, const uint32_t& triIndex, const std::vector<Light>& lights) const {
-		// Samples the color of this rendered mesh at pos and tri index
+	v2f VertexShader(const glm::vec3& pos, const glm::vec3& faceNormal, const uint32_t& data) const {
 		
-		using namespace glm;
+		using namespace glm; // Pretend we're a shader
+		
+		v2f ret;
 
 		const auto& mesh = Assets::Meshes[meshHandle];
-		const auto& v0i = mesh->triangles[triIndex + 0];
-		const auto& v1i = mesh->triangles[triIndex + 1];
-		const auto& v2i = mesh->triangles[triIndex + 2];
+		const auto& v0i = mesh->triangles[data + 0]; // data == triIndex for meshes
+		const auto& v1i = mesh->triangles[data + 1];
+		const auto& v2i = mesh->triangles[data + 2];
 		const auto& p0 = mesh->vertices[v0i];
 		const auto& p1 = mesh->vertices[v1i];
 		const auto& p2 = mesh->vertices[v2i];
@@ -76,36 +79,56 @@ public:
 		const auto& uv0 = mesh->uvs[v0i];
 		const auto& uv1 = mesh->uvs[v1i];
 		const auto& uv2 = mesh->uvs[v2i];
-		const auto& material = mesh->materials[triIndex / 3];
+		const auto& material = mesh->materials[data / 3];
 
-		// Barycentric interpolation as if we were a real shader
+		// Barycentric interpolation
 		const auto b = Barycentric(pos, p0, p1, p2);
 
-		vec4 diffuse;
+		//vec4 diffuse(0, 0, 0, 1);
+		//vec3 normal = faceNormal;
+
+		ret.position = pos;
+		ret.data = data;
 
 		// Texture sample
 		if (HasTexture()) {
-			const auto uv = uv0 * b.x + uv1 * b.y + uv2 * b.z;
-			const auto& texID = textureHandles[material];
-			diffuse = Assets::Textures[texID]->SampleUVClamp(uv).ToVec4();
+			ret.uv = uv0 * b.x + uv1 * b.y + uv2 * b.z;
+			//const auto& texID = textureHandles[material];
+			//diffuse = Assets::Textures[texID]->SampleUVClamp(uv).ToVec4();
 		}
-		
-		// Vertex normals
-		else if (HasMesh() && Assets::Meshes[meshHandle]->hasNormals)
-			diffuse = vec4(n0 * b.x + n1 * b.y + n2 * b.z, 1.0f);
-		
+		else {
+			ret.uv = vec2(0);
+		}
 		// Face normals
-		else
-			diffuse = vec4(normalize(cross(p0 - p1, p0 - p2)), 1.0f);
+		//else {
+		//	//swizzle_xyz(diffuse) = normalize(cross(p0 - p1, p0 - p2));
+		//	//diffuse.a = 1.0f;
+		//}
 
+		// Vertex normals interpolated if exist
+		if (HasMesh() && Assets::Meshes[meshHandle]->hasNormals) {
+			ret.normal = normalize(n0 * b.x + n1 * b.y + n2 * b.z);
+			//diffuse = vec4(n0 * b.x + n1 * b.y + n2 * b.z, 1.0f);
+		}
+		else {
+			ret.normal = faceNormal;
+		}
 
 		// Loop lights
-		for (const auto& light : lights) {
-			float atten, nl;
-			light.CalcGenericLighting(pos, normal, atten, nl);
-			diffuse *= nl * atten;
-		}
+		//for (const auto& light : lights) {
+		//	float atten, nl;
+		//	light.CalcGenericLighting(pos, normal, atten, nl);
+		//	swizzle_xyz(diffuse) *= nl * atten;
+		//}
+		//
+		//return diffuse;
 
-		return Color::FromFloat(diffuse.x, diffuse.y, diffuse.z, diffuse.w);
-	};
+		return ret;
+	}
+
+	//glm::vec4 GetColor(const glm::vec3& pos, const glm::vec3& triNormal, const uint32_t& triIndex, const std::vector<Light>& lights) const {
+	//	// Samples the color of this rendered mesh at pos and tri index
+	//	
+	//
+	//};
 };

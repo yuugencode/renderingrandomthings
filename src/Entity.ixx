@@ -19,6 +19,12 @@ public:
 	enum class Type { Sphere, Disk, Box, RenderedMesh };
 	Type type;
 
+	enum class Shader { PlainWhite, Normals, Textured, Grid };
+	Shader shaderType;
+
+	inline static uint32_t idCount = 0; // Unique object id
+	uint32_t id;
+
 	Transform transform;
 	AABB aabb;
 	Bvh bvh;
@@ -32,4 +38,6 @@ public:
 	bool HasAABB() const { return aabb.min != aabb.max; }
 
 	const Mesh* GetMesh() const { return Assets::Meshes[meshHandle].get(); }
+
+	virtual v2f VertexShader(const glm::vec3& pos, const glm::vec3& faceNormal, const uint32_t& data) const = 0;
 };

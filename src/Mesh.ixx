@@ -7,6 +7,7 @@ module;
 
 export module Mesh;
 
+import <algorithm>;
 import <memory>;
 import <filesystem>;
 import <fstream>;
@@ -36,7 +37,7 @@ export class Mesh {
         uint32_t* meshIndices = mesh->vertex_indices.data;
 
         vertices.reserve(vertices.size() + mesh->vertices.count);
-        triangles.reserve(triangles.size() + mesh->max_face_triangles);
+        triangles.reserve(triangles.size() + mesh->num_triangles);
         colors.reserve(vertices.size());
         uvs.reserve(vertices.size());
         normals.reserve(vertices.size());
@@ -47,6 +48,8 @@ export class Mesh {
             vertices.push_back(glm::vec3((float)vd.x, (float)vd.y, (float)vd.z));
 
             auto firstIndex = mesh->vertex_first_index[i];
+
+            connectivity.emplace_back();
 
             if (mesh->vertex_color.exists) {
                 const auto& clr = mesh->vertex_color.values[mesh->vertex_color.indices[firstIndex]];
@@ -82,28 +85,62 @@ export class Mesh {
                     Log::FatalError("Model has tri material indices outside material array length");
             }
 
-            if (face.num_indices == 3) {
-                triangles.push_back(vertexOffset + meshIndices[face.index_begin + 0]);
-                triangles.push_back(vertexOffset + meshIndices[face.index_begin + 1]);
-                triangles.push_back(vertexOffset + meshIndices[face.index_begin + 2]);
+            const auto i0 = meshIndices[face.index_begin + 0];
+            const auto i1 = meshIndices[face.index_begin + 1];
+            const auto i2 = meshIndices[face.index_begin + 2];
 
+            if (face.num_indices == 3) {
+                connectivity[vertexOffset + i0].push_back((uint32_t)triangles.size());
+                connectivity[vertexOffset + i1].push_back((uint32_t)triangles.size());
+                connectivity[vertexOffset + i2].push_back((uint32_t)triangles.size());
+
+                triangles.push_back(vertexOffset + i0);
+                triangles.push_back(vertexOffset + i1);
+                triangles.push_back(vertexOffset + i2);
                 materials.push_back(matIndex);
             }
 
             else if (face.num_indices == 4) {
-                triangles.push_back(vertexOffset + meshIndices[face.index_begin + 0]);
-                triangles.push_back(vertexOffset + meshIndices[face.index_begin + 1]);
-                triangles.push_back(vertexOffset + meshIndices[face.index_begin + 2]);
+                const auto i3 = meshIndices[face.index_begin + 3];
+            
+                connectivity[vertexOffset + i0].push_back((uint32_t)triangles.size());
+                connectivity[vertexOffset + i1].push_back((uint32_t)triangles.size());
+                connectivity[vertexOffset + i2].push_back((uint32_t)triangles.size());
 
-                triangles.push_back(vertexOffset + meshIndices[face.index_begin + 0]);
-                triangles.push_back(vertexOffset + meshIndices[face.index_begin + 2]);
-                triangles.push_back(vertexOffset + meshIndices[face.index_begin + 3]);
+                triangles.push_back(vertexOffset + i0);
+                triangles.push_back(vertexOffset + i1);
+                triangles.push_back(vertexOffset + i2);
+
+                connectivity[vertexOffset + i0].push_back((uint32_t)triangles.size());
+                connectivity[vertexOffset + i2].push_back((uint32_t)triangles.size());
+                connectivity[vertexOffset + i3].push_back((uint32_t)triangles.size());
+
+                triangles.push_back(vertexOffset + i0);
+                triangles.push_back(vertexOffset + i2);
+                triangles.push_back(vertexOffset + i3);
 
                 materials.push_back(matIndex);
                 materials.push_back(matIndex);
             }
         }
         
+        // Update triangle connectivity
+        triConnectivity.resize(triangles.size() / 3);
+
+        for (size_t vi = 0; vi < vertices.size(); vi++) {
+            // For every vertice, loop each triangle it has and add to every neighbor if not present
+            const auto& vertNeighborTris = connectivity[vi];
+            for (const auto& tri : vertNeighborTris) {
+                auto& triNeighborTris = triConnectivity[tri / 3];
+                for (const auto& otherTri : vertNeighborTris) {
+                    if (otherTri == tri) continue;
+                    if (Utils::Contains(triNeighborTris, otherTri)) continue;
+                    triNeighborTris.push_back(otherTri);
+                }
+            }
+
+        }
+
         return (int)mesh->vertices.count;
     }
 
@@ -130,6 +167,8 @@ public:
     std::vector<glm::vec3> normals;
     std::vector<glm::vec4> colors;
     std::vector<uint32_t> materials; // tri index -> material index
+    std::vector<std::vector<uint32_t>> connectivity; // vertex index -> triangle list
+    std::vector<std::vector<uint32_t>> triConnectivity; // triangle index -> neighbor triangles
 
     bool hasColors = false, hasNormals = false, hasUVs = false;
 

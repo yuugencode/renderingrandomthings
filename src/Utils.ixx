@@ -18,6 +18,21 @@ export import Input;
 export import Time;
 export import Timer;
 
+// Raycasting ray
+export struct Ray {
+    glm::vec3 ro, rd, inv_rd;
+    uint32_t mask;
+};
+
+/// <summary> Vertex interpolator output </summary>
+export struct v2f {
+    // Position doesn't need interpolation
+    glm::vec3 position;
+    glm::vec3 normal;
+    glm::vec2 uv;
+    glm::uint32_t data;
+};
+
 /// <summary> Color structure for 4 byte colors </summary>
 export struct Color {
     uint8_t r = 0, g = 0, b = 0, a = 0;
@@ -66,12 +81,12 @@ export struct Color {
     }
 
     /// <summary> Lerps color towards another using t = 0...1 </summary>
-    static Color Lerp(const Color& a, const Color& b, float t) {
+    static Color Lerp(const Color& a, const Color& b, const float& t) {
         Color c;
-        c.r = (int)(a.r * (1.0f - t) + b.r * t);
-        c.g = (int)(a.g * (1.0f - t) + b.g * t);
-        c.b = (int)(a.b * (1.0f - t) + b.b * t);
-        c.a = (int)(a.a * (1.0f - t) + b.a * t);
+        c.r = (uint8_t)((float)a.r * (1.0f - t) + (float)b.r * t);
+        c.g = (uint8_t)((float)a.g * (1.0f - t) + (float)b.g * t);
+        c.b = (uint8_t)((float)a.b * (1.0f - t) + (float)b.b * t);
+        c.a = (uint8_t)((float)a.a * (1.0f - t) + (float)b.a * t);
         return c;
     }
 
@@ -138,9 +153,9 @@ export struct AABB {
     }
 
     // Standard slab method
-    float Intersect(const glm::vec3& ro, const glm::vec3& rd, const glm::vec3& invDir) const {
-        const auto a = (min - ro) * invDir;
-        const auto b = (max - ro) * invDir;
+    float Intersect(const Ray& ray) const {
+        const auto a = (min - ray.ro) * ray.inv_rd;
+        const auto b = (max - ray.ro) * ray.inv_rd;
         const auto mi = glm::min(a, b);
         const auto ma = glm::max(a, b);
         const auto minT = glm::max(glm::max(mi.x, mi.y), mi.z);
@@ -148,11 +163,6 @@ export struct AABB {
         if (minT > maxT) return 0.0f;
         if (maxT < 0.0f) return maxT;
         return minT;
-    }
-
-    float Intersect(const glm::vec3& ro, const glm::vec3& rd) const {
-        const auto& invDir = 1.0f / rd;
-        return Intersect(ro, rd, invDir);
     }
 };
 
@@ -175,6 +185,14 @@ export namespace Utils {
         return bgfx::createShader(buffer);
     }
 
+    /// <summary> Checks if vector contains given value </summary>
+    template <typename T>
+    bool Contains(const std::vector<T>& vec, const T& x) {
+        for (size_t i = 0; i < vec.size(); i++)
+            if (vec[i] == x) return true;
+        return false;
+    }
+
     /// <summary> Projects vector a onto b </summary>
     glm::vec3 Project(const glm::vec3& a, const glm::vec3& b) { 
         return b * glm::dot(a, b); 
@@ -184,9 +202,10 @@ export namespace Utils {
     glm::vec3 ProjectOnPlane(const glm::vec3& vec, const glm::vec3& normal) {
         return vec - Project(vec, normal);
     }
-
+    
     /// <summary> Returns a interpolated towards b using t = 0...1 </summary>
-    glm::vec3 Lerp(const glm::vec3& a, const glm::vec3& b, const float& t) {
+    template <typename T>
+    T Lerp(const T& a, const T& b, const float& t) {
         return a * (1.0f - t) + b * t;
     }
 
@@ -245,6 +264,11 @@ export namespace Utils {
         Log::LineFormatted("({}, {}, {}, {})", Log::FormatFloat(matrix[0][3]), Log::FormatFloat(matrix[1][3]), Log::FormatFloat(matrix[2][3]), Log::FormatFloat(matrix[3][3]));
     }
 };
+
+/// <summary> Quick hack for swizzling without importing entire glm swizzle catalog </summary>
+export glm::vec3& swizzle_xyz(glm::vec4& vec) {
+    return reinterpret_cast<glm::vec3&>(vec);
+}
 
 export namespace Globals {
     export const Color Red = Color(0xff, 0x00, 0x00, 0xff);

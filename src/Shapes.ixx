@@ -6,7 +6,6 @@ export module Shapes;
 
 import Entity;
 import Utils;
-import Light;
 
 /// <summary> Parametrized sphere </summary>
 export struct Sphere : Entity {
@@ -19,21 +18,23 @@ public:
 		transform.position = pos;
 		transform.scale = glm::vec3(radius);
 		type = Entity::Type::Sphere;
-		reflectivity = 1.0f;
+		shaderType = Shader::Normals;
+		id = idCount++;
 	}
 
-	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, glm::vec3& normal, float& depth, uint32_t& data) const { return Intersect(ro, rd, normal, depth); }
-	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, glm::vec3& normal, float& depth) const {
+	bool Intersect(const Ray& ray, glm::vec3& normal, uint32_t& data, float& depth) const {
+		if (ray.mask == id) return false;
 		// Adapted from Inigo Quilez https://iquilezles.org/articles/
-		glm::vec3 oc = ro - transform.position;
-		float b = glm::dot(oc, rd);
+		glm::vec3 oc = ray.ro - transform.position;
+		float b = glm::dot(oc, ray.rd);
 		if (b > 0.0f) return false;
 		float c = glm::dot(oc, oc) - transform.scale.x * transform.scale.x;
 		float h = b * b - c;
 		if (h < 0.0f) return false;
 		h = sqrt(h);
 		depth = -b - h;
-		normal = glm::normalize(ro - transform.position);
+		normal = glm::normalize((ray.ro + ray.rd * depth) - transform.position);
+		data = id;
 		return true;
 	}
 
@@ -45,19 +46,9 @@ public:
 		return glm::normalize(pos - transform.position);
 	}
 
-	Color GetColor(const glm::vec3& pos, const glm::vec3& normal, const uint32_t& extraData, const std::vector<Light>& lights) const {
-		
-		glm::vec4 diffuse = glm::vec4(glm::normalize(pos - transform.position), 1.0f);
-
-		// Loop lights
-		for (const auto& light : lights) {
-			float atten, nl;
-			light.CalcGenericLighting(pos, normal, atten, nl);
-			diffuse *= nl * atten;
-		}
-
-		return Color::FromVec(diffuse);
-	};
+	v2f VertexShader(const glm::vec3& pos, const glm::vec3& faceNormal, const uint32_t& data) const {
+		return v2f{ .position = pos, .normal = faceNormal, .uv = glm::vec2(0), .data = data};
+	}
 };
 
 /// <summary> Parametrized infinite plane </summary>
@@ -73,15 +64,18 @@ public:
 		memcpy(&transform.rotation, &normal, sizeof(glm::vec3));
 		transform.scale = glm::vec3(radius);
 		type = Entity::Type::Disk;
+		id = idCount++;
+		shaderType = Shader::Grid;
 	}
 
-	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, glm::vec3& normal, float& depth, uint32_t& data) const { return Intersect(ro, rd, normal, depth); }
-	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, glm::vec3& normal, float& depth) const {
-		glm::vec3 o = ro - transform.position;
+	bool Intersect(const Ray& ray, glm::vec3& normal, uint32_t& data, float& depth) const {
+		if (ray.mask == id) return false;
+		glm::vec3 o = ray.ro - transform.position;
 		normal = Normal();
-		depth = -glm::dot(Normal(), o) / glm::dot(rd, Normal());
+		depth = -glm::dot(Normal(), o) / glm::dot(ray.rd, Normal());
+		data = id;
 		if (depth < 0.0f) return false;
-		glm::vec3  q = o + rd * depth;
+		glm::vec3  q = o + ray.rd * depth;
 		if (dot(q, q) < transform.scale.x * transform.scale.x) return true;
 		return false;
 	}
@@ -92,23 +86,9 @@ public:
 		return glm::length(os);
 	}
 
-	Color GetColor(const glm::vec3& pos, const glm::vec3& normal, const uint32_t& extraData, const std::vector<Light>& lights) const {
-
-		// Simple grid
-		auto f = glm::fract(pos * 2.0f);
-		f = glm::abs(f - 0.5f) * 2.0f;
-		float a = glm::min(f.x, glm::min(f.y, f.z));
-		float res = 0.3f + Utils::InvLerpClamp(1.0f - a, 0.95f, 1.0f);
-
-		// Loop lights
-		for (const auto& light : lights) {
-			float atten, nl;
-			light.CalcGenericLighting(pos, normal, atten, nl);
-			res *= nl * atten;
-		}
-
-		return Color::FromFloat(res); //Color(0xaa, 0xaa, 0xbb, 0xff);
-	};
+	v2f VertexShader(const glm::vec3& pos, const glm::vec3& faceNormal, const uint32_t& data) const {
+		return v2f{ .position = pos, .normal = faceNormal, .uv = glm::vec2(0), .data = data };
+	}
 };
 
 /// <summary> A box </summary>
@@ -120,14 +100,17 @@ public:
 		transform.scale = size;
 		aabb = AABB(pos - size, pos + size);
 		type = Entity::Type::Box;
+		id = idCount++;
+		shaderType = Shader::PlainWhite;
 	}
 
-	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, glm::vec3& normal, float& depth, uint32_t& data) const { return Intersect(ro, rd, normal, depth); }
-	bool Intersect(const glm::vec3& ro, const glm::vec3& rd, glm::vec3& normal, float& depth) const {
-		auto res = aabb.Intersect(ro, rd);
-		if (res > 0.0f) {
+	bool Intersect(const Ray& ray, glm::vec3& normal, uint32_t& data, float& depth) const {
+		if (ray.mask == id) return false;
+		auto res = aabb.Intersect(ray);
+		if (res > 0.0f && id != ray.mask) {
 			depth = res;
-			normal = Normal(ro + rd * res);
+			normal = Normal(ray.ro + ray.rd * res);
+			data = id;
 			return true;
 		}
 		return false;
@@ -147,16 +130,7 @@ public:
 			return nrm.z < 0.0f ? glm::vec3(0.0f, 0.0f, -1.0f) : glm::vec3(0.0f, 0.0f, 1.0f);
 	}
 
-	Color GetColor(const glm::vec3& pos, const glm::vec3& normal, const uint32_t& extraData, const std::vector<Light>& lights) const {
-		glm::vec4 diffuse = glm::vec4(glm::abs(Normal(pos)), 1.0f);
-
-		// Loop lights
-		for (const auto& light : lights) {
-			float atten, nl;
-			light.CalcGenericLighting(pos, normal, atten, nl);
-			diffuse *= nl * atten;
-		}
-
-		return Color::FromVec(diffuse);
-	};
+	v2f VertexShader(const glm::vec3& pos, const glm::vec3& faceNormal, const uint32_t& data) const {
+		return v2f{ .position = pos, .normal = faceNormal, .uv = glm::vec2(0), .data = data };
+	}
 };

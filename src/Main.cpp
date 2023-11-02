@@ -80,7 +80,7 @@ int main(int argc, char* argv[]) {
 	// Add stuff to the scene
 	
 	// Light
-	Game::scene.lights.push_back(Light(glm::vec3(0.0f, 4.0f, 3.0f), 15.0f, 1.0f));
+	Game::scene.lights.push_back(Light(glm::vec3(-2.0f, 3.5f, 4.0f), 15.0f, 1.0f));
 
 	// Parametric shapes
 	Game::scene.entities.push_back(std::make_unique<Disk>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 5.0f));
@@ -97,8 +97,8 @@ int main(int argc, char* argv[]) {
 	rendMesh->GenerateBVH();
 	
 	// Hardcoded mesh 1 textures, kind of like materials without materials
-	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex4.png"), true));
 	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex1.png"), true));
+	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex4.png"), true));
 	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex3.png"), true));
 	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex3.png"), true));
 	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex5.png"), true));
@@ -108,13 +108,13 @@ int main(int argc, char* argv[]) {
 	Game::scene.entities.push_back(std::move(rendMesh));
 
 	// Mesh 2
-	auto meshHandle2 = Assets::NewMesh(std::filesystem::path("ext/dragon.obj"));
-	Assets::Meshes[meshHandle2]->ScaleVertices(0.01f);
-	Assets::Meshes[meshHandle2]->OffsetVertices(glm::vec3(0, 0.5f, 0));
-
-	auto rendMesh2 = std::make_unique<RenderedMesh>(meshHandle2);
-	rendMesh2->GenerateBVH();
-	Game::scene.entities.push_back(std::move(rendMesh2));
+	//auto meshHandle2 = Assets::NewMesh(std::filesystem::path("ext/dragon.obj"));
+	//Assets::Meshes[meshHandle2]->ScaleVertices(0.01f);
+	//Assets::Meshes[meshHandle2]->OffsetVertices(glm::vec3(0, 0.5f, 0));
+	//
+	//auto rendMesh2 = std::make_unique<RenderedMesh>(meshHandle2);
+	//rendMesh2->GenerateBVH();
+	//Game::scene.entities.push_back(std::move(rendMesh2));
 
 	// Mesh 3
 	auto meshHandle3 = Assets::NewMesh(std::filesystem::path("ext/rock.fbx"));
@@ -154,6 +154,10 @@ int main(int argc, char* argv[]) {
 		if (Input::KeyHeld(SDL_KeyCode::SDLK_q)) offset += glm::vec3(0,-1,0);
 		if (Input::KeyHeld(SDL_KeyCode::SDLK_LSHIFT)) offset *= 0.2f;
 		camTf.position += camTf.rotation * offset * Time::deltaTimeF * 4.0f;
+
+		// Press R to drop light at current pos
+		if (Input::OnKeyDown(SDL_KeyCode::SDLK_r))
+			Game::scene.lights.back().position = camTf.position;
 
 		// Mouse rotation on right click
 		static int clickPos[2];

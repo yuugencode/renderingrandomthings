@@ -218,41 +218,44 @@ public:
 
 	// Adapted from Inigo Quilez https://iquilezles.org/articles/
 	float ray_tri_intersect(const glm::vec3& ro, const glm::vec3& rd, const BvhTriangle& tri) const {
-		const auto v1v0 = tri.v1 - tri.v0, v2v0 = tri.v2 - tri.v0, rov0 = ro - tri.v0;
-		const auto n = glm::cross(v1v0, v2v0);
-		const auto q = glm::cross(rov0, rd);
-		const auto d = 1.0f / glm::dot(n, rd);
-		const auto u = d * glm::dot(-q, v2v0);
+		const glm::vec3 v1v0 = tri.v1 - tri.v0, v2v0 = tri.v2 - tri.v0, rov0 = ro - tri.v0;
+		const glm::vec3 n = glm::cross(v1v0, v2v0);
+		const glm::vec3 q = glm::cross(rov0, rd);
+		const float d = 1.0f / glm::dot(n, rd);
+		const float u = d * glm::dot(-q, v2v0);
 		if (u < 0.0f) return -1.0f;
-		const auto v = d * glm::dot(q, v1v0);
+		const float v = d * glm::dot(q, v1v0);
 		if (v < 0.0f) return -1.0f;
-		if (u + v <= 1.0f) return d * glm::dot(-n, rov0);
+		if (u + v <= 1.0f) {
+			return d * glm::dot(-n, rov0); // Doublesided
+			//const float dd = glm::dot(-n, rov0);
+			//if (dd < 0.0f) return d * dd; // Backface culling
+		}
 		return -1.0f;
 	}
 
 	/// <summary> Intersects a ray against this bvh </summary>
-	float Intersect(const glm::vec3& ro, const glm::vec3& rd, const glm::vec3& invDir, glm::vec3& normal, float& depth, uint32_t& minIndex) const {
+	float Intersect(const Ray& ray, glm::vec3& normal, uint32_t& minIndex, float& depth) const {
 		depth = 99999999.9f;
 		minIndex = -1; // Overflows to max val
-		IntersectNode(0, ro, rd, invDir, normal, minIndex, depth);
+		IntersectNode(0, ray, normal, minIndex, depth);
 		return minIndex != -1;
 	}
 
-	/// <summary> Intersects a ray against this bvh </summary>
-	float Intersect(const glm::vec3& ro, const glm::vec3& rd, glm::vec3& normal, float& depth, uint32_t& minIndex) const {
-		return Intersect(ro, rd, 1.0f / rd, normal, depth, minIndex);
-	}
-
 	// Recursed func
-	void IntersectNode(const int& nodeIndex, const glm::vec3& ro, const glm::vec3& rd, const glm::vec3& invDir, glm::vec3& normal, uint32_t& minTriIdx, float& minDist) const {
+	void IntersectNode(const int& nodeIndex, const Ray& ray, glm::vec3& normal, uint32_t& minTriIdx, float& minDist) const {
 
 		const auto& node = stack[nodeIndex];
 
 		// Leaf -> Check tris
 		if (node.IsLeaf()) {
 			for (int i = node.GetLeftIndex(); i < node.GetRightIndex(); i++) {
+				
 				const auto& tri = triangles[i];
-				const auto res = ray_tri_intersect(ro, rd, tri);
+
+				if (tri.originalIndex == ray.mask) continue;
+
+				const auto res = ray_tri_intersect(ray.ro, ray.rd, tri);
 
 				if (res > 0.0f && res < minDist) {
 					minDist = res;
@@ -268,46 +271,46 @@ public:
 
 			const auto left = node.GetLeftChild();
 			const auto right = node.GetRightChild();
-			const auto intersectA = stack[left].aabb.Intersect(ro, rd, invDir);
-			const auto intersectB = stack[right].aabb.Intersect(ro, rd, invDir);
+			const auto intersectA = stack[left].aabb.Intersect(ray);
+			const auto intersectB = stack[right].aabb.Intersect(ray);
 
 			// Both either behind or one is inside -> check the one we're inside of
 			if (intersectA < 0.0f && intersectB < 0.0f) {
-				if (stack[left].aabb.Contains(ro)) 
-					IntersectNode(left, ro, rd, invDir, normal, minTriIdx, minDist);
-				if (stack[right].aabb.Contains(ro)) 
-					IntersectNode(right, ro, rd, invDir, normal, minTriIdx, minDist);
+				if (stack[left].aabb.Contains(ray.ro))
+					IntersectNode(left, ray, normal, minTriIdx, minDist);
+				if (stack[right].aabb.Contains(ray.ro))
+					IntersectNode(right, ray, normal, minTriIdx, minDist);
 			}
 			// Check if A inside and B outside or miss
 			else if (intersectA < 0.0f) {
-				if (stack[left].aabb.Contains(ro))
-					IntersectNode(left, ro, rd, invDir, normal, minTriIdx, minDist);
+				if (stack[left].aabb.Contains(ray.ro))
+					IntersectNode(left, ray, normal, minTriIdx, minDist);
 				if (intersectB != 0.0f && intersectB < minDist)
-					IntersectNode(right, ro, rd, invDir, normal, minTriIdx, minDist);
+					IntersectNode(right, ray, normal, minTriIdx, minDist);
 			}
 			// Check if B inside and A outside or miss
 			else if (intersectB < 0.0f) {
-				if (stack[right].aabb.Contains(ro))
-					IntersectNode(right, ro, rd, invDir, normal, minTriIdx, minDist);
+				if (stack[right].aabb.Contains(ray.ro))
+					IntersectNode(right, ray, normal, minTriIdx, minDist);
 				if (intersectA != 0.0f && intersectA < minDist)
-					IntersectNode(left, ro, rd, invDir, normal, minTriIdx, minDist);
+					IntersectNode(left, ray, normal, minTriIdx, minDist);
 			}
 			// Check if both hit and check closer first
 			else if (intersectA != 0.0f && intersectB != 0.0f) {
 				if (intersectA < intersectB) {
-					if (intersectA < minDist) IntersectNode(left, ro, rd, invDir, normal, minTriIdx, minDist);
-					if (intersectB < minDist) IntersectNode(right, ro, rd, invDir, normal, minTriIdx, minDist);
+					if (intersectA < minDist) IntersectNode(left, ray, normal, minTriIdx, minDist);
+					if (intersectB < minDist) IntersectNode(right, ray, normal, minTriIdx, minDist);
 				}
 				else {
-					if (intersectB < minDist) IntersectNode(right, ro, rd, invDir, normal, minTriIdx, minDist);
-					if (intersectA < minDist) IntersectNode(left, ro, rd, invDir, normal, minTriIdx, minDist);
+					if (intersectB < minDist) IntersectNode(right, ray, normal, minTriIdx, minDist);
+					if (intersectA < minDist) IntersectNode(left, ray, normal, minTriIdx, minDist);
 				}
 			}
 			// Check if either hit
 			else if (intersectA != 0.0f && intersectA < minDist)
-				IntersectNode(left, ro, rd, invDir, normal, minTriIdx, minDist);
+				IntersectNode(left, ray, normal, minTriIdx, minDist);
 			else if (intersectB != 0.0f && intersectB < minDist)
-				IntersectNode(right, ro, rd, invDir, normal, minTriIdx, minDist);
+				IntersectNode(right, ray, normal, minTriIdx, minDist);
 		}
 	}
 };
