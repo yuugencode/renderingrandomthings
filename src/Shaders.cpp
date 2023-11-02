@@ -82,7 +82,6 @@ vec4 Shaders::Textured(const Scene& scene, const Entity* obj, const v2f& input) 
 		light.CalcGenericLighting(input.position, input.normal, atten, nl);
 
 		float shadow = ShadowRay(scene, input.position, light.position, input.data);
-		shadow = max(shadow, obj->reflectivity);
 
 		swizzle_xyz(c) *= nl * atten * shadow;
 	}
