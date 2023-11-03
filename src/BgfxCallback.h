@@ -1,13 +1,13 @@
-module;
+#pragma once
 
 #include <bgfx/bgfx.h>
+#include <cstdio>
+#include <memory>
 
-export module BgfxCallback;
+#include "Log.h"
 
-import Log;
-
-/// <summary> This struct is needed to get debug info from bgfx.. </summary>
-export struct BgfxCallback : public bgfx::CallbackI {
+// This struct is needed to get debug info from bgfx.. 
+struct BgfxCallback : public bgfx::CallbackI {
 
 	virtual void fatal(const char* _filePath, uint16_t _line, bgfx::Fatal::Enum _code, const char* _str) override {
 		// Something unexpected happened, inform user and bail out.
@@ -22,7 +22,7 @@ export struct BgfxCallback : public bgfx::CallbackI {
 		int32_t len = vsnprintf(out, sizeof(temp), _format, _argList);
 		if ((int32_t)sizeof(temp) < len)
 		{
-			out = (char*)_alloca(len + 1);
+			out = (char*)_alloca(static_cast<size_t>(len) + 1);
 			len = vsnprintf(out, len, _format, _argList);
 		}
 		out[len] = '\0';
@@ -46,14 +46,3 @@ export struct BgfxCallback : public bgfx::CallbackI {
 	virtual ~BgfxCallback() override { }
 };
 
-// C++20 Modules + Intellisense bug: 
-// When calling BgfxCallback constructor outside the module it's defined in,
-// intellisense goes completely wild and starts seeing errors even if the code compiles just fine
-// Hacky workaround: Create the object in the module itself and manually delete later
-export BgfxCallback* CreateBgfxCallback() {
-#if _DEBUG
-	return new BgfxCallback();
-#else
-	return nullptr;
-#endif
-}

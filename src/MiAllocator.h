@@ -1,21 +1,19 @@
-module;
+#pragma once
 
 #include <mimalloc.h>
 #include <bx/allocator.h>
 #include <cassert>
 
-export module MiAllocator;
-
-import <vector>;
-
 // Replace CRT malloc with mimalloc
-export void* operator new(size_t size) { return mi_malloc(size); }
-export void operator delete(void* ptr) { mi_free(ptr); }
+#pragma warning(disable: 4595)
+inline void* operator new(size_t size) { return mi_malloc(size); }
+inline void operator delete(void* ptr) { mi_free(ptr); }
+#pragma warning(default: 4595)
 
 // malloc/free (and stl containers?) are beyond saving, needs project-wide overriding with mimalloc_redirect
 
 // bgfx needs extra effort
-export struct MiAllocator : bx::AllocatorI {
+struct MiAllocator : bx::AllocatorI {
 
 	virtual void* realloc(void* _ptr, size_t _size, size_t _align, const char* _filePath, uint32_t _line) {
 

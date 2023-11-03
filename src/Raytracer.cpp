@@ -1,19 +1,50 @@
-module;
+#include "Raytracer.h"
 
-#include <glm/glm.hpp>
+#include "Shaders.h"
+#include "Shapes.h"
+#include "RenderedMesh.h"
 
-module Raytracer;
+Raytracer* Raytracer::Instance = nullptr;
 
-import Utils;
-import Scene;
-import Entity;
-import Shaders;
-import Assets;
-import Texture;
+void Raytracer::Create(const Window& window) {
 
-// Shaders depend on TraceRay + TraceRay depends on Shaders so this is a separate file, rip modules..
+	Instance = this;
+	this->window = &window;
+
+	vtxLayout
+		.begin()
+		.add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+		.add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true)
+		.add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
+		.end();
+
+	// Create mutable texture
+	texture = bgfx::createTexture2D(window.width, window.height, false, 1, textureFormat);
+
+	bgfx::TextureInfo info;
+	bgfx::calcTextureSize(info, window.width, window.height, 1, false, false, 1, textureFormat);
+	textureBufferSize = info.storageSize;
+	textureBuffer = new Color[textureBufferSize];
+
+	u_texture = bgfx::createUniform("s_tex", bgfx::UniformType::Sampler);
+
+	// Read and compile shaders
+	const std::filesystem::path folder = "shaders/";
+	auto vShader = Utils::LoadShader(folder / "screenpass_vs.bin");
+	auto fShader = Utils::LoadShader(folder / "screenpass_fs.bin");
+	assert(vShader.idx != bgfx::kInvalidHandle);
+	assert(fShader.idx != bgfx::kInvalidHandle);
+
+	program = bgfx::createProgram(vShader, fShader, true);
+	assert(program.idx != bgfx::kInvalidHandle);
+
+	// Full screen pass is a single triangle so clip anything outside
+	bgfx::setViewRect(VIEW_LAYER, 0, 0, bgfx::BackbufferRatio::Equal);
+}
 
 glm::vec4 GetColor(const Scene& scene, const Entity* obj, const glm::vec3& hitPt, const glm::vec3& normal, const uint32_t& data) {
+
+	// @TODO: Pass ray type (direct, indirect) for shaders so they can optimize shadows off for indirect etc
 
 	// Interpolate variables depending on position in "vertex shader"
 	const v2f interpolated = obj->VertexShader(hitPt, normal, data);
@@ -32,9 +63,14 @@ glm::vec4 GetColor(const Scene& scene, const Entity* obj, const glm::vec3& hitPt
 	return c;
 }
 
-RayResult Raytracer::TraceScene(const Scene& scene, const Ray& ray) const {
+RayResult Raytracer::RaycastScene(const Scene& scene, const Ray& ray) const {
 
 	RayResult result{ .depth = std::numeric_limits<float>::max(), .normal = glm::vec3(0,1,0), .data = (uint32_t)-1, .obj = nullptr};
+
+	bool intersect;
+	float depth;
+	uint32_t data;
+	glm::vec3 nrm;
 
 	// Loop all objects, could use something more sophisticated but a simple loop gets us pretty far
 	for (const auto& entity : scene.entities) {
@@ -42,18 +78,12 @@ RayResult Raytracer::TraceScene(const Scene& scene, const Ray& ray) const {
 		// Early rejection for missed rays
 		if (entity->aabb.Intersect(ray) == 0.0f) continue;
 
-		bool intersect;
-		float depth;
-		uint32_t data;
-		glm::vec3 nrm;
-
 		// Switching here is inelegant but seems significantly faster than a virtual function call
 		switch (entity->type) {
 			case Entity::Type::Sphere: intersect = ((Sphere*)entity.get())->Intersect(ray, nrm, data, depth); break;
 			case Entity::Type::Disk: intersect = ((Disk*)entity.get())->Intersect(ray, nrm, data, depth); break;
 			case Entity::Type::Box: intersect = ((Box*)entity.get())->Intersect(ray, nrm, data, depth); break;
 			case Entity::Type::RenderedMesh: intersect = ((RenderedMesh*)entity.get())->Intersect(ray, nrm, data, depth); break;
-			default: break;
 		}
 
 		// Check if hit something and it's the closest hit
@@ -70,37 +100,104 @@ RayResult Raytracer::TraceScene(const Scene& scene, const Ray& ray) const {
 
 glm::vec4 Raytracer::TraceRay(const Scene& scene, const Ray& ray, int& recursionDepth) const {
 
-	RayResult result = TraceScene(scene, ray);
+	// Raycast
+	RayResult rayResult = RaycastScene(scene, ray);
 
-	if (result.Hit()) {
-		// Hit something, color it
-		const auto hitPt = ray.ro + ray.rd * result.depth;
+	if (rayResult.Hit()) { // Hit something, color it
 
-		// Own color
-		//normal = glm::vec3(1, 0, 0);
-		glm::vec4 ownColor = GetColor(scene, result.obj, hitPt, result.normal, result.data);
+		const auto hitPt = ray.ro + ray.rd * rayResult.depth;
+
+		// Hit point color
+		glm::vec4 c = GetColor(scene, rayResult.obj, hitPt, rayResult.normal, rayResult.data);
 
 		// Transparent or cutout
-		if (ownColor.a < 0.99f && recursionDepth < 1) {
-			//const auto newRo = hitPt + rd; // Go past the blocker
-			Ray newRay{ .ro = hitPt, .rd = ray.rd, .inv_rd = ray.inv_rd, .mask = result.data };
+		if (c.a < 0.99f && recursionDepth < 1) {
+			Ray newRay{ .ro = hitPt, .rd = ray.rd, .inv_rd = ray.inv_rd, .mask = rayResult.data };
 			glm::vec4 behind = TraceRay(scene, newRay, ++recursionDepth);
-			ownColor = Utils::Lerp(ownColor, behind, 1.0f - ownColor.a);
+			c = Utils::Lerp(c, behind, 1.0f - c.a);
 		}
 		
 		// Indirect bounce
-		if (result.obj->reflectivity != 0.0f && recursionDepth < 2) {
-			const auto newRo = glm::vec3(hitPt + result.normal * 0.000001f);
-			const auto newRd = glm::reflect(ray.rd, result.normal);
-			Ray newRay{ .ro = newRo, .rd = newRd, .inv_rd = 1.0f / newRd, .mask = result.data };
+		if (rayResult.obj->reflectivity != 0.0f && recursionDepth < 2) {
+			const auto newRo = glm::vec3(hitPt + rayResult.normal * 0.000001f);
+			const auto newRd = glm::reflect(ray.rd, rayResult.normal);
+			Ray newRay{ .ro = newRo, .rd = newRd, .inv_rd = 1.0f / newRd, .mask = rayResult.data };
 			glm::vec4 reflColor = TraceRay(scene, newRay, ++recursionDepth);
-			ownColor = Utils::Lerp(ownColor, reflColor, result.obj->reflectivity);
+			c = Utils::Lerp(c, reflColor, rayResult.obj->reflectivity);
 		}
 
-		return ownColor;
+		return c;
 	}
 	else {
 		// If we hit nothing, draw "Skybox"
 		return glm::vec4(0.3f, 0.3f, 0.6f, 1.0f);
 	}
+}
+
+void Raytracer::RenderScene(const Scene& scene) {
+
+	timer.Start();
+
+	const Transform& camTransform = scene.camera.transform;
+	const glm::vec3 camPos = camTransform.position;
+
+	// Matrices
+	glm::vec3 fwd = camTransform.Forward();
+	glm::vec3 up = camTransform.Up();
+	auto view = glm::lookAt(camTransform.position, camTransform.position + fwd, up);
+	auto proj = glm::perspectiveFov(glm::radians(scene.camera.fov), (float)window->width, (float)window->height, scene.camera.nearClip, scene.camera.farClip);
+	auto viewInv = glm::inverse(view);
+	auto projInv = glm::inverse(proj);
+
+	const bgfx::Memory* mem = bgfx::makeRef(textureBuffer, (uint32_t)textureBufferSize);
+
+	// Modify the texture on cpu in a multithreaded function
+	// @TODO: Probably can optimize this with cache locality, loop order etc
+	concurrency::parallel_for(size_t(0), size_t(textureBufferSize / 4), [&](size_t i) {
+		float xcoord = (float)(i % window->width) / window->width;
+		float ycoord = (float)(i / window->width) / window->height;
+
+		// Create view ray from proj/view matrices
+		glm::vec2 pixel = glm::vec2(xcoord, ycoord) * 2.0f - 1.0f;
+		glm::vec4 px = glm::vec4(pixel, 0.0f, 1.0f);
+
+		px = projInv * px;
+		px.w = 0.0f;
+		glm::vec3 dir = viewInv * px;
+		dir = normalize(dir);
+
+		int recursionDepth = 0;
+		Ray ray{ .ro = camPos, .rd = dir, .inv_rd = 1.0f / dir, .mask = (uint32_t)-1 };
+		glm::vec4 result = TraceRay(scene, ray, recursionDepth);
+		textureBuffer[i] = Color::FromVec(result);
+	});
+
+	bgfx::updateTexture2D(texture, 0, 0, 0, 0, window->width, window->height, mem);
+
+	// Render a single triangle as a fullscreen pass
+	if (bgfx::getAvailTransientVertexBuffer(3, vtxLayout) == 3) {
+
+		// Grab massive 3 vertice buffer
+		bgfx::TransientVertexBuffer vb;
+		bgfx::allocTransientVertexBuffer(&vb, 3, vtxLayout);
+		PosColorTexCoord0Vertex* vertex = (PosColorTexCoord0Vertex*)vb.data;
+
+		// @NOTE: Framebuffer uv.x flipped after swapping out of c++20 modules
+		// Some #define somewhere changed probably? Causes no issues but anyway..
+		
+		// Vertices
+		const Color clr(0x00, 0x00, 0x00, 0xff);
+		vertex[0] = PosColorTexCoord0Vertex{ .pos = glm::vec3(0.0f, 0.0f, 0.0f),			.rgba = clr, .uv = glm::vec2(0.0f, 0.0f) };
+		vertex[1] = PosColorTexCoord0Vertex{ .pos = glm::vec3(window->width, 0.0f, 0.0f),	.rgba = clr, .uv = glm::vec2(-2.0f, 0.0f) };
+		vertex[2] = PosColorTexCoord0Vertex{ .pos = glm::vec3(0.0f, window->height, 0.0f),	.rgba = clr, .uv = glm::vec2(0.0f, 2.0f) };
+
+		// Set data and submit
+		bgfx::setViewTransform(VIEW_LAYER, &view, &proj);
+		bgfx::setTexture(0, u_texture, texture);
+		bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A);
+		bgfx::setVertexBuffer(0, &vb);
+		bgfx::submit(VIEW_LAYER, program);
+	}
+
+	timer.End();
 }

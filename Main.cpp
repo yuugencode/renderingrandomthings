@@ -1,4 +1,5 @@
 #define GLM_FORCE_LEFT_HANDED 1
+#define SDL_MAIN_HANDLED 1
 
 #include <bgfx/bgfx.h>
 #include <bgfx/platform.h>
@@ -7,25 +8,30 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/transform.hpp>
 #include <sdl/SDL.h>
+#include <algorithm>
+#include <memory>
+#include <string>
+#include <vector>
 
-import <algorithm>;
-import MiAllocator;
-import ImguiDrawer;
-import BgfxCallback;
-import Raytracer;
-import Game;
-import Timer;
-import Mesh;
-import Texture;
-import Shapes;
-import Light;
-import RenderedMesh;
-import Utils;
-import Assets;
+#include "src/Utils.h"
+#include "src/Time.h"
+#include "src/Input.h"
+#include "src/Log.h"
+#include "src/Light.h"
+#include "src/Assets.h"
+#include "src/Entity.h"
+#include "src/RenderedMesh.h"
+#include "src/Shapes.h"
+#include "src/Game.h"
+#include "src/MiAllocator.h"
+#include "src/BgfxCallback.h"
+#include "src/ImguiDrawer.h"
 
 int main(int argc, char* argv[]) {
 
 	// Init SDL
+	SDL_SetMainReady();
+
 	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
 		Log::Line("SDL Init failed: {}", SDL_GetError());
 		return EXIT_FAILURE;
@@ -46,7 +52,7 @@ int main(int argc, char* argv[]) {
 	init.resolution.reset = BGFX_RESET_VSYNC;// | BGFX_RESET_FLIP_AFTER_RENDER | BGFX_RESET_FLUSH_AFTER_RENDER;
 	//init.resolution.reset = BGFX_RESET_NONE;
 	init.resolution.maxFrameLatency = 1; // Some bug somewhere makes the rendering jittery if this is not set
-	init.callback = CreateBgfxCallback(); // Hack, read function comment
+	init.callback = new BgfxCallback();
 	init.allocator = &allocator;
 
 	bgfx::renderFrame(); // Make bgfx not create a render thread
@@ -85,9 +91,9 @@ int main(int argc, char* argv[]) {
 	// Parametric shapes
 	Game::scene.entities.push_back(std::make_unique<Disk>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 5.0f));
 	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(2.0f, 0.6f, -2.0f), 1.0f));
-	Game::scene.entities.back()->reflectivity = 0.5f;
+	Game::scene.entities.back()->reflectivity = 0.15f;
 	Game::scene.entities.push_back(std::make_unique<Box>(glm::vec3(-2.0f, 0.5f, 0.0f), glm::vec3(0.5f, 2.0f, 2.0f)));
-	Game::scene.entities.back()->reflectivity = 0.5f;
+	Game::scene.entities.back()->reflectivity = 0.75f;
 
 	// Mesh 1
 	auto meshHandle = Assets::NewMesh(std::filesystem::path("ext/char.fbx"));
@@ -104,17 +110,17 @@ int main(int argc, char* argv[]) {
 	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex5.png"), true));
 	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex2.png"), true));
 	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex3.png"), true));
-
+	
 	Game::scene.entities.push_back(std::move(rendMesh));
 
 	// Mesh 2
-	//auto meshHandle2 = Assets::NewMesh(std::filesystem::path("ext/dragon.obj"));
-	//Assets::Meshes[meshHandle2]->ScaleVertices(0.01f);
-	//Assets::Meshes[meshHandle2]->OffsetVertices(glm::vec3(0, 0.5f, 0));
-	//
-	//auto rendMesh2 = std::make_unique<RenderedMesh>(meshHandle2);
-	//rendMesh2->GenerateBVH();
-	//Game::scene.entities.push_back(std::move(rendMesh2));
+	auto meshHandle2 = Assets::NewMesh(std::filesystem::path("ext/dragon.obj"));
+	Assets::Meshes[meshHandle2]->ScaleVertices(0.01f);
+	Assets::Meshes[meshHandle2]->OffsetVertices(glm::vec3(0, 0.5f, 0));
+	
+	auto rendMesh2 = std::make_unique<RenderedMesh>(meshHandle2);
+	rendMesh2->GenerateBVH();
+	Game::scene.entities.push_back(std::move(rendMesh2));
 
 	// Mesh 3
 	auto meshHandle3 = Assets::NewMesh(std::filesystem::path("ext/rock.fbx"));
@@ -174,13 +180,13 @@ int main(int argc, char* argv[]) {
 		bgfx::dbgTextClear();
 		bgfx::setDebug(showBgfxStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
 
-		// Sort scene objects
+		// Sort scene objects (only makes sense for first rays)
 		std::ranges::sort(Game::scene.entities, [&](const std::unique_ptr<Entity>& a, const std::unique_ptr<Entity>& b) {
 			return Utils::SqrLength(a->transform.position - camTf.position) < Utils::SqrLength(b->transform.position - camTf.position);
 		});
 
 		// Trace the scene
-		Game::raytracer.TraceScene(Game::scene);
+		Game::raytracer.RenderScene(Game::scene);
 
 		ImguiDrawer::Render();
 
