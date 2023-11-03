@@ -1,8 +1,8 @@
-# renderingrandomthings
+# Rendering Random Things
 
 Heavily work in progress.
 
-Experimenting with C++20 modules and various graphics libraries.
+Experimenting with modern C++ and various graphics libraries.
 Goal is to try out various non-realistic raytracing rendering ideas.
 
 Currently just a simple 1SPP raytracer with reflections/hard shadows.
