@@ -8,6 +8,7 @@ RenderedMesh::RenderedMesh(const int& meshHandle) {
 	this->meshHandle = meshHandle;
 	id = idCount++;
 	shaderType = Shader::Textured;
+	GenerateBVH();
 }
 
 void RenderedMesh::GenerateBVH() {

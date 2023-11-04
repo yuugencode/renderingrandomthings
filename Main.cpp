@@ -90,25 +90,21 @@ int main(int argc, char* argv[]) {
 
 	// Random parametric shapes
 	Game::scene.entities.push_back(std::make_unique<Disk>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 5.0f));
-	Game::scene.entities.back()->reflectivity = 0.25f;
 
 	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(1.0f, 0.5f, 0.0f), 0.5f));
-	Game::scene.entities.back()->reflectivity = 0.15f;
+	Game::scene.entities.back()->reflectivity = 0.3f;
 	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(1.0f, 1.5f, 0.0f), 0.5f));
-	Game::scene.entities.back()->reflectivity = 0.55f;
+	Game::scene.entities.back()->reflectivity = 0.5f;
 	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(1.0f, 2.5f, 0.0f), 0.5f));
-	Game::scene.entities.back()->reflectivity = 0.95f;
+	Game::scene.entities.back()->reflectivity = 0.7f;
 	
 	Game::scene.entities.push_back(std::make_unique<Box>(glm::vec3(-2.0f, 0.5f, 0.0f), glm::vec3(0.5f, 2.0f, 2.0f)));
-	Game::scene.entities.back()->reflectivity = 0.75f;
+	Game::scene.entities.back()->reflectivity = 0.5f;
 	Entity* box = Game::scene.entities.back().get();
 
 	// Mesh 1
 	auto meshHandle = Assets::NewMesh(std::filesystem::path("ext/char.fbx"));
-	Assets::Meshes[meshHandle]->RotateVertices( glm::quat(glm::vec3( glm::radians(-90.0f), 0.0f, 0.0f)));
-	
 	auto rendMesh = std::make_unique<RenderedMesh>(meshHandle);
-	rendMesh->GenerateBVH();
 	
 	// Hardcoded mesh 1 textures, kind of like materials without materials
 	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex1.png"), true));
@@ -119,18 +115,21 @@ int main(int argc, char* argv[]) {
 	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex2.png"), true));
 	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex3.png"), true));
 	
-	auto mesh1 = rendMesh.get();
+	auto chara = rendMesh.get();
 
+	rendMesh->transform.rotation = glm::angleAxis(glm::radians(-90.0f), glm::vec3(1,0,0));
 	Game::scene.entities.push_back(std::move(rendMesh));
 
 	// Mesh 2
 	auto meshHandle2 = Assets::NewMesh(std::filesystem::path("ext/dragon.obj"));
-	Assets::Meshes[meshHandle2]->ScaleVertices(0.01f);
-	Assets::Meshes[meshHandle2]->OffsetVertices(glm::vec3(0, 0.5f, 0));
-	
+
 	auto rendMesh2 = std::make_unique<RenderedMesh>(meshHandle2);
-	rendMesh2->GenerateBVH();
 	Game::scene.entities.push_back(std::move(rendMesh2));
+
+	auto dragon = Game::scene.entities.back().get();
+	dragon->transform.scale = glm::vec3(0.01f, 0.01f, 0.01f);
+	dragon->transform.position += glm::vec3(2.0f, 0.4f, 0.0f);
+	dragon->transform.LookAtDir(glm::vec3(-1, 0, 0), glm::vec3(0, 1, 0));
 
 	// Mesh 3
 	//auto meshHandle3 = Assets::NewMesh(std::filesystem::path("ext/rock.fbx"));
@@ -191,13 +190,17 @@ int main(int argc, char* argv[]) {
 		bgfx::setDebug(showBgfxStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
 
 		// Temp debug movement
-		mesh1->transform.position += glm::vec3(0, 1, 0) * glm::sin(Time::timeF * 2.0f) * 0.01f;
-		mesh1->transform.rotation *= glm::angleAxis(glm::radians(Time::deltaTimeF * 120.0f), glm::vec3(0,0,1));
+		chara->transform.position += glm::vec3(0, 1, 0) * glm::sin(Time::timeF * 2.0f) * 0.01f;
+		chara->transform.rotation = glm::angleAxis(Time::deltaTimeF * 2.0f, glm::vec3(0, 1, 0)) * chara->transform.rotation;
+		chara->transform.rotation = glm::normalize(chara->transform.rotation);
+
+		//dragon->transform.rotation = glm::angleAxis(Time::deltaTimeF * 2.0f, glm::vec3(0, 1, 0)) * dragon->transform.rotation;
+		//dragon->transform.rotation = glm::normalize(dragon->transform.rotation);
 
 		// Sort scene objects (only makes sense for first rays)
-		std::ranges::sort(Game::scene.entities, [&](const std::unique_ptr<Entity>& a, const std::unique_ptr<Entity>& b) {
-			return Utils::SqrLength(a->transform.position - camTf.position) < Utils::SqrLength(b->transform.position - camTf.position);
-		});
+		//std::ranges::sort(Game::scene.entities, [&](const std::unique_ptr<Entity>& a, const std::unique_ptr<Entity>& b) {
+		//	return Utils::SqrLength(a->transform.position - camTf.position) < Utils::SqrLength(b->transform.position - camTf.position);
+		//});
 
 		// Update matrices
 		for (const auto& obj : Game::scene.entities) {

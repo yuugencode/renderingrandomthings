@@ -42,7 +42,7 @@ void Raytracer::Create(const Window& window) {
 	bgfx::setViewRect(VIEW_LAYER, 0, 0, bgfx::BackbufferRatio::Equal);
 }
 
-glm::vec4 GetColor(const Scene& scene, const RayResult& rayResult, const glm::vec3& hitPoint) {
+glm::vec4 GetColor(const Scene& scene, const RayResult& rayResult, const glm::vec3& hitPoint, const int& recursionDepth) {
 
 	// Interpolate variables depending on position in "vertex shader"
 	const v2f interpolated = rayResult.obj->VertexShader(hitPoint, rayResult.localPos, rayResult.localNormal, rayResult.data);
@@ -51,12 +51,12 @@ glm::vec4 GetColor(const Scene& scene, const RayResult& rayResult, const glm::ve
 
 	// Shade below in "fragment shader"
 	switch (rayResult.obj->shaderType) {
-		case Entity::Shader::PlainWhite:c = Shaders::PlainWhite(scene, rayResult.obj, interpolated); break;
-		case Entity::Shader::Textured:	c = Shaders::Textured(scene, rayResult.obj, interpolated); break;
-		case Entity::Shader::Normals:	c = Shaders::Normals(scene, rayResult.obj, interpolated); break;
-		case Entity::Shader::Grid:		c = Shaders::Grid(scene, rayResult.obj, interpolated); break;
-		case Entity::Shader::Debug:		c = Shaders::Debug(scene, rayResult.obj, interpolated); break;
-		default: c = Shaders::PlainWhite(scene, rayResult.obj, interpolated); break;
+		case Entity::Shader::PlainWhite:c = Shaders::PlainWhite(scene, rayResult.obj, interpolated, recursionDepth); break;
+		case Entity::Shader::Textured:	c = Shaders::Textured(scene, rayResult.obj, interpolated, recursionDepth); break;
+		case Entity::Shader::Normals:	c = Shaders::Normals(scene, rayResult.obj, interpolated, recursionDepth); break;
+		case Entity::Shader::Grid:		c = Shaders::Grid(scene, rayResult.obj, interpolated, recursionDepth); break;
+		case Entity::Shader::Debug:		c = Shaders::Debug(scene, rayResult.obj, interpolated, recursionDepth); break;
+		default: c = Shaders::PlainWhite(scene, rayResult.obj, interpolated, recursionDepth); break;
 	}
 
 	return c;
@@ -116,7 +116,7 @@ glm::vec4 Raytracer::TraceRay(const Scene& scene, const Ray& ray, int& recursion
 		const auto hitPt = ray.ro + ray.rd * rayResult.depth;
 
 		// Hit point color
-		glm::vec4 c = GetColor(scene, rayResult, hitPt);
+		glm::vec4 c = GetColor(scene, rayResult, hitPt, recursionDepth);
 
 		// Transparent or cutout
 		if (c.a < 0.99f && recursionDepth < 1) {

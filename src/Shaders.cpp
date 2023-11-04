@@ -3,7 +3,7 @@
 #include "Raytracer.h"
 
 // Shoots a shadow ray from point to given point, returns 0.0 if point is in shadow
-float ShadowRay(const Scene& scene, const glm::vec3& from, const glm::vec3& to, const uint32_t& mask) {
+float ShadowRay(const Scene& scene, const glm::vec3& from, const glm::vec3& to, const uint32_t& mask, const int& recursionDepth) {
 	using namespace glm;
 
 	vec3 shadowRayDir = to - from;
@@ -19,7 +19,7 @@ float ShadowRay(const Scene& scene, const glm::vec3& from, const glm::vec3& to, 
 }
 
 // Shader that samples a texture
-glm::vec4 Shaders::Textured(const Scene& scene, const Entity* obj, const v2f& input) {
+glm::vec4 Shaders::Textured(const Scene& scene, const Entity* obj, const v2f& input, const int& recursionDepth) {
 	using namespace glm;
 
 	vec4 c(1.0f);
@@ -37,8 +37,8 @@ glm::vec4 Shaders::Textured(const Scene& scene, const Entity* obj, const v2f& in
 	// Loop lights
 	for (const auto& light : scene.lights) {
 		float atten, nl;
-		light.CalcGenericLighting(input.worldPosition, input.localNormal, atten, nl);
-		float shadow = ShadowRay(scene, input.worldPosition, light.position, input.data);
+		light.CalcGenericLighting(input.worldPosition, obj->transform.rotation * input.localNormal, atten, nl);
+		float shadow = ShadowRay(scene, input.worldPosition, light.position, input.data, recursionDepth);
 		swizzle_xyz(c) *= nl * atten * shadow;
 	}
 
@@ -46,20 +46,20 @@ glm::vec4 Shaders::Textured(const Scene& scene, const Entity* obj, const v2f& in
 }
 
 // Shader that draws a procedural grid
-glm::vec4 Shaders::Grid(const Scene& scene, const Entity* obj, const v2f& input) {
+glm::vec4 Shaders::Grid(const Scene& scene, const Entity* obj, const v2f& input, const int& recursionDepth) {
 	using namespace glm;
 	
 	// Simple grid
-	auto f = fract(input.localPosition * 2.0f);
+	auto f = fract(input.localPosition * 10.0f);
 	f = abs(f - 0.5f) * 2.0f;
 	float a = min(f.x, min(f.y, f.z));
-	float res = 0.3f + Utils::InvLerpClamp(1.0f - a, 0.95f, 1.0f);
+	float res = 0.4f + Utils::InvLerpClamp(1.0f - a, 0.9f, 1.0f);
 
 	// Loop lights
 	for (const auto& light : scene.lights) {
 		float atten, nl;
-		light.CalcGenericLighting(input.worldPosition, input.localNormal, atten, nl);
-		float shadow = ShadowRay(scene, input.worldPosition, light.position, input.data);
+		light.CalcGenericLighting(input.worldPosition, obj->transform.rotation * input.localNormal, atten, nl);
+		float shadow = ShadowRay(scene, input.worldPosition, light.position, input.data, recursionDepth);
 		res *= nl * atten * shadow;
 	}
 
@@ -67,7 +67,7 @@ glm::vec4 Shaders::Grid(const Scene& scene, const Entity* obj, const v2f& input)
 }
 
 // Shader that draws normals as colors
-glm::vec4 Shaders::Normals(const Scene& scene, const Entity* obj, const v2f& input) {
+glm::vec4 Shaders::Normals(const Scene& scene, const Entity* obj, const v2f& input, const int& recursionDepth) {
 	using namespace glm;
 
 	vec4 c = vec4(abs(input.localNormal), 1.0f);
@@ -76,8 +76,8 @@ glm::vec4 Shaders::Normals(const Scene& scene, const Entity* obj, const v2f& inp
 	// Loop lights
 	for (const auto& light : scene.lights) {
 		float atten, nl;
-		light.CalcGenericLighting(input.worldPosition, input.localNormal, atten, nl);
-		float shadow = ShadowRay(scene, input.worldPosition, light.position, input.data);
+		light.CalcGenericLighting(input.worldPosition, obj->transform.rotation * input.localNormal, atten, nl);
+		float shadow = ShadowRay(scene, input.worldPosition, light.position, input.data, recursionDepth);
 		swizzle_xyz(c) *= nl * atten * shadow;
 	}
 
@@ -85,7 +85,7 @@ glm::vec4 Shaders::Normals(const Scene& scene, const Entity* obj, const v2f& inp
 }
 
 // Shader that's just plain white
-glm::vec4 Shaders::PlainWhite(const Scene& scene, const Entity* obj, const v2f& input) {
+glm::vec4 Shaders::PlainWhite(const Scene& scene, const Entity* obj, const v2f& input, const int& recursionDepth) {
 	using namespace glm;
 
 	vec4 c(1.0f);
@@ -93,8 +93,8 @@ glm::vec4 Shaders::PlainWhite(const Scene& scene, const Entity* obj, const v2f& 
 	// Loop lights
 	for (const auto& light : scene.lights) {
 		float atten, nl;
-		light.CalcGenericLighting(input.worldPosition, input.localNormal, atten, nl);
-		float shadow = ShadowRay(scene, input.worldPosition, light.position, input.data);
+		light.CalcGenericLighting(input.worldPosition, obj->transform.rotation * input.localNormal, atten, nl);
+		float shadow = ShadowRay(scene, input.worldPosition, light.position, input.data, recursionDepth);
 		swizzle_xyz(c) *= nl * atten * shadow;
 	}
 
@@ -102,7 +102,7 @@ glm::vec4 Shaders::PlainWhite(const Scene& scene, const Entity* obj, const v2f& 
 }
 
 // Debug shader
-glm::vec4 Shaders::Debug(const Scene& scene, const Entity* obj, const v2f& input) {
+glm::vec4 Shaders::Debug(const Scene& scene, const Entity* obj, const v2f& input, const int& recursionDepth) {
 	using namespace glm;
 
 	vec4 c;

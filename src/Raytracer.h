@@ -23,6 +23,7 @@ struct RayResult {
 
 // Raytracer for a given scene
 class Raytracer {
+
 public:
 
 	static Raytracer* Instance;
