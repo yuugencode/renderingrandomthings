@@ -32,6 +32,12 @@ namespace Log {
         std::cout << std::vformat(str, std::make_format_args(args...)) << std::endl;
     }
 
+    // Preformatted variable length print 
+    template <typename... Args>
+    inline std::string Format(std::string_view str, const Args&... args) {
+        return std::vformat(str, std::make_format_args(args...));
+    }
+
     // Prints text on screen for 1 frame 
     inline void Screen(uint16_t line, const char* str) {
         bgfx::dbgTextPrintf(0, line, 0x0f, str);

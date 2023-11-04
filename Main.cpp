@@ -86,14 +86,22 @@ int main(int argc, char* argv[]) {
 	// Add stuff to the scene
 	
 	// Light
-	Game::scene.lights.push_back(Light(glm::vec3(-2.0f, 3.5f, 4.0f), 15.0f, 1.0f));
+	Game::scene.lights.push_back(Light(glm::vec3(2.0f, 3.5f, 4.0f), 15.0f, 1.0f));
 
-	// Parametric shapes
+	// Random parametric shapes
 	Game::scene.entities.push_back(std::make_unique<Disk>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 5.0f));
-	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(2.0f, 0.6f, -2.0f), 1.0f));
+	Game::scene.entities.back()->reflectivity = 0.25f;
+
+	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(1.0f, 0.5f, 0.0f), 0.5f));
 	Game::scene.entities.back()->reflectivity = 0.15f;
+	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(1.0f, 1.5f, 0.0f), 0.5f));
+	Game::scene.entities.back()->reflectivity = 0.55f;
+	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(1.0f, 2.5f, 0.0f), 0.5f));
+	Game::scene.entities.back()->reflectivity = 0.95f;
+	
 	Game::scene.entities.push_back(std::make_unique<Box>(glm::vec3(-2.0f, 0.5f, 0.0f), glm::vec3(0.5f, 2.0f, 2.0f)));
 	Game::scene.entities.back()->reflectivity = 0.75f;
+	Entity* box = Game::scene.entities.back().get();
 
 	// Mesh 1
 	auto meshHandle = Assets::NewMesh(std::filesystem::path("ext/char.fbx"));
@@ -111,6 +119,8 @@ int main(int argc, char* argv[]) {
 	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex2.png"), true));
 	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex3.png"), true));
 	
+	auto mesh1 = rendMesh.get();
+
 	Game::scene.entities.push_back(std::move(rendMesh));
 
 	// Mesh 2
@@ -123,12 +133,12 @@ int main(int argc, char* argv[]) {
 	Game::scene.entities.push_back(std::move(rendMesh2));
 
 	// Mesh 3
-	auto meshHandle3 = Assets::NewMesh(std::filesystem::path("ext/rock.fbx"));
-	Assets::Meshes[meshHandle3]->ScaleVertices(0.1f);
-
-	auto rendMesh3 = std::make_unique<RenderedMesh>(meshHandle3);
-	rendMesh3->GenerateBVH();
-	Game::scene.entities.push_back(std::move(rendMesh3));
+	//auto meshHandle3 = Assets::NewMesh(std::filesystem::path("ext/rock.fbx"));
+	//Assets::Meshes[meshHandle3]->ScaleVertices(0.1f);
+	//
+	//auto rendMesh3 = std::make_unique<RenderedMesh>(meshHandle3);
+	//rendMesh3->GenerateBVH();
+	//Game::scene.entities.push_back(std::move(rendMesh3));
 
 	bool showBgfxStats = false;
 
@@ -180,10 +190,19 @@ int main(int argc, char* argv[]) {
 		bgfx::dbgTextClear();
 		bgfx::setDebug(showBgfxStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
 
+		// Temp debug movement
+		mesh1->transform.position += glm::vec3(0, 1, 0) * glm::sin(Time::timeF * 2.0f) * 0.01f;
+		mesh1->transform.rotation *= glm::angleAxis(glm::radians(Time::deltaTimeF * 120.0f), glm::vec3(0,0,1));
+
 		// Sort scene objects (only makes sense for first rays)
 		std::ranges::sort(Game::scene.entities, [&](const std::unique_ptr<Entity>& a, const std::unique_ptr<Entity>& b) {
 			return Utils::SqrLength(a->transform.position - camTf.position) < Utils::SqrLength(b->transform.position - camTf.position);
 		});
+
+		// Update matrices
+		for (const auto& obj : Game::scene.entities) {
+			obj->invModelMatrix = glm::inverse(obj->transform.ToMatrix());
+		}
 
 		// Trace the scene
 		Game::raytracer.RenderScene(Game::scene);

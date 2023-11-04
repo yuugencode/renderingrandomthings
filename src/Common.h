@@ -10,9 +10,9 @@ struct Ray {
 
 // Vertex interpolator output
 struct v2f {
-    // Position doesn't need interpolation, but passed via this for brevity
-    glm::vec3 position;
-    glm::vec3 normal;
+    glm::vec3 worldPosition;
+    glm::vec3 localPosition;
+    glm::vec3 localNormal;
     glm::vec2 uv;
     glm::uint32_t data;
 };
@@ -50,6 +50,7 @@ struct AABB {
     glm::vec3 min, max;
 
     AABB();
+    AABB(const float& size);
     AABB(const glm::vec3& min, const glm::vec3& max);
     AABB(const glm::vec3& pos);
     AABB(const glm::vec3& pos, const float& radius);

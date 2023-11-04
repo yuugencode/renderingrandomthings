@@ -13,7 +13,7 @@ class Entity {
 public:
 	
 	enum class Type { Sphere, Disk, Box, RenderedMesh };
-	enum class Shader { PlainWhite, Normals, Textured, Grid };
+	enum class Shader { PlainWhite, Normals, Textured, Grid, Debug };
 
 	// Type of object this is (mesh, parametric) @TODO: SDF
 	Type type;
@@ -32,6 +32,8 @@ public:
 	int meshHandle = -1; // Mesh, if any
 	float reflectivity = 0.0f; // How much should light bounce off this
 
+	glm::mat4x4 invModelMatrix;
+
 	bool HasTexture() const { return textureHandles.size() != 0; }
 	bool HasMesh() const { return meshHandle >= 0; }
 	bool HasBVH() const { return bvh.Exists(); }
@@ -40,7 +42,9 @@ public:
 	const Mesh* GetMesh() const { return Assets::Meshes[meshHandle].get(); }
 
 	// Fills v2f-style struct with relevant data for this shape
-	virtual v2f VertexShader(const glm::vec3& pos, const glm::vec3& faceNormal, const uint32_t& data) const = 0;
+	virtual v2f VertexShader(const glm::vec3& worldPos, const glm::vec3& localPos, const glm::vec3& localFaceNormal, const uint32_t& data) const = 0;
+
+	virtual bool IntersectLocal(const Ray& ray, glm::vec3& normal, uint32_t& data, float& depth) const = 0;
 
 protected:
 	static uint32_t idCount;

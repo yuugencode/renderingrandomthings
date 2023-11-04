@@ -69,6 +69,7 @@ Color& Color::operator+=(const Color& rhs) {
 // AABB
 
 AABB::AABB() { min = max = glm::vec3(0); }
+AABB::AABB(const float& size) { min = glm::vec3(-size); max = glm::vec3(size); }
 AABB::AABB(const glm::vec3& min, const glm::vec3& max) { this->min = min; this->max = max; }
 AABB::AABB(const glm::vec3& pos) { this->min = pos; this->max = pos; }
 AABB::AABB(const glm::vec3& pos, const float& radius) { this->min = pos - radius; this->max = pos + radius; }

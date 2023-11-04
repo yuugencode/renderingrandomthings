@@ -20,15 +20,11 @@ void RenderedMesh::GenerateBVH() {
 	Log::Line("bvh gen", Log::FormatFloat((float)t.GetAveragedTime() * 1000.0f), "ms");
 }
 
-bool RenderedMesh::Intersect(const Ray& ray, glm::vec3& normal, uint32_t& triIdx, float& depth) const {
+bool RenderedMesh::IntersectLocal(const Ray& ray, glm::vec3& normal, uint32_t& triIdx, float& depth) const {
 	return bvh.Intersect(ray, normal, triIdx, depth);
 }
 
-float RenderedMesh::EstimatedDistanceTo(const glm::vec3& pos) const {
-	return glm::length(pos - transform.position);
-}
-
-v2f RenderedMesh::VertexShader(const glm::vec3& pos, const glm::vec3& faceNormal, const uint32_t& data) const {
+v2f RenderedMesh::VertexShader(const glm::vec3& worldPos, const glm::vec3& pos, const glm::vec3& faceNormal, const uint32_t& data) const {
 	using namespace glm; // Pretend we're a shader
 
 	v2f ret;
@@ -54,7 +50,8 @@ v2f RenderedMesh::VertexShader(const glm::vec3& pos, const glm::vec3& faceNormal
 	// Barycentric interpolation
 	const auto b = Utils::Barycentric(pos, p0, p1, p2);
 
-	ret.position = pos;
+	ret.worldPosition = worldPos;
+	ret.localPosition = pos;
 	ret.data = data;
 
 	// Texture sample
@@ -65,9 +62,9 @@ v2f RenderedMesh::VertexShader(const glm::vec3& pos, const glm::vec3& faceNormal
 
 	// Vertex normals interpolated if exist
 	if (HasMesh() && Assets::Meshes[meshHandle]->hasNormals)
-		ret.normal = normalize(n0 * b.x + n1 * b.y + n2 * b.z);
+		ret.localNormal = normalize(n0 * b.x + n1 * b.y + n2 * b.z);
 	else
-		ret.normal = faceNormal;
+		ret.localNormal = faceNormal;
 
 	return ret;
 }

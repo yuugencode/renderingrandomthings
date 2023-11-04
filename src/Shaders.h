@@ -13,4 +13,5 @@ public:
 	static glm::vec4 Textured(	const Scene& scene, const Entity* obj, const v2f& input);
 	static glm::vec4 PlainWhite(const Scene& scene, const Entity* obj, const v2f& input);
 	static glm::vec4 Normals(	const Scene& scene, const Entity* obj, const v2f& input);
+	static glm::vec4 Debug(		const Scene& scene, const Entity* obj, const v2f& input);
 };

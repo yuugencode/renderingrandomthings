@@ -42,22 +42,21 @@ void Raytracer::Create(const Window& window) {
 	bgfx::setViewRect(VIEW_LAYER, 0, 0, bgfx::BackbufferRatio::Equal);
 }
 
-glm::vec4 GetColor(const Scene& scene, const Entity* obj, const glm::vec3& hitPt, const glm::vec3& normal, const uint32_t& data) {
-
-	// @TODO: Pass ray type (direct, indirect) for shaders so they can optimize shadows off for indirect etc
+glm::vec4 GetColor(const Scene& scene, const RayResult& rayResult, const glm::vec3& hitPoint) {
 
 	// Interpolate variables depending on position in "vertex shader"
-	const v2f interpolated = obj->VertexShader(hitPt, normal, data);
+	const v2f interpolated = rayResult.obj->VertexShader(hitPoint, rayResult.localPos, rayResult.localNormal, rayResult.data);
 
 	glm::vec4 c;
 
 	// Shade below in "fragment shader"
-	switch (obj->shaderType) {
-		case Entity::Shader::PlainWhite:c = Shaders::PlainWhite(scene, obj, interpolated); break;
-		case Entity::Shader::Textured:	c = Shaders::Textured(scene, obj, interpolated); break;
-		case Entity::Shader::Normals:	c = Shaders::Normals(scene, obj, interpolated); break;
-		case Entity::Shader::Grid:		c = Shaders::Grid(scene, obj, interpolated); break;
-		default: c = Shaders::PlainWhite(scene, obj, interpolated); break;
+	switch (rayResult.obj->shaderType) {
+		case Entity::Shader::PlainWhite:c = Shaders::PlainWhite(scene, rayResult.obj, interpolated); break;
+		case Entity::Shader::Textured:	c = Shaders::Textured(scene, rayResult.obj, interpolated); break;
+		case Entity::Shader::Normals:	c = Shaders::Normals(scene, rayResult.obj, interpolated); break;
+		case Entity::Shader::Grid:		c = Shaders::Grid(scene, rayResult.obj, interpolated); break;
+		case Entity::Shader::Debug:		c = Shaders::Debug(scene, rayResult.obj, interpolated); break;
+		default: c = Shaders::PlainWhite(scene, rayResult.obj, interpolated); break;
 	}
 
 	return c;
@@ -65,7 +64,13 @@ glm::vec4 GetColor(const Scene& scene, const Entity* obj, const glm::vec3& hitPt
 
 RayResult Raytracer::RaycastScene(const Scene& scene, const Ray& ray) const {
 
-	RayResult result{ .depth = std::numeric_limits<float>::max(), .normal = glm::vec3(0,1,0), .data = (uint32_t)-1, .obj = nullptr};
+	RayResult result { 
+		.localPos = glm::vec3(), 
+		.localNormal = glm::vec3(0,1,0), 
+		.obj = nullptr, 
+		.depth = std::numeric_limits<float>::max(), 
+		.data = (uint32_t)-1 
+	};
 
 	bool intersect;
 	float depth;
@@ -75,22 +80,25 @@ RayResult Raytracer::RaycastScene(const Scene& scene, const Ray& ray) const {
 	// Loop all objects, could use something more sophisticated but a simple loop gets us pretty far
 	for (const auto& entity : scene.entities) {
 
-		// Early rejection for missed rays
-		if (entity->aabb.Intersect(ray) == 0.0f) continue;
+		Ray _ray;
+		
+		// Inverse transform object to origin
+		const auto newPos = entity->invModelMatrix * glm::vec4(ray.ro, 1.0f);
+		const auto newDir = entity->invModelMatrix * glm::vec4(ray.rd, 0.0f);
+		_ray = Ray{ .ro = newPos, .rd = newDir, .inv_rd = 1.0f / newDir, .mask = ray.mask };
 
-		// Switching here is inelegant but seems significantly faster than a virtual function call
-		switch (entity->type) {
-			case Entity::Type::Sphere: intersect = ((Sphere*)entity.get())->Intersect(ray, nrm, data, depth); break;
-			case Entity::Type::Disk: intersect = ((Disk*)entity.get())->Intersect(ray, nrm, data, depth); break;
-			case Entity::Type::Box: intersect = ((Box*)entity.get())->Intersect(ray, nrm, data, depth); break;
-			case Entity::Type::RenderedMesh: intersect = ((RenderedMesh*)entity.get())->Intersect(ray, nrm, data, depth); break;
-		}
+		// Early rejection for missed rays
+		if (entity->aabb.Intersect(_ray) == 0.0f) continue;
+
+		// Check intersect (virtual function call but perf cost irrelevant compared to the entire frame)
+		intersect = entity->IntersectLocal(_ray, nrm, data, depth);
 
 		// Check if hit something and it's the closest hit
 		if (intersect && depth < result.depth) {
 			result.depth = depth;
 			result.data = data;
-			result.normal = nrm;
+			result.localPos = _ray.ro + _ray.rd * depth;
+			result.localNormal = nrm;
 			result.obj = entity.get();
 		}
 	}
@@ -108,7 +116,7 @@ glm::vec4 Raytracer::TraceRay(const Scene& scene, const Ray& ray, int& recursion
 		const auto hitPt = ray.ro + ray.rd * rayResult.depth;
 
 		// Hit point color
-		glm::vec4 c = GetColor(scene, rayResult.obj, hitPt, rayResult.normal, rayResult.data);
+		glm::vec4 c = GetColor(scene, rayResult, hitPt);
 
 		// Transparent or cutout
 		if (c.a < 0.99f && recursionDepth < 1) {
@@ -119,8 +127,8 @@ glm::vec4 Raytracer::TraceRay(const Scene& scene, const Ray& ray, int& recursion
 		
 		// Indirect bounce
 		if (rayResult.obj->reflectivity != 0.0f && recursionDepth < 2) {
-			const auto newRo = glm::vec3(hitPt + rayResult.normal * 0.000001f);
-			const auto newRd = glm::reflect(ray.rd, rayResult.normal);
+			const auto newRo = glm::vec3(hitPt);
+			const auto newRd = glm::reflect(ray.rd, rayResult.obj->transform.rotation * rayResult.localNormal);
 			Ray newRay{ .ro = newRo, .rd = newRd, .inv_rd = 1.0f / newRd, .mask = rayResult.data };
 			glm::vec4 reflColor = TraceRay(scene, newRay, ++recursionDepth);
 			c = Utils::Lerp(c, reflColor, rayResult.obj->reflectivity);

@@ -5,7 +5,7 @@
 // Shoots a shadow ray from point to given point, returns 0.0 if point is in shadow
 float ShadowRay(const Scene& scene, const glm::vec3& from, const glm::vec3& to, const uint32_t& mask) {
 	using namespace glm;
-	
+
 	vec3 shadowRayDir = to - from;
 	float shadowRayDist = length(shadowRayDir);
 	shadowRayDir /= shadowRayDist + 0.0000001f;
@@ -34,14 +34,11 @@ glm::vec4 Shaders::Textured(const Scene& scene, const Entity* obj, const v2f& in
 		c = Assets::Textures[texID]->SampleUVClamp(input.uv).ToVec4();
 	}
 
-	// Loop lights for basic lighting
+	// Loop lights
 	for (const auto& light : scene.lights) {
-
 		float atten, nl;
-		light.CalcGenericLighting(input.position, input.normal, atten, nl);
-
-		float shadow = ShadowRay(scene, input.position, light.position, input.data);
-
+		light.CalcGenericLighting(input.worldPosition, input.localNormal, atten, nl);
+		float shadow = ShadowRay(scene, input.worldPosition, light.position, input.data);
 		swizzle_xyz(c) *= nl * atten * shadow;
 	}
 
@@ -53,7 +50,7 @@ glm::vec4 Shaders::Grid(const Scene& scene, const Entity* obj, const v2f& input)
 	using namespace glm;
 	
 	// Simple grid
-	auto f = fract(input.position * 2.0f);
+	auto f = fract(input.localPosition * 2.0f);
 	f = abs(f - 0.5f) * 2.0f;
 	float a = min(f.x, min(f.y, f.z));
 	float res = 0.3f + Utils::InvLerpClamp(1.0f - a, 0.95f, 1.0f);
@@ -61,8 +58,8 @@ glm::vec4 Shaders::Grid(const Scene& scene, const Entity* obj, const v2f& input)
 	// Loop lights
 	for (const auto& light : scene.lights) {
 		float atten, nl;
-		light.CalcGenericLighting(input.position, input.normal, atten, nl);
-		float shadow = ShadowRay(scene, input.position, light.position, input.data);
+		light.CalcGenericLighting(input.worldPosition, input.localNormal, atten, nl);
+		float shadow = ShadowRay(scene, input.worldPosition, light.position, input.data);
 		res *= nl * atten * shadow;
 	}
 
@@ -73,13 +70,14 @@ glm::vec4 Shaders::Grid(const Scene& scene, const Entity* obj, const v2f& input)
 glm::vec4 Shaders::Normals(const Scene& scene, const Entity* obj, const v2f& input) {
 	using namespace glm;
 
-	vec4 c = vec4(abs(input.normal), 1.0f);
+	vec4 c = vec4(abs(input.localNormal), 1.0f);
+	//vec4 c = vec4(1.0f);
 
 	// Loop lights
 	for (const auto& light : scene.lights) {
 		float atten, nl;
-		light.CalcGenericLighting(input.position, input.normal, atten, nl);
-		float shadow = ShadowRay(scene, input.position, light.position, input.data);
+		light.CalcGenericLighting(input.worldPosition, input.localNormal, atten, nl);
+		float shadow = ShadowRay(scene, input.worldPosition, light.position, input.data);
 		swizzle_xyz(c) *= nl * atten * shadow;
 	}
 
@@ -95,10 +93,31 @@ glm::vec4 Shaders::PlainWhite(const Scene& scene, const Entity* obj, const v2f& 
 	// Loop lights
 	for (const auto& light : scene.lights) {
 		float atten, nl;
-		light.CalcGenericLighting(input.position, input.normal, atten, nl);
-		float shadow = ShadowRay(scene, input.position, light.position, input.data);
+		light.CalcGenericLighting(input.worldPosition, input.localNormal, atten, nl);
+		float shadow = ShadowRay(scene, input.worldPosition, light.position, input.data);
 		swizzle_xyz(c) *= nl * atten * shadow;
 	}
+
+	return c;
+}
+
+// Debug shader
+glm::vec4 Shaders::Debug(const Scene& scene, const Entity* obj, const v2f& input) {
+	using namespace glm;
+
+	vec4 c;
+
+	swizzle_xyz(c) = fract(input.worldPosition * 2.0f);
+
+	c.a = 1.0f;
+
+	// Loop lights
+	//for (const auto& light : scene.lights) {
+	//	float atten, nl;
+	//	light.CalcGenericLighting(input.worldPosition, input.localNormal, atten, nl);
+	//	float shadow = ShadowRay(scene, input.worldPosition, light.position, input.data);
+	//	swizzle_xyz(c) *= nl * atten * shadow;
+	//}
 
 	return c;
 }

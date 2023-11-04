@@ -13,10 +13,11 @@
 
 // Raycast result
 struct RayResult {
-	float depth;
-	glm::vec3 normal;
-	uint32_t data;
+	glm::vec3 localPos;
+	glm::vec3 localNormal;
 	Entity* obj;
+	float depth;
+	uint32_t data;
 	bool Hit() const { return obj != nullptr; }
 };
 
