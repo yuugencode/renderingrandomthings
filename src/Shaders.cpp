@@ -2,20 +2,33 @@
 
 #include "Raytracer.h"
 
+thread_local std::vector<uint32_t> _pointbuffer;
+
 // Shoots a shadow ray from point to given point, returns 0.0 if point is in shadow
 float ShadowRay(const Scene& scene, const glm::vec3& from, const glm::vec3& to, const uint32_t& mask, const int& recursionDepth) {
 	using namespace glm;
 
-	vec3 shadowRayDir = to - from;
-	float shadowRayDist = length(shadowRayDir);
-	shadowRayDir /= shadowRayDist + 0.0000001f;
-	
-	const vec3 bias = shadowRayDir * 0.005f;
-	Ray ray{ .ro = from + bias, .rd = shadowRayDir, .inv_rd = 1.0f / shadowRayDir, .mask = mask };
-	
-	RayResult result = Raytracer::Instance->RaycastScene(scene, ray);
-	
-	return result.depth < shadowRayDist ? 0.0f : 1.0f;
+	_pointbuffer.clear();
+	Raytracer::Instance->shadowBvh.GetRange(from, 0.3f, _pointbuffer);
+
+	if (_pointbuffer.size() == 0) return 1.0f;
+
+	float avg = 0.0f;
+	for (uint32_t i = 0; i < _pointbuffer.size(); i++)
+		avg += Raytracer::Instance->shadowBuffer[_pointbuffer[i]];
+
+	return avg /= _pointbuffer.size();
+
+	//vec3 shadowRayDir = to - from;
+	//float shadowRayDist = length(shadowRayDir);
+	//shadowRayDir /= shadowRayDist + 0.0000001f;
+	//
+	//const vec3 bias = shadowRayDir * 0.005f;
+	//Ray ray{ .ro = from + bias, .rd = shadowRayDir, .inv_rd = 1.0f / shadowRayDir, .mask = mask };
+	//
+	//RayResult result = Raytracer::Instance->RaycastScene(scene, ray);
+	//
+	//return result.depth < shadowRayDist ? 0.0f : 1.0f;
 }
 
 // Shader that samples a texture

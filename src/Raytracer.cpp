@@ -26,6 +26,9 @@ void Raytracer::Create(const Window& window) {
 	textureBufferSize = info.storageSize;
 	textureBuffer = new Color[textureBufferSize];
 
+	bvhBuffer.resize((window.width * window.height) / bvhBufferDiv);
+	shadowBuffer.resize(bvhBuffer.size());
+
 	u_texture = bgfx::createUniform("s_tex", bgfx::UniformType::Sampler);
 
 	// Read and compile shaders
@@ -146,10 +149,9 @@ void Raytracer::RenderScene(const Scene& scene) {
 
 	timer.Start();
 
+	// Matrices
 	const Transform& camTransform = scene.camera.transform;
 	const glm::vec3 camPos = camTransform.position;
-
-	// Matrices
 	glm::vec3 fwd = camTransform.Forward();
 	glm::vec3 up = camTransform.Up();
 	auto view = glm::lookAt(camTransform.position, camTransform.position + fwd, up);
@@ -157,11 +159,59 @@ void Raytracer::RenderScene(const Scene& scene) {
 	auto viewInv = glm::inverse(view);
 	auto projInv = glm::inverse(proj);
 
+	// Backbuffer
 	const bgfx::Memory* mem = bgfx::makeRef(textureBuffer, (uint32_t)textureBufferSize);
+
+	const auto scaledWidth = window->width / bvhBufferDiv;
+	const auto scaledHeight = window->height / bvhBufferDiv;
+
+	// @TODO: Shoot from lights instead of screenspace
+	concurrency::parallel_for(size_t(0), bvhBuffer.size(), [&](size_t i) {
+		float xcoord = (float)(i % scaledWidth) / scaledWidth;
+		float ycoord = (float)(i / scaledWidth) / scaledHeight;
+
+		// Create view ray from proj/view matrices
+		glm::vec2 pixel = glm::vec2(xcoord, ycoord) * 2.0f - 1.0f;
+		glm::vec4 px = glm::vec4(pixel, 0.0f, 1.0f);
+
+		px = projInv * px;
+		px.w = 0.0f;
+		glm::vec3 dir = viewInv * px;
+		dir = normalize(dir);
+
+		const Ray ray{ .ro = camPos, .rd = dir, .inv_rd = 1.0f / dir, .mask = (uint32_t)-1 };
+		auto res = RaycastScene(scene, ray);
+
+		if (res.Hit()) {
+
+			const auto hitpt = ray.ro + ray.rd * res.depth;
+			
+			float shadow = 1.0f;
+			for (const auto& light : scene.lights) {
+
+				auto os = light.position - hitpt;
+				const Ray ray2{ .ro = hitpt, .rd = os, .inv_rd = 1.0f / os, .mask = res.data };
+				auto res2 = RaycastScene(scene, ray2);
+
+				if (res2.Hit()) shadow = 0.0f;
+			}
+
+			shadowBuffer[i] = shadow;
+			bvhBuffer[i] = hitpt; // Original hitpt
+		}
+		else {
+			// Will generate dead points that get bypassed quick in bvh
+			bvhBuffer[i] = glm::vec3(-999999.9f, -999999.9f, -999999.9f);
+			shadowBuffer[i] = 1.0f;
+		}
+	});
+
+	// Generate the shadow buffer
+	shadowBvh.Generate(bvhBuffer);
 
 	// Modify the texture on cpu in a multithreaded function
 	// @TODO: Probably can optimize this with cache locality, loop order etc
-	concurrency::parallel_for(size_t(0), size_t(textureBufferSize / 4), [&](size_t i) {
+	concurrency::parallel_for(size_t(0), size_t(textureBufferSize / sizeof(Color)), [&](size_t i) {
 		float xcoord = (float)(i % window->width) / window->width;
 		float ycoord = (float)(i / window->width) / window->height;
 
@@ -175,7 +225,7 @@ void Raytracer::RenderScene(const Scene& scene) {
 		dir = normalize(dir);
 
 		int recursionDepth = 0;
-		Ray ray{ .ro = camPos, .rd = dir, .inv_rd = 1.0f / dir, .mask = (uint32_t)-1 };
+		const Ray ray{ .ro = camPos, .rd = dir, .inv_rd = 1.0f / dir, .mask = (uint32_t)-1 };
 		glm::vec4 result = TraceRay(scene, ray, recursionDepth);
 		textureBuffer[i] = Color::FromVec(result);
 	});

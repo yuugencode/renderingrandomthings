@@ -5,7 +5,7 @@
 
 #include "Common.h"
 
-class Bvh {
+class BvhPoint {
 public:
 
 	struct BvhNode {
@@ -29,32 +29,30 @@ public:
 		int TriangleCount() { return valR - valL; }
 	};
 
-	// Generates a new BVH from given vertices/tris
-	void Generate(const std::vector<glm::vec3>& srcVertices, const std::vector<uint32_t>& srcTriangles);
+	// Generates a new BVH from given points
+	void Generate(const std::vector<glm::vec3>& srcPoints);
 
 	bool Exists() const { return stack.size() != 0; }
 
-	// Intersects a ray against this bvh
-	float Intersect(const Ray& ray, glm::vec3& normal, uint32_t& minIndex, float& depth) const;
+	float GetClosest(const glm::vec3& pos, uint32_t& minIndex, float& depth) const;
+
+	void GetRange(const glm::vec3& pos, const float& range, std::vector<uint32_t>& buffer) const;
 
 	// Array of bvh nodes, 0 is always root
 	std::vector<BvhNode> stack;
 
 private:
 
-	// Abstraction for a single triangle
-	struct BvhTriangle {
-		glm::vec3 v0, v1, v2, normal;
-		uint32_t originalIndex; // These are sorted around so need to save this, coulda instead added 1 indirection but slower
-		glm::vec3 Centroid() const { return (v0 + v1 + v2) * 0.3333333333f; }
-		glm::vec3 Min() const { return glm::min(glm::min(v0, v1), v2); }
-		glm::vec3 Max() const { return glm::max(glm::max(v0, v1), v2); }
+	// Single datapoint in bvh
+	struct BvhPointData {
+		glm::vec3 point;
+		uint32_t originalIndex;
 	};
 
-	/// Sorted triangles with indices to original positions
-	std::vector<BvhTriangle> triangles;
+	/// Sorted points with indices to original positions
+	std::vector<BvhPointData> points;
 
-	/// Number of tris after which we stop splitting nodes
+	/// Number of points after which we stop splitting nodes
 	static const int maxNodeEntries = 4;
 
 	// Splits bvh node into 2
@@ -67,7 +65,7 @@ private:
 
 	void CalculateNodeAABB(BvhNode& node);
 
-	float ray_tri_intersect(const glm::vec3& ro, const glm::vec3& rd, const BvhTriangle& tri) const;
+	void IntersectNode(const int& nodeIndex, const glm::vec3& pos, uint32_t& minTriIdx, float& minDist) const;
 
-	void IntersectNode(const int& nodeIndex, const Ray& ray, glm::vec3& normal, uint32_t& minTriIdx, float& minDist) const;
+	void GatherNode(const int& nodeIndex, const float& range, const glm::vec3& pos, std::vector<uint32_t>& buffer) const;
 };

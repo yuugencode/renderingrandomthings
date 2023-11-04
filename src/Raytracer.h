@@ -10,6 +10,7 @@
 #include "Window.h"
 #include "Timer.h"
 #include "Scene.h"
+#include "BvhPoint.h"
 
 // Raycast result
 struct RayResult {
@@ -42,6 +43,12 @@ public:
 	// Texture data buffer
 	Color* textureBuffer;
 	uint32_t textureBufferSize;
+
+	std::vector<glm::vec3> bvhBuffer;
+	const uint32_t bvhBufferDiv = 16;
+
+	std::vector<float> shadowBuffer;
+	BvhPoint shadowBvh;
 
 	// Vertex layout for the full screen pass
 	struct PosColorTexCoord0Vertex {

@@ -68,6 +68,12 @@ struct AABB {
 
     // Intersects a ray with this AABB, returns 0.0f on no hit, negative if behind and positive depth on hit
     float Intersect(const Ray& ray) const;
+
+    // Returns the closest point on this AABB to given pos
+    glm::vec3 ClosestPoint(const glm::vec3 pos) const;
+
+    // Returns the squared distance from given pt to the closest point on this AABB
+    float SqrDist(const glm::vec3& pos) const;
 };
 
 // Global constants

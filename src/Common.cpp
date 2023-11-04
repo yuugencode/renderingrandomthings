@@ -94,7 +94,6 @@ float AABB::AreaHeuristic() const {
     return temp.x + temp.y + temp.z;
 }
 
-// Standard slab method
 float AABB::Intersect(const Ray& ray) const {
     const auto a = (min - ray.ro) * ray.inv_rd;
     const auto b = (max - ray.ro) * ray.inv_rd;
@@ -105,4 +104,13 @@ float AABB::Intersect(const Ray& ray) const {
     if (minT > maxT) return 0.0f;
     if (maxT < 0.0f) return maxT;
     return minT;
+}
+
+glm::vec3 AABB::ClosestPoint(const glm::vec3 pos) const { 
+    return glm::clamp(pos, min, max); 
+}
+
+float AABB::SqrDist(const glm::vec3& pos) const {
+    const auto os = (ClosestPoint(pos) - pos);
+    return glm::dot(os, os);
 }
