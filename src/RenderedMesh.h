@@ -16,8 +16,8 @@ public:
 	void GenerateBVH();
 
 	// Intersects a ray against the BVH of this mesh
-	bool IntersectLocal(const Ray& ray, glm::vec3& normal, uint32_t& triIdx, float& depth) const;
+	bool IntersectLocal(const Ray& ray, glm::vec3& normal, int& triIdx, float& depth) const;
 
 	// Fills v2f struct with possibly interpolated data that is passed onto the "fragment shader"
-	v2f VertexShader(const glm::vec3& worldPos, const glm::vec3& localPos, const glm::vec3& localFaceNormal, const uint32_t& data) const;
+	v2f VertexShader(const glm::vec3& worldPos, const RayResult& rayResult) const;
 };

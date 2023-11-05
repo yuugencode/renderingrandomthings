@@ -3,6 +3,7 @@
 #include "Shaders.h"
 #include "Shapes.h"
 #include "RenderedMesh.h"
+#include "Log.h"
 
 Raytracer* Raytracer::Instance = nullptr;
 
@@ -48,18 +49,18 @@ void Raytracer::Create(const Window& window) {
 glm::vec4 GetColor(const Scene& scene, const RayResult& rayResult, const glm::vec3& hitPoint, const int& recursionDepth) {
 
 	// Interpolate variables depending on position in "vertex shader"
-	const v2f interpolated = rayResult.obj->VertexShader(hitPoint, rayResult.localPos, rayResult.localNormal, rayResult.data);
+	const v2f interpolated = rayResult.obj->VertexShader(hitPoint, rayResult);
 
 	glm::vec4 c;
 
 	// Shade below in "fragment shader"
 	switch (rayResult.obj->shaderType) {
-		case Entity::Shader::PlainWhite:c = Shaders::PlainWhite(scene, rayResult.obj, interpolated, recursionDepth); break;
-		case Entity::Shader::Textured:	c = Shaders::Textured(scene, rayResult.obj, interpolated, recursionDepth); break;
-		case Entity::Shader::Normals:	c = Shaders::Normals(scene, rayResult.obj, interpolated, recursionDepth); break;
-		case Entity::Shader::Grid:		c = Shaders::Grid(scene, rayResult.obj, interpolated, recursionDepth); break;
-		case Entity::Shader::Debug:		c = Shaders::Debug(scene, rayResult.obj, interpolated, recursionDepth); break;
-		default: c = Shaders::PlainWhite(scene, rayResult.obj, interpolated, recursionDepth); break;
+		case Entity::Shader::PlainWhite:c = Shaders::PlainWhite(scene, rayResult, interpolated, recursionDepth); break;
+		case Entity::Shader::Textured:	c = Shaders::Textured(scene, rayResult, interpolated, recursionDepth); break;
+		case Entity::Shader::Normals:	c = Shaders::Normals(scene, rayResult, interpolated, recursionDepth); break;
+		case Entity::Shader::Grid:		c = Shaders::Grid(scene, rayResult, interpolated, recursionDepth); break;
+		case Entity::Shader::Debug:		c = Shaders::Debug(scene, rayResult, interpolated, recursionDepth); break;
+		default: c = Shaders::PlainWhite(scene, rayResult, interpolated, recursionDepth); break;
 	}
 
 	return c;
@@ -67,17 +68,17 @@ glm::vec4 GetColor(const Scene& scene, const RayResult& rayResult, const glm::ve
 
 RayResult Raytracer::RaycastScene(const Scene& scene, const Ray& ray) const {
 
-	RayResult result { 
-		.localPos = glm::vec3(), 
-		.localNormal = glm::vec3(0,1,0), 
-		.obj = nullptr, 
-		.depth = std::numeric_limits<float>::max(), 
-		.data = (uint32_t)-1 
+	RayResult result{
+		.localPos = glm::vec3(),
+		.faceNormal = glm::vec3(0,1,0),
+		.obj = nullptr,
+		.depth = std::numeric_limits<float>::max(),
+		.data = std::numeric_limits<int>::min()
 	};
 
 	bool intersect;
 	float depth;
-	uint32_t data;
+	int data;
 	glm::vec3 nrm;
 
 	// Loop all objects, could use something more sophisticated but a simple loop gets us pretty far
@@ -86,9 +87,11 @@ RayResult Raytracer::RaycastScene(const Scene& scene, const Ray& ray) const {
 		Ray _ray;
 		
 		// Inverse transform object to origin
-		const auto newPos = entity->invModelMatrix * glm::vec4(ray.ro, 1.0f);
-		const auto newDir = entity->invModelMatrix * glm::vec4(ray.rd, 0.0f);
-		_ray = Ray{ .ro = newPos, .rd = newDir, .inv_rd = 1.0f / newDir, .mask = ray.mask };
+		const auto newPosDir = entity->invModelMatrix * glm::mat2x4(
+			glm::vec4(ray.ro, 1.0f),
+			glm::vec4(ray.rd, 0.0f)
+		);
+		_ray = Ray{ .ro = newPosDir[0], .rd = newPosDir[1], .inv_rd = 1.0f / newPosDir[1], .mask = ray.mask };
 
 		// Early rejection for missed rays
 		if (entity->aabb.Intersect(_ray) == 0.0f) continue;
@@ -101,7 +104,7 @@ RayResult Raytracer::RaycastScene(const Scene& scene, const Ray& ray) const {
 			result.depth = depth;
 			result.data = data;
 			result.localPos = _ray.ro + _ray.rd * depth;
-			result.localNormal = nrm;
+			result.faceNormal = nrm;
 			result.obj = entity.get();
 		}
 	}
@@ -131,7 +134,7 @@ glm::vec4 Raytracer::TraceRay(const Scene& scene, const Ray& ray, int& recursion
 		// Indirect bounce
 		if (rayResult.obj->reflectivity != 0.0f && recursionDepth < 2) {
 			const auto newRo = glm::vec3(hitPt);
-			const auto newRd = glm::reflect(ray.rd, rayResult.obj->transform.rotation * rayResult.localNormal);
+			const auto newRd = glm::reflect(ray.rd, rayResult.obj->transform.rotation * rayResult.faceNormal);
 			Ray newRay{ .ro = newRo, .rd = newRd, .inv_rd = 1.0f / newRd, .mask = rayResult.data };
 			glm::vec4 reflColor = TraceRay(scene, newRay, ++recursionDepth);
 			c = Utils::Lerp(c, reflColor, rayResult.obj->reflectivity);
@@ -179,7 +182,7 @@ void Raytracer::RenderScene(const Scene& scene) {
 		glm::vec3 dir = viewInv * px;
 		dir = normalize(dir);
 
-		const Ray ray{ .ro = camPos, .rd = dir, .inv_rd = 1.0f / dir, .mask = (uint32_t)-1 };
+		const Ray ray{ .ro = camPos, .rd = dir, .inv_rd = 1.0f / dir, .mask = std::numeric_limits<int>::min() };
 		auto res = RaycastScene(scene, ray);
 
 		if (res.Hit()) {
@@ -190,24 +193,31 @@ void Raytracer::RenderScene(const Scene& scene) {
 			for (const auto& light : scene.lights) {
 
 				auto os = light.position - hitpt;
+				auto lightDist = glm::length(os);
+				os /= lightDist + 0.00001f;
 				const Ray ray2{ .ro = hitpt, .rd = os, .inv_rd = 1.0f / os, .mask = res.data };
-				auto res2 = RaycastScene(scene, ray2);
+				const auto res2 = RaycastScene(scene, ray2);
 
-				if (res2.Hit()) shadow = 0.0f;
+				if (res2.Hit() && res2.depth < lightDist) {
+					shadow = 0.0f;
+				}
 			}
 
-			shadowBuffer[i] = shadow;
-			bvhBuffer[i] = hitpt; // Original hitpt
+			bvhBuffer[i] = glm::vec4(hitpt, shadow); // Original hitpt
 		}
 		else {
-			// Will generate dead points that get bypassed quick in bvh
-			bvhBuffer[i] = glm::vec3(-999999.9f, -999999.9f, -999999.9f);
-			shadowBuffer[i] = 1.0f;
+			bvhBuffer[i] = glm::vec4(-999999.9f); // Invalid value
 		}
 	});
 
+	// Copy valid shadow values to a separate buffer
+	shadowBuffer.clear();
+	for (const auto& val : bvhBuffer)
+		if (val.x != -999999.9f)
+			shadowBuffer.push_back(val);
+
 	// Generate the shadow buffer
-	shadowBvh.Generate(bvhBuffer);
+	shadowBvh.Generate(shadowBuffer);
 
 	// Modify the texture on cpu in a multithreaded function
 	// @TODO: Probably can optimize this with cache locality, loop order etc
@@ -225,7 +235,7 @@ void Raytracer::RenderScene(const Scene& scene) {
 		dir = normalize(dir);
 
 		int recursionDepth = 0;
-		const Ray ray{ .ro = camPos, .rd = dir, .inv_rd = 1.0f / dir, .mask = (uint32_t)-1 };
+		const Ray ray{ .ro = camPos, .rd = dir, .inv_rd = 1.0f / dir, .mask = std::numeric_limits<int>::min() };
 		glm::vec4 result = TraceRay(scene, ray, recursionDepth);
 		textureBuffer[i] = Color::FromVec(result);
 	});

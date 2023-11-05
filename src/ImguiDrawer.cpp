@@ -115,7 +115,9 @@ void ImguiDrawer::DrawUI() {
 
 	// RT
 	const auto camPos = Game::scene.camera.transform.position;
+	const auto camDir = Game::scene.camera.transform.Forward();
 	ImGui::Text("Camera position (%.1f, %.1f, %.1f)", camPos.x, camPos.y, camPos.z);
+	ImGui::Text("Camera dir (%.1f, %.1f, %.1f)", camDir.x, camDir.y, camDir.z);
 	ImGui::Text("Scene trace");
 	ImGui::SameLine();
 	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 1, 1, 1));

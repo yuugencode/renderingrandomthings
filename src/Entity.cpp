@@ -1,3 +1,4 @@
 #include "Entity.h"
 
-uint32_t Entity::idCount = 0;
+// Objects have negative ids
+int Entity::idCount = -1;

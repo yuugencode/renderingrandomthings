@@ -33,6 +33,101 @@ glm::vec3 Utils::Barycentric(const glm::vec3& p, const glm::vec3& a, const glm::
     return glm::vec3(u, v, w);
 }
 
+glm::vec3 Utils::ConfinedBarycentric(const glm::vec3& p, const glm::vec3& a, const glm::vec3& b, const glm::vec3& c) {
+    using namespace glm;
+
+    const auto v0 = b - a, v1 = c - a, v2 = p - a;
+    const float d00 = glm::dot(v0, v0);
+    const float d01 = glm::dot(v0, v1);
+    const float d11 = glm::dot(v1, v1);
+    const float d20 = glm::dot(v2, v0);
+    const float d21 = glm::dot(v2, v1);
+    float denom = d00 * d11 - d01 * d01;
+    if (denom < 0.00001f) { // We're a line
+        const float dist0 = glm::dot(p - a, p - a);
+        const float dist1 = glm::dot(p - b, p - b);
+        const float dist2 = glm::dot(p - c, p - c);
+        if (dist0 < dist1 && dist0 < dist2) return vec3(1.0f, 0.0f, 0.0f);
+        else if (dist1 < dist2) return vec3(0.0f, 1.0f, 0.0f);
+        else return vec3(0.0f, 0.0f, 1.0f);
+        
+        //const float sum = dist0 + dist1 + dist2;
+        //return vec3(dist0, dist1, dist2) / sum;
+    }
+    const float v = (d11 * d20 - d01 * d21) / denom;
+    const float w = (d00 * d21 - d01 * d20) / denom;
+    const float u = 1.0f - v - w;
+    
+    if (u < 0.0f && v < 0.0f) // Behind z
+        return vec3(0.0f, 0.0f, 1.0f);
+    else if (u < 0.0f && w < 0.0f) // Behind y
+        return vec3(0.0f, 1.0f, 0.0f);
+    else if (v < 0.0f && w < 0.0f) // Behind x
+        return vec3(1.0f, 0.0f, 0.0f);
+    else if (u < 0.0f) { // Between y/z
+        const auto sum = v + w;
+        return vec3(0.0f, v / sum, w / sum);
+    }
+    else if (v < 0.0f) { // Between x/z
+        const auto sum = u + w;
+        return vec3(u / sum, 0.0f, w / sum);
+    }
+    else if (w < 0.0f) { // Between x/y
+        const auto sum = u + v;
+        return vec3(u / sum, v / sum, 0.0f);
+    }
+
+    return vec3(u, v, w); // Inside tri
+}
+
+// Returns 0...1 value representing how close p is to b compared to a, weird InvLerp in 3D
+inline float InvSegmentLerp(const glm::vec3& p, const glm::vec3& a, const glm::vec3& b) {
+    const auto pa = p - a;
+    const auto ba = b - a;
+    const auto baMagn = glm::length(ba);
+    const auto baNorm = ba / glm::max(baMagn, 0.000001f);
+    const auto dot = glm::dot(pa, baNorm);
+    if (dot < 0.0f) return 0.0f;
+    const auto proj = baNorm * dot;
+    const auto dist2 = baMagn;
+    const auto dist3 = glm::length(proj);
+    return glm::min(dist3 / dist2, 1.0f);
+}
+
+glm::vec4 Utils::InvQuadrilateral(const glm::vec3& p, const glm::vec3& a, const glm::vec3& b, const glm::vec3& c, const glm::vec3& d) {
+   
+    // @TODO: This is a naive self written implementation
+    // Probably tons of excess calculations and optimization available
+
+    const float wt1 = InvSegmentLerp(p, a, b);
+    const float wt2 = InvSegmentLerp(p, c, d);
+
+    float wtA = 1.0f - wt1;
+    float wtB = (wt1);
+    float wtC = 1.0f - wt2;
+    float wtD = wt2;
+
+    const float wt3 = InvSegmentLerp(p, a, c);
+    const float wt4 = InvSegmentLerp(p, b, d);
+
+    wtC *= wt3;
+    wtA *= 1.0f - wt3;
+    wtD *= wt4;
+    wtB *= 1.0f - wt4;
+
+    const float wt5 = InvSegmentLerp(p, a, d);
+    const float wt6 = InvSegmentLerp(p, b, c);
+
+    wtD *= wt5;
+    wtA *= 1.0f - wt5;
+    wtC *= wt6;
+    wtB *= 1.0f - wt6;
+
+    const float sum = wtA + wtB + wtC + wtD;
+
+    return glm::vec4(wtA, wtB, wtC, wtD) / sum;
+}
+
 glm::vec3 Utils::Project(const glm::vec3& a, const glm::vec3& b) {
     return b * glm::dot(a, b);
 }

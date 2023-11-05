@@ -18,6 +18,12 @@ namespace Utils {
     // Returns barycentric uvw coordinates for the point p interpolated between abc
     glm::vec3 Barycentric(const glm::vec3& p, const glm::vec3& a, const glm::vec3& b, const glm::vec3& c);
 
+    // Returns barycentric uvw coordinates for the point b, interpolated between abc, confined in the triangle if it was outside
+    glm::vec3 ConfinedBarycentric(const glm::vec3& p, const glm::vec3& a, const glm::vec3& b, const glm::vec3& c);
+
+    // Returns point p interpolated between a b c d
+    glm::vec4 InvQuadrilateral(const glm::vec3& p, const glm::vec3& a, const glm::vec3& b, const glm::vec3& c, const glm::vec3& d);
+
     // Checks if vector contains given value 
     template <typename T>
     bool Contains(const std::vector<T>& vec, const T& x) {

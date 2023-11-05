@@ -35,7 +35,7 @@ public:
 	bool Exists() const { return stack.size() != 0; }
 
 	// Intersects a ray against this bvh
-	float Intersect(const Ray& ray, glm::vec3& normal, uint32_t& minIndex, float& depth) const;
+	float Intersect(const Ray& ray, glm::vec3& normal, int& minIndex, float& depth) const;
 
 	// Array of bvh nodes, 0 is always root
 	std::vector<BvhNode> stack;
@@ -45,7 +45,7 @@ private:
 	// Abstraction for a single triangle
 	struct BvhTriangle {
 		glm::vec3 v0, v1, v2, normal;
-		uint32_t originalIndex; // These are sorted around so need to save this, coulda instead added 1 indirection but slower
+		int originalIndex; // These are sorted around so need to save this, coulda instead added 1 indirection but slower
 		glm::vec3 Centroid() const { return (v0 + v1 + v2) * 0.3333333333f; }
 		glm::vec3 Min() const { return glm::min(glm::min(v0, v1), v2); }
 		glm::vec3 Max() const { return glm::max(glm::max(v0, v1), v2); }
@@ -63,11 +63,11 @@ private:
 	// Partitions data to 2 sides based on given pos and axis. Right index is exclusive.
 	int Partition(const int& low, const int& high, const glm::vec3& splitPos, const int& axis);
 
-	AABB CalculateAABB(const uint32_t& left, const uint32_t& right) const;
+	AABB CalculateAABB(const int& left, const int& right) const;
 
 	void CalculateNodeAABB(BvhNode& node);
 
 	float ray_tri_intersect(const glm::vec3& ro, const glm::vec3& rd, const BvhTriangle& tri) const;
 
-	void IntersectNode(const int& nodeIndex, const Ray& ray, glm::vec3& normal, uint32_t& minTriIdx, float& minDist) const;
+	void IntersectNode(const int& nodeIndex, const Ray& ray, glm::vec3& normal, int& minTriIdx, float& minDist) const;
 };

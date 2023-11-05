@@ -29,31 +29,36 @@ public:
 		int TriangleCount() { return valR - valL; }
 	};
 
+	// Single datapoint in bvh
+	struct BvhPointData {
+		glm::vec3 point;
+		float shadowValue;
+	};
+
 	// Generates a new BVH from given points
-	void Generate(const std::vector<glm::vec3>& srcPoints);
+	void Generate(const std::vector<glm::vec4>& srcPoints);
 
 	bool Exists() const { return stack.size() != 0; }
 
-	float GetClosest(const glm::vec3& pos, uint32_t& minIndex, float& depth) const;
+	// Returns the closest point in this bvh
+	void GetClosest(const glm::vec3& pos, BvhPointData& d0) const;
 
-	void GetRange(const glm::vec3& pos, const float& range, std::vector<uint32_t>& buffer) const;
+	// Returns the 3 closest points in this bvh
+	void Get3Closest(const glm::vec3& queryPos, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2) const;
+
+	// Returns the 4 closest points in this bvh
+	void Get4Closest(const glm::vec3& queryPos, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2, BvhPointData& d3) const;
 
 	// Array of bvh nodes, 0 is always root
 	std::vector<BvhNode> stack;
 
 private:
 
-	// Single datapoint in bvh
-	struct BvhPointData {
-		glm::vec3 point;
-		uint32_t originalIndex;
-	};
-
 	/// Sorted points with indices to original positions
 	std::vector<BvhPointData> points;
 
 	/// Number of points after which we stop splitting nodes
-	static const int maxNodeEntries = 4;
+	static const int maxNodeEntries = 10;
 
 	// Splits bvh node into 2
 	void SplitNode(const int& nodeIdx);
@@ -61,11 +66,13 @@ private:
 	// Partitions data to 2 sides based on given pos and axis. Right index is exclusive.
 	int Partition(const int& low, const int& high, const glm::vec3& splitPos, const int& axis);
 
-	AABB CalculateAABB(const uint32_t& left, const uint32_t& right) const;
+	AABB CalculateAABB(const int& left, const int& right) const;
 
 	void CalculateNodeAABB(BvhNode& node);
 
-	void IntersectNode(const int& nodeIndex, const glm::vec3& pos, uint32_t& minTriIdx, float& minDist) const;
+	void IntersectNode(const int& nodeIndex, const glm::vec3& pos, float& minDist, BvhPointData& d0) const;
 
-	void GatherNode(const int& nodeIndex, const float& range, const glm::vec3& pos, std::vector<uint32_t>& buffer) const;
+	void Gather3Closest(const int& nodeIndex, const glm::vec3& pos, glm::vec3& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2) const;
+
+	void Gather4Closest(const int& nodeIndex, const glm::vec3& pos, glm::vec4& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2, BvhPointData& d3) const;
 };

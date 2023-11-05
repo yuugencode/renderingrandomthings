@@ -10,7 +10,7 @@ void Bvh::Generate(const std::vector<glm::vec3>& srcVertices, const std::vector<
 	triangles.reserve(srcTriangles.size());
 
 	// Remove indirection at the cost of an additional buffer
-	for (size_t i = 0; i < srcTriangles.size(); i += 3) {
+	for (int i = 0; i < srcTriangles.size(); i += 3) {
 
 		const auto& v0 = srcVertices.data()[srcTriangles.data()[i]];
 		const auto& v1 = srcVertices.data()[srcTriangles.data()[i + 1]];
@@ -19,7 +19,7 @@ void Bvh::Generate(const std::vector<glm::vec3>& srcVertices, const std::vector<
 		triangles.push_back(BvhTriangle{
 			.v0 = v0, .v1 = v1, .v2 = v2,
 			.normal = glm::normalize(glm::cross(v0 - v1, v0 - v2)),
-			.originalIndex = (uint32_t)i,
+			.originalIndex = i,
 		});
 	}
 
@@ -115,8 +115,8 @@ void Bvh::SplitNode(const int& nodeIdx) {
 	// Generate new left / right nodes and split further
 	BvhNode left, right;
 
-	const auto leftStackIndex = (uint32_t)stack.size();
-	const auto rightStackIndex = (uint32_t)stack.size() + 1;
+	const auto leftStackIndex = (int)stack.size();
+	const auto rightStackIndex = (int)stack.size() + 1;
 
 	left.SetLeftIndex(node.GetLeftIndex());
 	left.SetRightIndex(splitPoint);
@@ -145,9 +145,9 @@ int Bvh::Partition(const int& low, const int& high, const glm::vec3& splitPos, c
 	return pt;
 }
 
-AABB Bvh::CalculateAABB(const uint32_t& left, const uint32_t& right) const {
+AABB Bvh::CalculateAABB(const int& left, const int& right) const {
 	AABB ret = AABB(triangles[left].v0);
-	for (uint32_t i = left; i < right; i++) {
+	for (int i = left; i < right; i++) {
 		ret.Encapsulate(triangles[i].v0);
 		ret.Encapsulate(triangles[i].v1);
 		ret.Encapsulate(triangles[i].v2);
@@ -182,7 +182,7 @@ float Bvh::ray_tri_intersect(const glm::vec3& ro, const glm::vec3& rd, const Bvh
 	return -1.0f;
 }
 
-float Bvh::Intersect(const Ray& ray, glm::vec3& normal, uint32_t& minIndex, float& depth) const {
+float Bvh::Intersect(const Ray& ray, glm::vec3& normal, int& minIndex, float& depth) const {
 	depth = 99999999.9f;
 	minIndex = -1; // Overflows to max val
 	IntersectNode(0, ray, normal, minIndex, depth);
@@ -190,7 +190,7 @@ float Bvh::Intersect(const Ray& ray, glm::vec3& normal, uint32_t& minIndex, floa
 }
 
 // Recursed func
-void Bvh::IntersectNode(const int& nodeIndex, const Ray& ray, glm::vec3& normal, uint32_t& minTriIdx, float& minDist) const {
+void Bvh::IntersectNode(const int& nodeIndex, const Ray& ray, glm::vec3& normal, int& minTriIdx, float& minDist) const {
 
 	const auto& node = stack[nodeIndex];
 

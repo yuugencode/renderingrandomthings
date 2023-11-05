@@ -11,16 +11,7 @@
 #include "Timer.h"
 #include "Scene.h"
 #include "BvhPoint.h"
-
-// Raycast result
-struct RayResult {
-	glm::vec3 localPos;
-	glm::vec3 localNormal;
-	Entity* obj;
-	float depth;
-	uint32_t data;
-	bool Hit() const { return obj != nullptr; }
-};
+#include "RayResult.h"
 
 // Raytracer for a given scene
 class Raytracer {
@@ -44,10 +35,13 @@ public:
 	Color* textureBuffer;
 	uint32_t textureBufferSize;
 
-	std::vector<glm::vec3> bvhBuffer;
-	const uint32_t bvhBufferDiv = 16;
+	std::vector<glm::vec4> bvhBuffer;
+	//const uint32_t bvhBufferDiv = 120;
+	//const uint32_t bvhBufferDiv = 12;
+	//const uint32_t bvhBufferDiv = 30;
+	const uint32_t bvhBufferDiv = 20;
 
-	std::vector<float> shadowBuffer;
+	std::vector<glm::vec4> shadowBuffer;
 	BvhPoint shadowBvh;
 
 	// Vertex layout for the full screen pass

@@ -1,19 +1,20 @@
 #include "BvhPoint.h"
 
-void BvhPoint::Generate(const std::vector<glm::vec3>& srcPoints) {
-
-	if (srcPoints.size() == 0) return;
+void BvhPoint::Generate(const std::vector<glm::vec4>& srcPoints) {
 
 	stack.clear();
 	points.clear();
+
+	if (srcPoints.size() == 0) return;
 
 	points.reserve(srcPoints.size());
 
 	// Remove indirection at the cost of an additional buffer
 	for (uint32_t i = 0; i < srcPoints.size(); i++) {
+		const auto& pt = srcPoints[i];
 		points.push_back(BvhPointData{
-			.point = srcPoints[i],
-			.originalIndex = i
+			.point = pt,
+			.shadowValue = pt.w
 		});
 	}
 
@@ -104,8 +105,8 @@ void BvhPoint::SplitNode(const int& nodeIdx) {
 	// Generate new left / right nodes and split further
 	BvhNode left, right;
 
-	const auto leftStackIndex = (uint32_t)stack.size();
-	const auto rightStackIndex = (uint32_t)stack.size() + 1;
+	const auto leftStackIndex = (int)stack.size();
+	const auto rightStackIndex = (int)stack.size() + 1;
 
 	left.SetLeftIndex(node.GetLeftIndex());
 	left.SetRightIndex(splitPoint);
@@ -134,9 +135,9 @@ int BvhPoint::Partition(const int& low, const int& high, const glm::vec3& splitP
 	return pt;
 }
 
-AABB BvhPoint::CalculateAABB(const uint32_t& left, const uint32_t& right) const {
+AABB BvhPoint::CalculateAABB(const int& left, const int& right) const {
 	AABB ret = AABB(points[left].point);
-	for (uint32_t i = left + 1; i < right; i++)
+	for (int i = left + 1; i < right; i++)
 		ret.Encapsulate(points[i].point);
 	return ret;
 }
@@ -147,15 +148,16 @@ void BvhPoint::CalculateNodeAABB(BvhNode& node) {
 		node.aabb.Encapsulate(points[i].point);
 }
 
-float BvhPoint::GetClosest(const glm::vec3& pos, uint32_t& minIndex, float& dist) const {
-	dist = 99999999.9f;
-	minIndex = -1; // Overflows to max val
-	IntersectNode(0, pos, minIndex, dist);
-	return minIndex != -1;
+// There's some repetition for 1, 3, 4 cases due to testing with quadrilaterals and triangles
+// @TODO: Template to N case static array? might have perf traps
+
+void BvhPoint::GetClosest(const glm::vec3& pos, BvhPointData& d0) const {
+	float dist = 99999999.9f;
+	IntersectNode(0, pos, dist, d0);
 }
 
 // Recursed func
-void BvhPoint::IntersectNode(const int& nodeIndex, const glm::vec3& pos, uint32_t& minIndex, float& minDist) const {
+void BvhPoint::IntersectNode(const int& nodeIndex, const glm::vec3& pos, float& minDist, BvhPointData& d0) const {
 
 	const auto& node = stack[nodeIndex];
 
@@ -168,7 +170,7 @@ void BvhPoint::IntersectNode(const int& nodeIndex, const glm::vec3& pos, uint32_
 
 			if (dist < minDist) {
 				minDist = dist;
-				minIndex = pt.originalIndex;
+				d0 = pt;
 			}
 		}
 		return;
@@ -178,36 +180,60 @@ void BvhPoint::IntersectNode(const int& nodeIndex, const glm::vec3& pos, uint32_
 	else {
 
 		// Check if either hit
-		const auto left = node.GetLeftChild();
-		const auto right = node.GetRightChild();
-		const auto distA = stack[left].aabb.SqrDist(pos);
-		const auto distB = stack[right].aabb.SqrDist(pos);
+		auto nodeA = node.GetLeftChild();
+		auto nodeB = node.GetRightChild();
+		auto distA = stack[nodeA].aabb.SqrDist(pos);
+		auto distB = stack[nodeB].aabb.SqrDist(pos);
+
+		// Check closer first or else recursion becomes insanely slow
+		if (distB < distA) {
+			std::swap(distA, distB);
+			std::swap(nodeA, nodeB);
+		}
 		
 		if (distA < minDist)
-			IntersectNode(left, pos, minIndex, minDist);
+			IntersectNode(nodeA, pos, minDist, d0);
 		if (distB < minDist)
-			IntersectNode(right, pos, minIndex, minDist);
+			IntersectNode(nodeB, pos, minDist, d0);
 	}
 }
 
-// Fills buffer with all points in given range
-void BvhPoint::GetRange(const glm::vec3& pos, const float& range, std::vector<uint32_t>& buffer) const {
-	GatherNode(0, range, pos, buffer);
+// Returns 2 closest points and returns their dist and payload
+void BvhPoint::Get3Closest(const glm::vec3& queryPos, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2) const {
+	glm::vec3 dists = glm::vec3(99999999.9f, 99999999.9f, 99999999.9f);
+	Gather3Closest(0, queryPos, dists, d0, d1, d2);
 }
 
 // Recursed func
-void BvhPoint::GatherNode(const int& nodeIndex, const float& range, const glm::vec3& pos, std::vector<uint32_t>& buffer) const {
+void BvhPoint::Gather3Closest(const int& nodeIndex, const glm::vec3& pos, glm::vec3& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2) const {
 
 	const auto& node = stack[nodeIndex];
 
 	// Leaf -> Check tris
 	if (node.IsLeaf()) {
 		for (int i = node.GetLeftIndex(); i < node.GetRightIndex(); i++) {
+			
 			const auto& pt = points[i];
 			const glm::vec3 os = (pt.point - pos);
-			float dist = glm::dot(os, os);
+			const float dist = glm::dot(os, os);
 
-			if (dist < range) buffer.push_back(pt.originalIndex);
+			// Dist 2 = furthest
+			if (dist < dists[2]) {
+				if (dist < dists[1]) {
+					if (dist < dists[0]) { // newdist = 0
+						dists[2] = dists[1]; d2 = d1;
+						dists[1] = dists[0]; d1 = d0;
+						dists[0] = dist;	 d0 = pt;
+					}
+					else { // newdist = 1
+						dists[2] = dists[1]; d2 = d1;
+						dists[1] = dist;	 d1 = pt;
+					}
+				}
+				else { // newdist = 2
+					dists[2] = dist; d2 = pt;
+				}
+			}
 		}
 		return;
 	}
@@ -216,14 +242,92 @@ void BvhPoint::GatherNode(const int& nodeIndex, const float& range, const glm::v
 	else {
 
 		// Check if either hit
-		const auto left = node.GetLeftChild();
-		const auto right = node.GetRightChild();
-		const auto distA = stack[left].aabb.SqrDist(pos);
-		const auto distB = stack[right].aabb.SqrDist(pos);
+		auto nodeA = node.GetLeftChild();
+		auto distA = stack[nodeA].aabb.SqrDist(pos);
+		auto nodeB = node.GetRightChild();
+		auto distB = stack[nodeB].aabb.SqrDist(pos);
 
-		if (distA < range)
-			GatherNode(left, range, pos, buffer);
-		if (distB < range)
-			GatherNode(right, range, pos, buffer);
+		// Check closer first or else recursion becomes insanely slow
+		if (distB < distA) {
+			std::swap(distA, distB);
+			std::swap(nodeA, nodeB);
+		}
+
+		if (distA < dists[2])
+			Gather3Closest(nodeA, pos, dists, d0, d1, d2);
+		
+		if (distB < dists[2])
+			Gather3Closest(nodeB, pos, dists, d0, d1, d2);
+	}
+}
+
+// Returns 2 closest points and returns their dist and payload
+void BvhPoint::Get4Closest(const glm::vec3& queryPos, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2, BvhPointData& d3) const {
+	glm::vec4 dists = glm::vec4(99999999.9f, 99999999.9f, 99999999.9f, 99999999.9f);
+	Gather4Closest(0, queryPos, dists, d0, d1, d2, d3);
+}
+
+// Recursed func
+void BvhPoint::Gather4Closest(const int& nodeIndex, const glm::vec3& pos, glm::vec4& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2, BvhPointData& d3) const {
+
+	const auto& node = stack[nodeIndex];
+
+	// Leaf -> Check tris
+	if (node.IsLeaf()) {
+		for (int i = node.GetLeftIndex(); i < node.GetRightIndex(); i++) {
+
+			const auto& pt = points[i];
+			const glm::vec3 os = (pt.point - pos);
+			const float dist = glm::dot(os, os);
+
+			// Dist 3 = furthest
+			if (dist < dists[3]) {
+				if (dist < dists[2]) {
+					if (dist < dists[1]) {
+						if (dist < dists[0]) { // newdist = 0
+							dists[3] = dists[2]; d3 = d2;
+							dists[2] = dists[1]; d2 = d1;
+							dists[1] = dists[0]; d1 = d0;
+							dists[0] = dist;	 d0 = pt;
+						}
+						else { // newdist = 1
+							dists[3] = dists[2]; d3 = d2;
+							dists[2] = dists[1]; d2 = d1;
+							dists[1] = dist;	 d1 = pt;
+						}
+					}
+					else { // newdist = 2
+						dists[3] = dists[2]; d3 = d2;
+						dists[2] = dist; d2 = pt;
+					}
+				}
+				else { // newdist = 3
+					dists[3] = dist; d3 = pt;
+				}
+			}
+		}
+		return;
+	}
+
+	// Node -> Check left/right node
+	else {
+
+		// Check if either hit
+		auto nodeA = node.GetLeftChild();
+		auto distA = stack[nodeA].aabb.SqrDist(pos);
+		auto nodeB = node.GetRightChild();
+		auto distB = stack[nodeB].aabb.SqrDist(pos);
+
+		// Check closer first or else recursion becomes insanely slow
+		if (distB < distA) {
+			std::swap(distA, distB);
+			std::swap(nodeA, nodeB);
+		}
+
+		if (distA < dists[2])
+			Gather4Closest(nodeA, pos, dists, d0, d1, d2, d3);
+
+		if (distB < dists[2])
+			Gather4Closest(nodeB, pos, dists, d0, d1, d2, d3);
 	}
 }

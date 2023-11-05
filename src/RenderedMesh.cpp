@@ -3,10 +3,12 @@
 #include "Timer.h"
 #include "Log.h"
 
+#include "RayResult.h"
+
 RenderedMesh::RenderedMesh(const int& meshHandle) {
 	this->type = Entity::Type::RenderedMesh;
 	this->meshHandle = meshHandle;
-	id = idCount++;
+	id = idCount--;
 	shaderType = Shader::Textured;
 	GenerateBVH();
 }
@@ -21,19 +23,19 @@ void RenderedMesh::GenerateBVH() {
 	Log::Line("bvh gen", Log::FormatFloat((float)t.GetAveragedTime() * 1000.0f), "ms");
 }
 
-bool RenderedMesh::IntersectLocal(const Ray& ray, glm::vec3& normal, uint32_t& triIdx, float& depth) const {
+bool RenderedMesh::IntersectLocal(const Ray& ray, glm::vec3& normal, int& triIdx, float& depth) const {
 	return bvh.Intersect(ray, normal, triIdx, depth);
 }
 
-v2f RenderedMesh::VertexShader(const glm::vec3& worldPos, const glm::vec3& pos, const glm::vec3& faceNormal, const uint32_t& data) const {
+v2f RenderedMesh::VertexShader(const glm::vec3& worldPos, const RayResult& rayResult) const {
 	using namespace glm; // Pretend we're a shader
 
 	v2f ret;
 
 	const auto& mesh = Assets::Meshes[meshHandle];
-	const auto& v0i = mesh->triangles[data + 0]; // data == triIndex for meshes
-	const auto& v1i = mesh->triangles[data + 1];
-	const auto& v2i = mesh->triangles[data + 2];
+	const auto& v0i = mesh->triangles[rayResult.data + 0]; // data == triIndex for meshes
+	const auto& v1i = mesh->triangles[rayResult.data + 1];
+	const auto& v2i = mesh->triangles[rayResult.data + 2];
 	const auto& p0 = mesh->vertices[v0i];
 	const auto& p1 = mesh->vertices[v1i];
 	const auto& p2 = mesh->vertices[v2i];
@@ -46,14 +48,12 @@ v2f RenderedMesh::VertexShader(const glm::vec3& worldPos, const glm::vec3& pos, 
 	const auto& uv0 = mesh->uvs[v0i];
 	const auto& uv1 = mesh->uvs[v1i];
 	const auto& uv2 = mesh->uvs[v2i];
-	const auto& material = mesh->materials[data / 3];
+	const auto& material = mesh->materials[rayResult.data / 3];
 
 	// Barycentric interpolation
-	const auto b = Utils::Barycentric(pos, p0, p1, p2);
+	const auto b = Utils::Barycentric(rayResult.localPos, p0, p1, p2);
 
 	ret.worldPosition = worldPos;
-	ret.localPosition = pos;
-	ret.data = data;
 
 	// Texture sample
 	if (HasTexture())
@@ -65,7 +65,7 @@ v2f RenderedMesh::VertexShader(const glm::vec3& worldPos, const glm::vec3& pos, 
 	if (HasMesh() && Assets::Meshes[meshHandle]->hasNormals)
 		ret.localNormal = normalize(n0 * b.x + n1 * b.y + n2 * b.z);
 	else
-		ret.localNormal = faceNormal;
+		ret.localNormal = rayResult.faceNormal;
 
 	return ret;
 }

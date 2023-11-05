@@ -71,7 +71,7 @@ int main(int argc, char* argv[]) {
 	Game::scene.camera = {
 		.transform = { 
 			.position = glm::vec3(2.0f, 1.0f + 1.0f, 3.0f) * 0.5f, 
-			.rotation = glm::quatLookAt(glm::normalize(-glm::vec3(2.0f, 1.0f, 3.0f)), glm::vec3(0,1,0)),
+			.rotation = glm::normalize(glm::quatLookAt(glm::normalize(glm::vec3(2.0f, 1.0f, 3.0f)), glm::vec3(0,1,0))),
 			.scale = glm::vec3(1,1,1) },
 		.fov = 70.0f,
 		.nearClip = 0.05f,
@@ -100,7 +100,6 @@ int main(int argc, char* argv[]) {
 	
 	Game::scene.entities.push_back(std::make_unique<Box>(glm::vec3(-2.0f, 0.5f, 0.0f), glm::vec3(0.5f, 2.0f, 2.0f)));
 	Game::scene.entities.back()->reflectivity = 0.5f;
-	Entity* box = Game::scene.entities.back().get();
 
 	// Mesh 1
 	auto meshHandle = Assets::NewMesh(std::filesystem::path("ext/char.fbx"));
@@ -121,15 +120,15 @@ int main(int argc, char* argv[]) {
 	Game::scene.entities.push_back(std::move(rendMesh));
 
 	// Mesh 2
-	auto meshHandle2 = Assets::NewMesh(std::filesystem::path("ext/dragon.obj"));
+	//auto meshHandle2 = Assets::NewMesh(std::filesystem::path("ext/dragon.obj"));
+	//
+	//auto rendMesh2 = std::make_unique<RenderedMesh>(meshHandle2);
+	//Game::scene.entities.push_back(std::move(rendMesh2));
 
-	auto rendMesh2 = std::make_unique<RenderedMesh>(meshHandle2);
-	Game::scene.entities.push_back(std::move(rendMesh2));
-
-	auto dragon = Game::scene.entities.back().get();
-	dragon->transform.scale = glm::vec3(0.01f, 0.01f, 0.01f);
-	dragon->transform.position += glm::vec3(2.0f, 0.4f, 0.0f);
-	dragon->transform.LookAtDir(glm::vec3(-1, 0, 0), glm::vec3(0, 1, 0));
+	//auto dragon = Game::scene.entities.back().get();
+	//dragon->transform.scale = glm::vec3(0.01f, 0.01f, 0.01f);
+	//dragon->transform.position += glm::vec3(2.0f, 0.4f, 0.0f);
+	//dragon->transform.LookAtDir(glm::vec3(-1, 0, 0), glm::vec3(0, 1, 0));
 
 	// Mesh 3
 	//auto meshHandle3 = Assets::NewMesh(std::filesystem::path("ext/rock.fbx"));

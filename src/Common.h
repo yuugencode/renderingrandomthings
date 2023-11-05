@@ -5,16 +5,14 @@
 // Raycasting ray
 struct Ray {
     glm::vec3 ro, rd, inv_rd;
-    uint32_t mask;
+    int mask;
 };
 
 // Vertex interpolator output
 struct v2f {
     glm::vec3 worldPosition;
-    glm::vec3 localPosition;
     glm::vec3 localNormal;
     glm::vec2 uv;
-    glm::uint32_t data;
 };
 
 // Color structure for 4 byte colors
