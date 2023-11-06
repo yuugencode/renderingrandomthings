@@ -3,7 +3,6 @@
 #include <bgfx/bgfx.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <ppl.h> // Parallel for
 
 #include "Utils.h"
 #include "Entity.h"
@@ -36,10 +35,9 @@ public:
 	uint32_t textureBufferSize;
 
 	std::vector<glm::vec4> bvhBuffer;
-	//const uint32_t bvhBufferDiv = 120;
-	//const uint32_t bvhBufferDiv = 12;
-	//const uint32_t bvhBufferDiv = 30;
-	const uint32_t bvhBufferDiv = 20;
+	// 1920 1080 common factors
+	// 1 | 2 | 3 | 4 | 5 | 6 | 8 | 10 | 12 | 15 | 20 | 24 | 30 | 40 | 60 | 120
+	const uint32_t bvhBufferDiv = 8;
 
 	std::vector<glm::vec4> shadowBuffer;
 	BvhPoint shadowBvh;
@@ -55,7 +53,9 @@ public:
 	// Current window
 	const Window* window;
 
-	Timer timer;
+	Timer traceTimer;
+	Timer shadowTimerSample;
+	Timer shadowTimerGen;
 
 	// Initializes a new raytracer for given window
 	void Create(const Window& window);

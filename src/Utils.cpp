@@ -103,7 +103,7 @@ glm::vec4 Utils::InvQuadrilateral(const glm::vec3& p, const glm::vec3& a, const 
     const float wt2 = InvSegmentLerp(p, c, d);
 
     float wtA = 1.0f - wt1;
-    float wtB = (wt1);
+    float wtB = wt1;
     float wtC = 1.0f - wt2;
     float wtD = wt2;
 
@@ -171,6 +171,11 @@ glm::vec3 Utils::Hash32(const glm::vec2& p) {
     glm::vec3 p3 = glm::fract(glm::vec3(p.x, p.y, p.x) * glm::vec3(0.1031f, 0.1030f, 0.0973f));
     p3 += glm::dot(p3, glm::vec3(p3.y, p3.x, p3.z) + 33.33f);
     return glm::fract((glm::vec3(p3.x, p3.x, p3.y) + glm::vec3(p3.y, p3.z, p3.z)) * glm::vec3(p3.z, p3.y, p3.x));
+}
+glm::vec2 Utils::Hash22(const glm::vec2& p) {
+    glm::vec3 p3 = glm::fract(glm::vec3(p.x, p.y, p.x) * glm::vec3(0.1031f, 0.1030f, 0.0973f));
+    p3 += glm::dot(p3, glm::vec3(p3.y, p3.z, p3.x) + 33.33f);
+    return glm::fract((glm::vec2(p3.x, p3.x) + glm::vec2(p3.y, p3.z)) * glm::vec2(p3.z, p3.y));
 }
 
 glm::mat4x4 Utils::ModelMatrix(const glm::vec3& pos, const glm::vec3& lookAtTarget, const glm::vec3& scale) {

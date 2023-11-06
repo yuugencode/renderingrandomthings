@@ -2,38 +2,61 @@
 
 #include "Raytracer.h"
 
+consteval float sqr(const float& x) { return x * x; }
+float sqrr(const float& x) { return x * x; }
+
 // Samples 4 closest points on a bvh for their precalculated shadow value and does a funky quadrilateral interpolation in 3D
-float SmoothShadows(const Scene& scene, const glm::vec3& from, const glm::vec3& to, const uint32_t& mask, const int& recursionDepth) {
+float SmoothShadows(const Scene& scene, const Light& light, const RayResult& rayResult, const v2f& input, const int& recursionDepth) {
 	
 	using namespace glm;
 
+	if (!Raytracer::Instance->shadowBvh.Exists()) return 1.0f; // Light didn't hit any?
+
 	BvhPoint::BvhPointData d0, d1, d2, d3;
-	Raytracer::Instance->shadowBvh.Get4Closest(from, d0, d1, d2, d3);
+	vec4 dists;
 
-	vec4 b = Utils::InvQuadrilateral(from, d0.point, d1.point, d2.point, d3.point);
+	Raytracer::Instance->shadowBvh.Get4Closest(input.worldPosition, dists, d0, d1, d2, d3);
 
-	float shadow = d0.shadowValue * b.x + 
-				   d1.shadowValue * b.y + 
-		           d2.shadowValue * b.z + 
-		           d3.shadowValue * b.w;
+	float rayDistance = (d0.shadowValue + d1.shadowValue + d2.shadowValue + d3.shadowValue) * 0.25f;
+	dists = sqrt(dists);
+	float avgDist = (dists[0] + dists[1] + dists[2] + dists[3]) * 0.25f;
+
+	const float smoothingAmount = 1.0f; // How smooth are the shadows allowed to become
+	const float smoothingStartDistance = 1.0f;
+	const float smoothingEndDistance = 10.0f;
+	float smoothingBound = Utils::InvLerpClamp(rayDistance, smoothingStartDistance, smoothingEndDistance) * smoothingAmount;
+
+	float dilation = 0.05f * max((rayResult.depth * 0.33333f + rayDistance * 0.3f), 1.0f);
+	//float dilation = 0.05f; // Low dilation = more accurate shadows, but causes artifacts where there's no data
+
+	float shadow = 1.0f - Utils::InvLerpClamp(avgDist, dilation, dilation + 0.01f + smoothingBound);
+	shadow *= shadow;
+
+	shadow = Utils::Lerp(shadow, 0.0f, Utils::InvLerpClamp(rayDistance, 0.0f, light.range));
 
 	return shadow;
 }
 
 // Shoots a shadow ray from point to given point, returns 0.0 if point is in shadow
-float ShadowRay(const Scene& scene, const glm::vec3& from, const glm::vec3& to, const int& mask, const int& recursionDepth) {
+float ShadowRay(const Scene& scene, const Light& light, const RayResult& rayResult, const v2f& input, const int& recursionDepth) {
 	using namespace glm;
 
-	vec3 shadowRayDir = to - from;
+	vec3 shadowRayDir = light.position - input.worldPosition;
 	float shadowRayDist = length(shadowRayDir);
 	shadowRayDir /= shadowRayDist + 0.0000001f;
 	
 	const vec3 bias = shadowRayDir * 0.005f;
-	Ray ray{ .ro = from + bias, .rd = shadowRayDir, .inv_rd = 1.0f / shadowRayDir, .mask = mask };
+	Ray ray{ .ro = input.worldPosition + bias, .rd = shadowRayDir, .inv_rd = 1.0f / shadowRayDir, .mask = rayResult.data };
 	
 	RayResult result = Raytracer::Instance->RaycastScene(scene, ray);
 	
 	return result.depth < shadowRayDist ? 0.0f : 1.0f;
+}
+
+float CalculateShadow(const Scene& scene, const Light& light, const RayResult& rayResult, const v2f& input, const int& recursionDepth) {
+	//return SmoothShadows(scene, light, rayResult, input, recursionDepth);
+	return ShadowRay(scene, light, rayResult, input, recursionDepth);
+	//return 1.0f;
 }
 
 // Shader that samples a texture
@@ -56,8 +79,7 @@ glm::vec4 Shaders::Textured(const Scene& scene, const RayResult& rayResult, cons
 	for (const auto& light : scene.lights) {
 		float atten, nl;
 		light.CalcGenericLighting(input.worldPosition, rayResult.obj->transform.rotation * input.localNormal, atten, nl);
-		//float shadow = ShadowRay(scene, input.worldPosition, light.position, rayResult.data, recursionDepth);
-		float shadow = SmoothShadows(scene, input.worldPosition, light.position, rayResult.data, recursionDepth);
+		float shadow = CalculateShadow(scene, light, rayResult, input, recursionDepth);
 		swizzle_xyz(c) *= nl * atten * shadow;
 	}
 
@@ -78,8 +100,8 @@ glm::vec4 Shaders::Grid(const Scene& scene, const RayResult& rayResult, const v2
 	for (const auto& light : scene.lights) {
 		float atten, nl;
 		light.CalcGenericLighting(input.worldPosition, rayResult.obj->transform.rotation * rayResult.faceNormal, atten, nl);
-		//float shadow = ShadowRay(scene, input.worldPosition, light.position, input.data, recursionDepth);
-		float shadow = SmoothShadows(scene, input.worldPosition, light.position, rayResult.data, recursionDepth);
+		float shadow = CalculateShadow(scene, light, rayResult, input, recursionDepth);
+		return vec4(shadow, shadow, shadow, 1.0f);
 		res *= nl * atten * shadow;
 	}
 
@@ -96,8 +118,7 @@ glm::vec4 Shaders::Normals(const Scene& scene, const RayResult& rayResult, const
 	for (const auto& light : scene.lights) {
 		float atten, nl;
 		light.CalcGenericLighting(input.worldPosition, rayResult.obj->transform.rotation * rayResult.faceNormal, atten, nl);
-		//float shadow = ShadowRay(scene, input.worldPosition, light.position, rayResult.data, recursionDepth);
-		float shadow = SmoothShadows(scene, input.worldPosition, light.position, rayResult.data, recursionDepth);
+		float shadow = CalculateShadow(scene, light, rayResult, input, recursionDepth);
 		swizzle_xyz(c) *= nl * atten * shadow;
 	}
 
@@ -114,8 +135,7 @@ glm::vec4 Shaders::PlainWhite(const Scene& scene, const RayResult& rayResult, co
 	for (const auto& light : scene.lights) {
 		float atten, nl;
 		light.CalcGenericLighting(input.worldPosition, rayResult.obj->transform.rotation * rayResult.faceNormal, atten, nl);
-		//float shadow = ShadowRay(scene, input.worldPosition, light.position, rayResult.data, recursionDepth);
-		float shadow = SmoothShadows(scene, input.worldPosition, light.position, rayResult.data, recursionDepth);
+		float shadow = CalculateShadow(scene, light, rayResult, input, recursionDepth);
 		swizzle_xyz(c) *= nl * atten * shadow;
 	}
 

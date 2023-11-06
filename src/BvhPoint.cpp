@@ -1,37 +1,78 @@
 #include "BvhPoint.h"
 
+#include <thread>
+#include <ppl.h> // Parallel for
+
+#include "Timer.h"
+#include "Log.h"
+
 void BvhPoint::Generate(const std::vector<glm::vec4>& srcPoints) {
 
 	stack.clear();
+	cc_stack.clear();
 	points.clear();
 
 	if (srcPoints.size() == 0) return;
 
-	points.reserve(srcPoints.size());
-
 	// Remove indirection at the cost of an additional buffer
-	for (uint32_t i = 0; i < srcPoints.size(); i++) {
-		const auto& pt = srcPoints[i];
-		points.push_back(BvhPointData{
-			.point = pt,
-			.shadowValue = pt.w
-		});
-	}
+	static_assert(sizeof(BvhPointData) == sizeof(glm::vec4));
+	points.resize(srcPoints.size());
+	memcpy(points.data(), srcPoints.data(), srcPoints.size() * sizeof(glm::vec4));
 
 	// Generate root
 	BvhNode root;
 	root.SetLeftIndex(0);
 	root.SetRightIndex((int)points.size());
 	CalculateNodeAABB(root);
+	cc_stack.push_back(root);
 
-	stack.push_back(root);
+	//SplitNodeRecurse(0); // Single threaded
 
-	SplitNode(0);
+	// Generating BVH concurrently is significantly faster than in single thread
+	// However, querying a standard stack is so much faster it's worth it to copy the concurrent stack to it afterwards
+	// Splitting the array to numThreads chunks and doing each chunk separately is likely much faster but requires a radix sort prepass 
+
+	const int numThreads = std::thread::hardware_concurrency();
+
+	// Standard queue based multithreaded recursion
+	queue.clear();
+	queue.push(0);
+	std::atomic_int cnt = 0;
+	
+	concurrency::parallel_for(0, numThreads, [&](size_t i) {
+		int res = -1;
+		while (true) {
+			if (queue.try_pop(res)) {
+				cnt++;
+				int nl = -1, nr = -1;
+				SplitNodeSingle(res, nl, nr);
+
+				// Check if we're almost done and finish this root recursively without stressing queue if yes
+				// If not, just add to queue
+				if (nl != -1) {
+					if (cc_stack[nl].ElementCount() < 128) SplitNodeRecurse(nl);
+					else queue.push(nl);
+				}
+				if (nr != -1) {
+					if (cc_stack[nr].ElementCount() < 128) SplitNodeRecurse(nr);
+					else queue.push(nr);
+				}
+
+				cnt--;
+			}
+	
+			// Cosmic level chance that a thread escapes but the algorithm works fine even with 1T
+			if (queue.empty() && cnt == 0) break;
+		}
+	});
+
+	// Copy to standard vector to speed up querying
+	stack.assign(cc_stack.begin(), cc_stack.end());
 }
 
-void BvhPoint::SplitNode(const int& nodeIdx) {
+void BvhPoint::SplitNodeSingle(const int& nodeIdx, int& nextLeft, int& nextRight) {
 
-	auto& node = stack[nodeIdx];
+	auto& node = cc_stack[nodeIdx];
 	const auto aabbSize = node.aabb.Size();
 
 #if false // SAH Splits
@@ -105,8 +146,10 @@ void BvhPoint::SplitNode(const int& nodeIdx) {
 	// Generate new left / right nodes and split further
 	BvhNode left, right;
 
-	const auto leftStackIndex = (int)stack.size();
-	const auto rightStackIndex = (int)stack.size() + 1;
+	const int leftStackIndex = (int)(cc_stack.push_back(BvhNode()) - cc_stack.begin());
+	const int rightStackIndex = (int)(cc_stack.push_back(BvhNode()) - cc_stack.begin());
+	//const auto leftStackIndex = (int)stack.size();
+	//const auto rightStackIndex = (int)stack.size() + 1;
 
 	left.SetLeftIndex(node.GetLeftIndex());
 	left.SetRightIndex(splitPoint);
@@ -120,11 +163,20 @@ void BvhPoint::SplitNode(const int& nodeIdx) {
 	CalculateNodeAABB(left);
 	CalculateNodeAABB(right);
 
-	stack.push_back(left);
-	stack.push_back(right);
+	cc_stack[leftStackIndex] = left;
+	cc_stack[rightStackIndex] = right;
+	//stack.push_back(left);
+	//stack.push_back(right);
 
-	if (left.TriangleCount() > maxNodeEntries) SplitNode(leftStackIndex);
-	if (right.TriangleCount() > maxNodeEntries) SplitNode(rightStackIndex);
+	if (left.ElementCount() > maxNodeEntries) nextLeft = leftStackIndex;
+	if (right.ElementCount() > maxNodeEntries) nextRight = rightStackIndex;
+}
+
+void BvhPoint::SplitNodeRecurse(const int& nodeIdx) {
+	int nextLeft = -1, nextRight = -1;
+	SplitNodeSingle(nodeIdx, nextLeft, nextRight);
+	if (nextLeft != -1) SplitNodeRecurse(nextLeft);
+	if (nextRight != -1) SplitNodeRecurse(nextRight);
 }
 
 int BvhPoint::Partition(const int& low, const int& high, const glm::vec3& splitPos, const int& axis) {
@@ -151,8 +203,8 @@ void BvhPoint::CalculateNodeAABB(BvhNode& node) {
 // There's some repetition for 1, 3, 4 cases due to testing with quadrilaterals and triangles
 // @TODO: Template to N case static array? might have perf traps
 
-void BvhPoint::GetClosest(const glm::vec3& pos, BvhPointData& d0) const {
-	float dist = 99999999.9f;
+void BvhPoint::GetClosest(const glm::vec3& pos, float& dist, BvhPointData& d0) const {
+	dist = 99999999.9f;
 	IntersectNode(0, pos, dist, d0);
 }
 
@@ -199,8 +251,8 @@ void BvhPoint::IntersectNode(const int& nodeIndex, const glm::vec3& pos, float& 
 }
 
 // Returns 2 closest points and returns their dist and payload
-void BvhPoint::Get3Closest(const glm::vec3& queryPos, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2) const {
-	glm::vec3 dists = glm::vec3(99999999.9f, 99999999.9f, 99999999.9f);
+void BvhPoint::Get3Closest(const glm::vec3& queryPos, glm::vec3& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2) const {
+	dists = glm::vec3(99999999.9f);
 	Gather3Closest(0, queryPos, dists, d0, d1, d2);
 }
 
@@ -262,8 +314,8 @@ void BvhPoint::Gather3Closest(const int& nodeIndex, const glm::vec3& pos, glm::v
 }
 
 // Returns 2 closest points and returns their dist and payload
-void BvhPoint::Get4Closest(const glm::vec3& queryPos, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2, BvhPointData& d3) const {
-	glm::vec4 dists = glm::vec4(99999999.9f, 99999999.9f, 99999999.9f, 99999999.9f);
+void BvhPoint::Get4Closest(const glm::vec3& queryPos, glm::vec4& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2, BvhPointData& d3) const {
+	dists = glm::vec4(99999999.9f);
 	Gather4Closest(0, queryPos, dists, d0, d1, d2, d3);
 }
 
@@ -324,10 +376,10 @@ void BvhPoint::Gather4Closest(const int& nodeIndex, const glm::vec3& pos, glm::v
 			std::swap(nodeA, nodeB);
 		}
 
-		if (distA < dists[2])
+		if (distA < dists[3])
 			Gather4Closest(nodeA, pos, dists, d0, d1, d2, d3);
 
-		if (distB < dists[2])
+		if (distB < dists[3])
 			Gather4Closest(nodeB, pos, dists, d0, d1, d2, d3);
 	}
 }

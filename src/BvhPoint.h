@@ -2,6 +2,8 @@
 
 #include <glm/glm.hpp>
 #include <vector>
+#include <concurrent_vector.h>
+#include "concurrent_queue.h"
 
 #include "Common.h"
 
@@ -26,7 +28,7 @@ public:
 		void SetRightIndex(const int& val) { valR = val; }
 		void SetLeftChild(const int& val) { valL = -val - 1; }
 		void SetRightChild(const int& val) { valR = -val - 1; }
-		int TriangleCount() { return valR - valL; }
+		int ElementCount() { return valR - valL; }
 	};
 
 	// Single datapoint in bvh
@@ -41,27 +43,34 @@ public:
 	bool Exists() const { return stack.size() != 0; }
 
 	// Returns the closest point in this bvh
-	void GetClosest(const glm::vec3& pos, BvhPointData& d0) const;
+	void GetClosest(const glm::vec3& pos, float& dist, BvhPointData& d0) const;
 
 	// Returns the 3 closest points in this bvh
-	void Get3Closest(const glm::vec3& queryPos, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2) const;
+	void Get3Closest(const glm::vec3& queryPos, glm::vec3& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2) const;
 
 	// Returns the 4 closest points in this bvh
-	void Get4Closest(const glm::vec3& queryPos, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2, BvhPointData& d3) const;
+	void Get4Closest(const glm::vec3& queryPos, glm::vec4& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2, BvhPointData& d3) const;
 
 	// Array of bvh nodes, 0 is always root
 	std::vector<BvhNode> stack;
 
 private:
 
+	// Concurrent stack used during generation
+	concurrency::concurrent_vector<BvhNode> cc_stack;
+
+	// Queue used during generation
+	concurrency::concurrent_queue<int> queue;
+
 	/// Sorted points with indices to original positions
 	std::vector<BvhPointData> points;
 
 	/// Number of points after which we stop splitting nodes
-	static const int maxNodeEntries = 10;
+	static const int maxNodeEntries = 20;
 
 	// Splits bvh node into 2
-	void SplitNode(const int& nodeIdx);
+	void SplitNodeSingle(const int& nodeIdx, int& nextLeft, int& nextRight);
+	void SplitNodeRecurse(const int& nodeIdx);
 
 	// Partitions data to 2 sides based on given pos and axis. Right index is exclusive.
 	int Partition(const int& low, const int& high, const glm::vec3& splitPos, const int& axis);

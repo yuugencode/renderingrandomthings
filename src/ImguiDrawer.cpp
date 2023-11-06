@@ -121,11 +121,14 @@ void ImguiDrawer::DrawUI() {
 	ImGui::Text("Scene trace");
 	ImGui::SameLine();
 	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 1, 1, 1));
-	ImGui::Text("%.2fms", Game::raytracer.timer.GetAveragedTime() * 1000.0);
+	ImGui::Text("%.2fms", Game::raytracer.traceTimer.GetAveragedTime() * 1000.0);
 	ImGui::PopStyleColor();
 	ImGui::SameLine();
-	auto mrays = (double)(Game::window.width * Game::window.height) / Game::raytracer.timer.GetAveragedTime();
+	auto mrays = (double)(Game::window.width * Game::window.height) / Game::raytracer.traceTimer.GetAveragedTime();
 	ImGui::Text("(%.1f MRays/s)", mrays / 1000000.0);
+
+	ImGui::Text("Shadows sample: %.2fms", Game::raytracer.shadowTimerSample.GetAveragedTime() * 1000.0);
+	ImGui::Text("Shadows accelerator: %.2fms (%d pts)", Game::raytracer.shadowTimerGen.GetAveragedTime() * 1000.0, Game::raytracer.shadowBuffer.size());
 
 	// Vtx count
 	uint32_t meshes = 0, parametrics = 0;

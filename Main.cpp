@@ -89,7 +89,7 @@ int main(int argc, char* argv[]) {
 	Game::scene.lights.push_back(Light(glm::vec3(2.0f, 3.5f, 4.0f), 15.0f, 1.0f));
 
 	// Random parametric shapes
-	Game::scene.entities.push_back(std::make_unique<Disk>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 5.0f));
+	Game::scene.entities.push_back(std::make_unique<Disk>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 20.0f));
 
 	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(1.0f, 0.5f, 0.0f), 0.5f));
 	Game::scene.entities.back()->reflectivity = 0.3f;

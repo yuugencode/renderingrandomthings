@@ -1,5 +1,7 @@
 #include "Raytracer.h"
 
+#include <ppl.h> // Parallel for
+
 #include "Shaders.h"
 #include "Shapes.h"
 #include "RenderedMesh.h"
@@ -150,8 +152,6 @@ glm::vec4 Raytracer::TraceRay(const Scene& scene, const Ray& ray, int& recursion
 
 void Raytracer::RenderScene(const Scene& scene) {
 
-	timer.Start();
-
 	// Matrices
 	const Transform& camTransform = scene.camera.transform;
 	const glm::vec3 camPos = camTransform.position;
@@ -168,56 +168,99 @@ void Raytracer::RenderScene(const Scene& scene) {
 	const auto scaledWidth = window->width / bvhBufferDiv;
 	const auto scaledHeight = window->height / bvhBufferDiv;
 
-	// @TODO: Shoot from lights instead of screenspace
+	shadowBuffer.clear();
+
+	shadowTimerSample.Start();
+
+#if false // Light rays
+
+	// Shoot shadow rays from the light
 	concurrency::parallel_for(size_t(0), bvhBuffer.size(), [&](size_t i) {
 		float xcoord = (float)(i % scaledWidth) / scaledWidth;
 		float ycoord = (float)(i / scaledWidth) / scaledHeight;
+	
+		// Generate random direction in 3D
+		auto rng = Utils::Hash22(glm::vec2(xcoord, ycoord)) * Globals::PI;
+		rng.y *= 2.0f;
+		auto s = glm::sin(rng);
+		auto c = glm::cos(rng);
+		auto dir = glm::normalize(glm::vec3(s.x * c.y, s.x * s.y, c.x));
+	
+		const auto& pos = scene.lights[0].position;
+	
+		const Ray ray{ .ro = pos, .rd = dir, .inv_rd = 1.0f / dir, .mask = std::numeric_limits<int>::min() };
+		auto res = RaycastScene(scene, ray);
+	
+		if (res.Hit()) {
+			const auto hitpt = ray.ro + ray.rd * res.depth;
+			bvhBuffer[i] = glm::vec4(hitpt, res.depth); // Original hitpt
+		}
+		else
+			bvhBuffer[i] = glm::vec4(0.0f); // Invalid value
+	});
+	
+	// Copy valid shadow values to a separate buffer
+	for (const auto& val : bvhBuffer)
+		if (val.w != 0.0f)
+			shadowBuffer.push_back(val);
+#endif
 
+#if false // View rays
+	
+	// Shoot extra shadow rays from camera
+	concurrency::parallel_for(size_t(0), bvhBuffer.size(), [&](size_t i) {
+		float xcoord = (float)(i % scaledWidth) / scaledWidth;
+		float ycoord = (float)(i / scaledWidth) / scaledHeight;
+	
 		// Create view ray from proj/view matrices
 		glm::vec2 pixel = glm::vec2(xcoord, ycoord) * 2.0f - 1.0f;
 		glm::vec4 px = glm::vec4(pixel, 0.0f, 1.0f);
-
+		
 		px = projInv * px;
 		px.w = 0.0f;
 		glm::vec3 dir = viewInv * px;
 		dir = normalize(dir);
-
+		
 		const Ray ray{ .ro = camPos, .rd = dir, .inv_rd = 1.0f / dir, .mask = std::numeric_limits<int>::min() };
 		auto res = RaycastScene(scene, ray);
-
+		
 		if (res.Hit()) {
-
-			const auto hitpt = ray.ro + ray.rd * res.depth;
+			const auto nrmoffset = glm::normalize(res.obj->transform.rotation * glm::normalize(res.faceNormal)) * 0.001f;
+			const auto hitpt = ray.ro + ray.rd * res.depth + nrmoffset;
+			const auto& light = scene.lights[0];
+			auto os = light.position - hitpt;
+			auto lightDist = glm::length(os);
+			os /= lightDist;
+			const Ray ray2{ .ro = hitpt, .rd = os, .inv_rd = 1.0f / os, .mask = std::numeric_limits<int>::min() };
+			const auto res2 = RaycastScene(scene, ray2);
 			
-			float shadow = 1.0f;
-			for (const auto& light : scene.lights) {
-
-				auto os = light.position - hitpt;
-				auto lightDist = glm::length(os);
-				os /= lightDist + 0.00001f;
-				const Ray ray2{ .ro = hitpt, .rd = os, .inv_rd = 1.0f / os, .mask = res.data };
-				const auto res2 = RaycastScene(scene, ray2);
-
-				if (res2.Hit() && res2.depth < lightDist) {
-					shadow = 0.0f;
-				}
+			if (res2.Hit() && res2.depth < lightDist) {
+				bvhBuffer[i] = glm::vec4(0.0f); // Shadow, don't add anything
 			}
-
-			bvhBuffer[i] = glm::vec4(hitpt, shadow); // Original hitpt
+			else {
+				bvhBuffer[i] = glm::vec4(hitpt, lightDist); // In light, save pt
+			}
 		}
 		else {
-			bvhBuffer[i] = glm::vec4(-999999.9f); // Invalid value
+			bvhBuffer[i] = glm::vec4(0.0f); // Invalid value
 		}
 	});
-
+	
 	// Copy valid shadow values to a separate buffer
-	shadowBuffer.clear();
 	for (const auto& val : bvhBuffer)
-		if (val.x != -999999.9f)
+		if (val.w != 0.0f)
 			shadowBuffer.push_back(val);
+#endif
+
+	shadowTimerSample.End();
+	shadowTimerGen.Start();
 
 	// Generate the shadow buffer
 	shadowBvh.Generate(shadowBuffer);
+
+	shadowTimerGen.End();
+
+	traceTimer.Start();
 
 	// Modify the texture on cpu in a multithreaded function
 	// @TODO: Probably can optimize this with cache locality, loop order etc
@@ -237,6 +280,7 @@ void Raytracer::RenderScene(const Scene& scene) {
 		int recursionDepth = 0;
 		const Ray ray{ .ro = camPos, .rd = dir, .inv_rd = 1.0f / dir, .mask = std::numeric_limits<int>::min() };
 		glm::vec4 result = TraceRay(scene, ray, recursionDepth);
+
 		textureBuffer[i] = Color::FromVec(result);
 	});
 
@@ -267,5 +311,5 @@ void Raytracer::RenderScene(const Scene& scene) {
 		bgfx::submit(VIEW_LAYER, program);
 	}
 
-	timer.End();
+	traceTimer.End();
 }
