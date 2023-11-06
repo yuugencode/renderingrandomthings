@@ -6,7 +6,7 @@ consteval float sqr(const float& x) { return x * x; }
 float sqrr(const float& x) { return x * x; }
 
 // Samples 4 closest points on a bvh for their precalculated shadow value and does a funky quadrilateral interpolation in 3D
-float SmoothShadows(const Scene& scene, const Light& light, const RayResult& rayResult, const v2f& input, const int& recursionDepth) {
+float SmoothShadows(const Scene& scene, const Light& light, const RayResult& rayResult, const v2f& input, const int& recursionDepth, const float& blockerDist) {
 	
 	using namespace glm;
 
@@ -17,7 +17,8 @@ float SmoothShadows(const Scene& scene, const Light& light, const RayResult& ray
 
 	Raytracer::Instance->shadowBvh.Get4Closest(input.worldPosition, dists, d0, d1, d2, d3);
 
-	float rayDistance = (d0.shadowValue + d1.shadowValue + d2.shadowValue + d3.shadowValue) * 0.25f;
+	//float rayDistance = (d0.shadowValue + d1.shadowValue + d2.shadowValue + d3.shadowValue) * 0.25f;
+	float rayDistance = blockerDist;
 	dists = sqrt(dists);
 	float avgDist = (dists[0] + dists[1] + dists[2] + dists[3]) * 0.25f;
 
@@ -26,19 +27,21 @@ float SmoothShadows(const Scene& scene, const Light& light, const RayResult& ray
 	const float smoothingEndDistance = 10.0f;
 	float smoothingBound = Utils::InvLerpClamp(rayDistance, smoothingStartDistance, smoothingEndDistance) * smoothingAmount;
 
-	float dilation = 0.05f * max((rayResult.depth * 0.33333f + rayDistance * 0.3f), 1.0f);
-	//float dilation = 0.05f; // Low dilation = more accurate shadows, but causes artifacts where there's no data
+	// penumbraSize = lightSize * (receiverDepth - averageBlockerDepth) / averageBlockerDepth
+
+	float dilation = 0.05f * max(rayDistance * 0.3f, 1.0f);
+	//float dilation = 0.05f * max((rayResult.depth * 0.33333f + rayDistance * 0.3f), 1.0f);
+	//float dilation = 0.1f; // Low dilation = more accurate shadows, but causes artifacts where there's no data
 
 	float shadow = 1.0f - Utils::InvLerpClamp(avgDist, dilation, dilation + 0.01f + smoothingBound);
-	shadow *= shadow;
 
-	shadow = Utils::Lerp(shadow, 0.0f, Utils::InvLerpClamp(rayDistance, 0.0f, light.range));
+	//shadow = Utils::Lerp(shadow, 0.0f, Utils::InvLerpClamp(rayDistance, 0.0f, light.range));
 
 	return shadow;
 }
 
 // Shoots a shadow ray from point to given point, returns 0.0 if point is in shadow
-float ShadowRay(const Scene& scene, const Light& light, const RayResult& rayResult, const v2f& input, const int& recursionDepth) {
+float ShadowRay(const Scene& scene, const Light& light, const RayResult& rayResult, const v2f& input, const int& recursionDepth, float& blockerDist) {
 	using namespace glm;
 
 	vec3 shadowRayDir = light.position - input.worldPosition;
@@ -50,12 +53,19 @@ float ShadowRay(const Scene& scene, const Light& light, const RayResult& rayResu
 	
 	RayResult result = Raytracer::Instance->RaycastScene(scene, ray);
 	
+	blockerDist = result.depth;
+
 	return result.depth < shadowRayDist ? 0.0f : 1.0f;
 }
 
 float CalculateShadow(const Scene& scene, const Light& light, const RayResult& rayResult, const v2f& input, const int& recursionDepth) {
-	//return SmoothShadows(scene, light, rayResult, input, recursionDepth);
-	return ShadowRay(scene, light, rayResult, input, recursionDepth);
+	float blockerDist;
+	float shadow = ShadowRay(scene, light, rayResult, input, recursionDepth, blockerDist);
+	if (shadow < 0.5f) {
+		return SmoothShadows(scene, light, rayResult, input, recursionDepth, blockerDist);
+	}
+	return shadow;
+	
 	//return 1.0f;
 }
 

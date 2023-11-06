@@ -172,7 +172,7 @@ void Raytracer::RenderScene(const Scene& scene) {
 
 	shadowTimerSample.Start();
 
-#if false // Light rays
+#if true // Light rays
 
 	// Shoot shadow rays from the light
 	concurrency::parallel_for(size_t(0), bvhBuffer.size(), [&](size_t i) {
@@ -205,7 +205,7 @@ void Raytracer::RenderScene(const Scene& scene) {
 			shadowBuffer.push_back(val);
 #endif
 
-#if false // View rays
+#if true // View rays
 	
 	// Shoot extra shadow rays from camera
 	concurrency::parallel_for(size_t(0), bvhBuffer.size(), [&](size_t i) {

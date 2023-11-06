@@ -120,15 +120,15 @@ int main(int argc, char* argv[]) {
 	Game::scene.entities.push_back(std::move(rendMesh));
 
 	// Mesh 2
-	//auto meshHandle2 = Assets::NewMesh(std::filesystem::path("ext/dragon.obj"));
-	//
-	//auto rendMesh2 = std::make_unique<RenderedMesh>(meshHandle2);
-	//Game::scene.entities.push_back(std::move(rendMesh2));
+	auto meshHandle2 = Assets::NewMesh(std::filesystem::path("ext/dragon.obj"));
+	
+	auto rendMesh2 = std::make_unique<RenderedMesh>(meshHandle2);
+	Game::scene.entities.push_back(std::move(rendMesh2));
 
-	//auto dragon = Game::scene.entities.back().get();
-	//dragon->transform.scale = glm::vec3(0.01f, 0.01f, 0.01f);
-	//dragon->transform.position += glm::vec3(2.0f, 0.4f, 0.0f);
-	//dragon->transform.LookAtDir(glm::vec3(-1, 0, 0), glm::vec3(0, 1, 0));
+	auto dragon = Game::scene.entities.back().get();
+	dragon->transform.scale = glm::vec3(1, 1, 1) * 0.02f;
+	dragon->transform.position += glm::vec3(4.0f, 0.8f, 0.0f);
+	dragon->transform.LookAtDir(glm::vec3(-1, 0, 0), glm::vec3(0, 1, 0));
 
 	// Mesh 3
 	//auto meshHandle3 = Assets::NewMesh(std::filesystem::path("ext/rock.fbx"));

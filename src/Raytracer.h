@@ -37,7 +37,7 @@ public:
 	std::vector<glm::vec4> bvhBuffer;
 	// 1920 1080 common factors
 	// 1 | 2 | 3 | 4 | 5 | 6 | 8 | 10 | 12 | 15 | 20 | 24 | 30 | 40 | 60 | 120
-	const uint32_t bvhBufferDiv = 8;
+	const uint32_t bvhBufferDiv = 4;
 
 	std::vector<glm::vec4> shadowBuffer;
 	BvhPoint shadowBvh;
