@@ -7,6 +7,7 @@
 
 #include "Common.h"
 
+// Acceleration structure for 3D points
 class BvhPoint {
 public:
 
@@ -51,7 +52,7 @@ public:
 	// Returns the 4 closest points in this bvh
 	void Get4Closest(const glm::vec3& queryPos, glm::vec4& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2, BvhPointData& d3) const;
 
-	// Array of bvh nodes, 0 is always root
+	// Array of bvh nodes, 0 is root
 	std::vector<BvhNode> stack;
 
 private:

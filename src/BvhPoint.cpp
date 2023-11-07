@@ -25,13 +25,11 @@ void BvhPoint::Generate(const std::vector<glm::vec4>& srcPoints) {
 	root.SetRightIndex((int)points.size());
 	CalculateNodeAABB(root);
 	cc_stack.push_back(root);
-
 	//SplitNodeRecurse(0); // Single threaded
 
-	// Generating BVH concurrently is significantly faster than in single thread
-	// However, querying a standard stack is so much faster it's worth it to copy the concurrent stack to it afterwards
-	// Splitting the array to numThreads chunks and doing each chunk separately is likely much faster but requires a radix sort prepass 
-
+	
+	// @TODO: Really need a bottom-up generation to replace this top-down one, but that needs a radix sort prepass for good query speeds
+	// Top-down inherently doesn't parallelize well due to first pass always having to partition entire array
 	const int numThreads = std::thread::hardware_concurrency();
 
 	// Standard queue based multithreaded recursion

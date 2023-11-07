@@ -34,12 +34,17 @@ public:
 	Color* textureBuffer;
 	uint32_t textureBufferSize;
 
+	// "Backbuffer" used during shadow accelerator sampling
 	std::vector<glm::vec4> bvhBuffer;
+
 	// 1920 1080 common factors
 	// 1 | 2 | 3 | 4 | 5 | 6 | 8 | 10 | 12 | 15 | 20 | 24 | 30 | 40 | 60 | 120
-	const uint32_t bvhBufferDiv = 4;
+	const uint32_t bvhBufferDiv = 2;
 
+	// Shortlisted bvhBuffer from which shadowbvh is generated
 	std::vector<glm::vec4> shadowBuffer;
+
+	// Bvh sampled for smooth shadows
 	BvhPoint shadowBvh;
 
 	// Vertex layout for the full screen pass

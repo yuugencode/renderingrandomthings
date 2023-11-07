@@ -8,7 +8,7 @@
 #include "Mesh.h"
 #include "Assets.h"
 
-struct RayResult;
+struct RayResult; // RayResults contain an entity pointer so have to declare it here
 
 // Abstract object in the scene, can be raytraced against
 class Entity {

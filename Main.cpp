@@ -193,8 +193,8 @@ int main(int argc, char* argv[]) {
 		chara->transform.rotation = glm::angleAxis(Time::deltaTimeF * 2.0f, glm::vec3(0, 1, 0)) * chara->transform.rotation;
 		chara->transform.rotation = glm::normalize(chara->transform.rotation);
 
-		//dragon->transform.rotation = glm::angleAxis(Time::deltaTimeF * 2.0f, glm::vec3(0, 1, 0)) * dragon->transform.rotation;
-		//dragon->transform.rotation = glm::normalize(dragon->transform.rotation);
+		dragon->transform.rotation = glm::angleAxis(Time::deltaTimeF * 2.0f, glm::vec3(0, 1, 0)) * dragon->transform.rotation;
+		dragon->transform.rotation = glm::normalize(dragon->transform.rotation);
 
 		// Sort scene objects (only makes sense for first rays)
 		//std::ranges::sort(Game::scene.entities, [&](const std::unique_ptr<Entity>& a, const std::unique_ptr<Entity>& b) {

@@ -168,11 +168,12 @@ void Raytracer::RenderScene(const Scene& scene) {
 	const auto scaledWidth = window->width / bvhBufferDiv;
 	const auto scaledHeight = window->height / bvhBufferDiv;
 
+	// Prepass for generating shadow buffer for interpolating smooth shadows
 	shadowBuffer.clear();
-
 	shadowTimerSample.Start();
+	constexpr float INVALID = -999999.9f; // Any unused shadow value
 
-#if true // Light rays
+#if false // Shadow buffer rays shot from lights (mostly helps with reflection shadows)
 
 	// Shoot shadow rays from the light
 	concurrency::parallel_for(size_t(0), bvhBuffer.size(), [&](size_t i) {
@@ -196,16 +197,16 @@ void Raytracer::RenderScene(const Scene& scene) {
 			bvhBuffer[i] = glm::vec4(hitpt, res.depth); // Original hitpt
 		}
 		else
-			bvhBuffer[i] = glm::vec4(0.0f); // Invalid value
+			bvhBuffer[i] = glm::vec4(INVALID); // Invalid value
 	});
 	
 	// Copy valid shadow values to a separate buffer
 	for (const auto& val : bvhBuffer)
-		if (val.w != 0.0f)
+		if (val.w != INVALID)
 			shadowBuffer.push_back(val);
 #endif
 
-#if true // View rays
+#if true // Shadow buffer rays shot from the camera
 	
 	// Shoot extra shadow rays from camera
 	concurrency::parallel_for(size_t(0), bvhBuffer.size(), [&](size_t i) {
@@ -225,30 +226,30 @@ void Raytracer::RenderScene(const Scene& scene) {
 		auto res = RaycastScene(scene, ray);
 		
 		if (res.Hit()) {
-			const auto nrmoffset = glm::normalize(res.obj->transform.rotation * glm::normalize(res.faceNormal)) * 0.001f;
-			const auto hitpt = ray.ro + ray.rd * res.depth + nrmoffset;
+			//const auto nrmoffset = glm::normalize(res.obj->transform.rotation * glm::normalize(res.faceNormal)) * 0.001f;
+			const auto hitpt = ray.ro + ray.rd * res.depth;
 			const auto& light = scene.lights[0];
 			auto os = light.position - hitpt;
 			auto lightDist = glm::length(os);
 			os /= lightDist;
-			const Ray ray2{ .ro = hitpt, .rd = os, .inv_rd = 1.0f / os, .mask = std::numeric_limits<int>::min() };
+			const Ray ray2{ .ro = hitpt, .rd = os, .inv_rd = 1.0f / os, .mask = res.data };
 			const auto res2 = RaycastScene(scene, ray2);
 			
-			if (res2.Hit() && res2.depth < lightDist) {
-				bvhBuffer[i] = glm::vec4(0.0f); // Shadow, don't add anything
+			if (res2.Hit() && res2.depth < lightDist - 0.001f) {
+				bvhBuffer[i] = glm::vec4(INVALID); // Shadow, don't add anything
 			}
 			else {
-				bvhBuffer[i] = glm::vec4(hitpt, lightDist); // In light, save pt
+				bvhBuffer[i] = glm::vec4(hitpt, 1.0f); // In light, save pt
 			}
 		}
 		else {
-			bvhBuffer[i] = glm::vec4(0.0f); // Invalid value
+			bvhBuffer[i] = glm::vec4(INVALID); // Invalid value
 		}
 	});
 	
 	// Copy valid shadow values to a separate buffer
 	for (const auto& val : bvhBuffer)
-		if (val.w != 0.0f)
+		if (val.w != INVALID)
 			shadowBuffer.push_back(val);
 #endif
 
@@ -259,7 +260,6 @@ void Raytracer::RenderScene(const Scene& scene) {
 	shadowBvh.Generate(shadowBuffer);
 
 	shadowTimerGen.End();
-
 	traceTimer.Start();
 
 	// Modify the texture on cpu in a multithreaded function

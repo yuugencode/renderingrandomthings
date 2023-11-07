@@ -36,11 +36,6 @@ void Bvh::Generate(const std::vector<glm::vec3>& srcVertices, const std::vector<
 
 void Bvh::SplitNode(const int& nodeIdx) {
 
-	// @IDEA: For the first ray traversal it might be possible to optimize building using camera information
-	// for example partition using dot(viewdir, nrm) + dot(viewdir, ro - tripos) + (pos.x/y/z on largest_axis)
-	// this should split backfacing triangles out very quick and prefer tris that are pointing at the cam
-	// indirect bounces would have to use a standard bvh
-
 	auto& node = stack[nodeIdx];
 	const auto aabbSize = node.aabb.Size();
 
@@ -216,47 +211,43 @@ void Bvh::IntersectNode(const int& nodeIndex, const Ray& ray, glm::vec3& normal,
 	// Node -> Check left/right node
 	else {
 
-		const auto left = node.GetLeftChild();
-		const auto right = node.GetRightChild();
-		const auto intersectA = stack[left].aabb.Intersect(ray);
-		const auto intersectB = stack[right].aabb.Intersect(ray);
+		auto nodeA = node.GetLeftChild();
+		auto nodeB = node.GetRightChild();
+		auto intersectA = stack[nodeA].aabb.Intersect(ray);
+		auto intersectB = stack[nodeB].aabb.Intersect(ray);
 
-		// Both either behind or one is inside -> check the one we're inside of
+		// Swap A closer
+		if (intersectB < intersectA) {
+			std::swap(nodeA, nodeB);
+			std::swap(intersectA, intersectB);
+		}
+
+		// Both either behind or we're inside -> check both
 		if (intersectA < 0.0f && intersectB < 0.0f) {
-			if (stack[left].aabb.Contains(ray.ro))
-				IntersectNode(left, ray, normal, minTriIdx, minDist);
-			if (stack[right].aabb.Contains(ray.ro))
-				IntersectNode(right, ray, normal, minTriIdx, minDist);
+			if (stack[nodeA].aabb.Contains(ray.ro))
+				IntersectNode(nodeA, ray, normal, minTriIdx, minDist);
+			if (stack[nodeB].aabb.Contains(ray.ro))
+				IntersectNode(nodeB, ray, normal, minTriIdx, minDist);
 		}
-		// Check if A inside and B outside or miss
+		// A behind or we're inside and B in front or miss
 		else if (intersectA < 0.0f) {
-			if (stack[left].aabb.Contains(ray.ro))
-				IntersectNode(left, ray, normal, minTriIdx, minDist);
+			if (stack[nodeA].aabb.Contains(ray.ro))
+				IntersectNode(nodeA, ray, normal, minTriIdx, minDist);
 			if (intersectB != 0.0f && intersectB < minDist)
-				IntersectNode(right, ray, normal, minTriIdx, minDist);
+				IntersectNode(nodeB, ray, normal, minTriIdx, minDist);
 		}
-		// Check if B inside and A outside or miss
+		// B behind or we're inside and A in front or miss
 		else if (intersectB < 0.0f) {
-			if (stack[right].aabb.Contains(ray.ro))
-				IntersectNode(right, ray, normal, minTriIdx, minDist);
+			if (stack[nodeB].aabb.Contains(ray.ro))
+				IntersectNode(nodeB, ray, normal, minTriIdx, minDist);
 			if (intersectA != 0.0f && intersectA < minDist)
-				IntersectNode(left, ray, normal, minTriIdx, minDist);
+				IntersectNode(nodeA, ray, normal, minTriIdx, minDist);
 		}
-		// Check if both hit and check closer first
-		else if (intersectA != 0.0f && intersectB != 0.0f) {
-			if (intersectA < intersectB) {
-				if (intersectA < minDist) IntersectNode(left, ray, normal, minTriIdx, minDist);
-				if (intersectB < minDist) IntersectNode(right, ray, normal, minTriIdx, minDist);
-			}
-			else {
-				if (intersectB < minDist) IntersectNode(right, ray, normal, minTriIdx, minDist);
-				if (intersectA < minDist) IntersectNode(left, ray, normal, minTriIdx, minDist);
-			}
+		else { // Both in front or missed, check closer first
+			if (intersectA != 0.0f && intersectA < minDist)
+				IntersectNode(nodeA, ray, normal, minTriIdx, minDist);
+			if (intersectB != 0.0f && intersectB < minDist)
+				IntersectNode(nodeB, ray, normal, minTriIdx, minDist);
 		}
-		// Check if either hit
-		else if (intersectA != 0.0f && intersectA < minDist)
-			IntersectNode(left, ray, normal, minTriIdx, minDist);
-		else if (intersectB != 0.0f && intersectB < minDist)
-			IntersectNode(right, ray, normal, minTriIdx, minDist);
 	}
 }

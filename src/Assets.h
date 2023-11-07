@@ -7,7 +7,9 @@
 #include "Texture.h"
 #include "Mesh.h"
 
+// Static class providing indexed access to loaded meshes and textures
 class Assets {
+	Assets(){}
 public:
 	static std::vector<std::unique_ptr<Texture>> Textures;
 	static std::vector<std::unique_ptr<Mesh>> Meshes;

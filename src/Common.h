@@ -2,6 +2,8 @@
 
 #include <glm/glm.hpp>
 
+// Contains common standalone structs used all over
+
 // Raycasting ray
 struct Ray {
     glm::vec3 ro, rd, inv_rd;

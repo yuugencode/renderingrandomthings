@@ -6,7 +6,8 @@
 
 #include "Log.h"
 
-// This struct is needed to get debug info from bgfx.. 
+// This boilerplate struct is needed to get debug info from bgfx.. not very exciting
+
 struct BgfxCallback : public bgfx::CallbackI {
 
 	virtual void fatal(const char* _filePath, uint16_t _line, bgfx::Fatal::Enum _code, const char* _str) override {

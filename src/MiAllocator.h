@@ -4,6 +4,8 @@
 #include <bx/allocator.h>
 #include <cassert>
 
+// Bunch of not very exciting boilerplate
+
 // Replace CRT malloc with mimalloc
 #pragma warning(disable: 4595)
 inline void* operator new(size_t size) { return mi_malloc(size); }

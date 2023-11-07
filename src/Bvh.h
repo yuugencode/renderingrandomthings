@@ -5,6 +5,7 @@
 
 #include "Common.h"
 
+// Acceleration structure for triangles
 class Bvh {
 public:
 

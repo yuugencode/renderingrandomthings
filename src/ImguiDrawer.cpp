@@ -101,12 +101,10 @@ void ImguiDrawer::DrawUI() {
 	bool left = Input::MouseHeld(SDL_BUTTON_LEFT), right = Input::MouseHeld(SDL_BUTTON_RIGHT);
 	ImGui::Text("Mouse Buttons:");
 	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(left ? 0.0f : 1.0f, left ? 1.0f : 0.0f, 0.0f, 1.0f));
-	ImGui::SameLine();
-	ImGui::Text("Left");
-	ImGui::SameLine();
+	ImGui::SameLine(); ImGui::Text("Left");
 	ImGui::PopStyleColor();
 	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(right ? 0.0f : 1.0f, right ? 1.0f : 0.0f, 0.0f, 1.0f));
-	ImGui::Text("Right");
+	ImGui::SameLine(); ImGui::Text("Right");
 	ImGui::PopStyleColor();
 	ImGui::Text("Mouse delta (%d, %d)", Input::mouseDelta[0], Input::mouseDelta[1]);
 	ImGui::Spacing();
@@ -119,16 +117,19 @@ void ImguiDrawer::DrawUI() {
 	ImGui::Text("Camera position (%.1f, %.1f, %.1f)", camPos.x, camPos.y, camPos.z);
 	ImGui::Text("Camera dir (%.1f, %.1f, %.1f)", camDir.x, camDir.y, camDir.z);
 	ImGui::Text("Scene trace");
-	ImGui::SameLine();
 	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 1, 1, 1));
-	ImGui::Text("%.2fms", Game::raytracer.traceTimer.GetAveragedTime() * 1000.0);
+	ImGui::SameLine(); ImGui::Text("%.2fms", Game::raytracer.traceTimer.GetAveragedTime() * 1000.0);
 	ImGui::PopStyleColor();
-	ImGui::SameLine();
-	auto mrays = (double)(Game::window.width * Game::window.height) / Game::raytracer.traceTimer.GetAveragedTime();
-	ImGui::Text("(%.1f MRays/s)", mrays / 1000000.0);
+	//ImGui::SameLine();
+	//auto mrays = (double)(Game::window.width * Game::window.height) / Game::raytracer.traceTimer.GetAveragedTime();
+	//ImGui::Text("(%.1f MRays/s)", mrays / 1000000.0); // Doesn't consider bounces
 
-	ImGui::Text("Shadows sample: %.2fms", Game::raytracer.shadowTimerSample.GetAveragedTime() * 1000.0);
-	ImGui::Text("Shadows accelerator: %.2fms (%d pts)", Game::raytracer.shadowTimerGen.GetAveragedTime() * 1000.0, Game::raytracer.shadowBuffer.size());
+	ImGui::Text("Shadows sample:"); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 1, 1, 1));
+	ImGui::SameLine(); ImGui::Text("%.2fms", Game::raytracer.shadowTimerSample.GetAveragedTime() * 1000.0); ImGui::PopStyleColor();
+	
+	ImGui::Text("Shadows accelerator:"); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 1, 1, 1));
+	ImGui::SameLine(); ImGui::Text("%.2fms", Game::raytracer.shadowTimerGen.GetAveragedTime() * 1000.0); ImGui::PopStyleColor();
+	ImGui::SameLine(); ImGui::Text("(%d pts)", Game::raytracer.shadowBuffer.size());
 
 	// Vtx count
 	uint32_t meshes = 0, parametrics = 0;
