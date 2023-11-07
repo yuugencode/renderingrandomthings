@@ -8,24 +8,25 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/transform.hpp>
 #include <sdl/SDL.h>
+
 #include <algorithm>
 #include <memory>
 #include <string>
 #include <vector>
 
-#include "src/Utils.h"
-#include "src/Time.h"
-#include "src/Input.h"
-#include "src/Log.h"
-#include "src/Light.h"
-#include "src/Assets.h"
-#include "src/Entity.h"
-#include "src/RenderedMesh.h"
-#include "src/Shapes.h"
-#include "src/Game.h"
-#include "src/MiAllocator.h"
-#include "src/BgfxCallback.h"
-#include "src/ImguiDrawer.h"
+#include "Boilerplate/MiAllocator.h"
+#include "Boilerplate/BgfxCallback.h"
+#include "Boilerplate/ImguiDrawer.h"
+#include "Engine/Utils.h"
+#include "Engine/Time.h"
+#include "Engine/Input.h"
+#include "Engine/Log.h"
+#include "Engine/Assets.h"
+#include "Rendering/Light.h"
+#include "Game/Entity.h"
+#include "Game/RenderedMesh.h"
+#include "Game/Shapes.h"
+#include "Game/Game.h"
 
 int main(int argc, char* argv[]) {
 
