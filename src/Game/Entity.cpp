@@ -2,3 +2,4 @@
 
 // Objects have negative ids
 int Entity::idCount = -1;
+

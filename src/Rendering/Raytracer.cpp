@@ -50,7 +50,7 @@ void Raytracer::Create(const Window& window) {
 
 glm::vec4 GetColor(const Scene& scene, const RayResult& rayResult, const glm::vec3& hitPoint, const int& recursionDepth) {
 
-	// Interpolate variables depending on position in "vertex shader"
+	// Interpolate variables in "vertex shader"
 	const v2f interpolated = rayResult.obj->VertexShader(hitPoint, rayResult);
 
 	glm::vec4 c;
@@ -95,13 +95,13 @@ RayResult Raytracer::RaycastScene(const Scene& scene, const Ray& ray) const {
 		);
 		_ray = Ray{ .ro = newPosDir[0], .rd = newPosDir[1], .inv_rd = 1.0f / newPosDir[1], .mask = ray.mask };
 
-		// Early rejection for missed rays
+		// Early bounding box rejection for missed rays
 		if (entity->aabb.Intersect(_ray) == 0.0f) continue;
 
 		// Check intersect (virtual function call but perf cost irrelevant compared to the entire frame)
 		intersect = entity->IntersectLocal(_ray, nrm, data, depth);
 
-		// Check if hit something and it's the closest hit
+		// Check if hit something and if it's the closest hit
 		if (intersect && depth < result.depth) {
 			result.depth = depth;
 			result.data = data;
@@ -119,7 +119,8 @@ glm::vec4 Raytracer::TraceRay(const Scene& scene, const Ray& ray, int& recursion
 	// Raycast
 	RayResult rayResult = RaycastScene(scene, ray);
 
-	if (rayResult.Hit()) { // Hit something, color it
+	if (rayResult.Hit()) {
+		// Hit something, color it
 
 		const auto hitPt = ray.ro + ray.rd * rayResult.depth;
 
@@ -171,44 +172,13 @@ void Raytracer::RenderScene(const Scene& scene) {
 	// Prepass for generating shadow buffer for interpolating smooth shadows
 	shadowBuffer.clear();
 	shadowTimerSample.Start();
-	constexpr float INVALID = -999999.9f; // Any unused shadow value
 
-#if false // Shadow buffer rays shot from lights (mostly helps with reflection shadows)
-
-	// Shoot shadow rays from the light
-	concurrency::parallel_for(size_t(0), bvhBuffer.size(), [&](size_t i) {
-		float xcoord = (float)(i % scaledWidth) / scaledWidth;
-		float ycoord = (float)(i / scaledWidth) / scaledHeight;
-	
-		// Generate random direction in 3D
-		auto rng = Utils::Hash22(glm::vec2(xcoord, ycoord)) * Globals::PI;
-		rng.y *= 2.0f;
-		auto s = glm::sin(rng);
-		auto c = glm::cos(rng);
-		auto dir = glm::normalize(glm::vec3(s.x * c.y, s.x * s.y, c.x));
-	
-		const auto& pos = scene.lights[0].position;
-	
-		const Ray ray{ .ro = pos, .rd = dir, .inv_rd = 1.0f / dir, .mask = std::numeric_limits<int>::min() };
-		auto res = RaycastScene(scene, ray);
-	
-		if (res.Hit()) {
-			const auto hitpt = ray.ro + ray.rd * res.depth;
-			bvhBuffer[i] = glm::vec4(hitpt, res.depth); // Original hitpt
-		}
-		else
-			bvhBuffer[i] = glm::vec4(INVALID); // Invalid value
-	});
-	
-	// Copy valid shadow values to a separate buffer
-	for (const auto& val : bvhBuffer)
-		if (val.w != INVALID)
-			shadowBuffer.push_back(val);
-#endif
+	// @TODO: Light rays need a re-implementation because rays shot from lights hit different points so can't save them in a single value
+	// However they are also kinda extra and only useful for reflections..
 
 #if true // Shadow buffer rays shot from the camera
 	
-	// Shoot extra shadow rays from camera
+	// Shoot rays from camera to find areas that are in light, these are used for smooth shadows later
 	concurrency::parallel_for(size_t(0), bvhBuffer.size(), [&](size_t i) {
 		float xcoord = (float)(i % scaledWidth) / scaledWidth;
 		float ycoord = (float)(i / scaledWidth) / scaledHeight;
@@ -216,40 +186,45 @@ void Raytracer::RenderScene(const Scene& scene) {
 		// Create view ray from proj/view matrices
 		glm::vec2 pixel = glm::vec2(xcoord, ycoord) * 2.0f - 1.0f;
 		glm::vec4 px = glm::vec4(pixel, 0.0f, 1.0f);
-		
 		px = projInv * px;
 		px.w = 0.0f;
 		glm::vec3 dir = viewInv * px;
 		dir = normalize(dir);
 		
+		// Raycast
 		const Ray ray{ .ro = camPos, .rd = dir, .inv_rd = 1.0f / dir, .mask = std::numeric_limits<int>::min() };
 		auto res = RaycastScene(scene, ray);
 		
 		if (res.Hit()) {
-			//const auto nrmoffset = glm::normalize(res.obj->transform.rotation * glm::normalize(res.faceNormal)) * 0.001f;
-			const auto hitpt = ray.ro + ray.rd * res.depth;
-			const auto& light = scene.lights[0];
-			auto os = light.position - hitpt;
-			auto lightDist = glm::length(os);
-			os /= lightDist;
-			const Ray ray2{ .ro = hitpt, .rd = os, .inv_rd = 1.0f / os, .mask = res.data };
-			const auto res2 = RaycastScene(scene, ray2);
 			
-			if (res2.Hit() && res2.depth < lightDist - 0.001f) {
-				bvhBuffer[i] = glm::vec4(INVALID); // Shadow, don't add anything
+			const auto hitpt = ray.ro + ray.rd * res.depth;
+
+			// Loop all lights and save a bitmask representing which light indices are fully lit
+			int mask = 0;
+
+			for (int j = 0; j < scene.lights.size(); j++) {
+				auto os = scene.lights[j].position - hitpt;
+				auto lightDist = glm::length(os);
+				os /= lightDist;
+				const Ray ray2{ .ro = hitpt, .rd = os, .inv_rd = 1.0f / os, .mask = res.data };
+				const auto res2 = RaycastScene(scene, ray2);
+
+				if (!res2.Hit() || res2.depth > lightDist - 0.001f)
+					mask |= 1 << j;
 			}
-			else {
-				bvhBuffer[i] = glm::vec4(hitpt, 1.0f); // In light, save pt
-			}
+
+			// Save all lights that are lighting this point in space
+			bvhBuffer[i] = glm::vec4(hitpt, std::bit_cast<float>(mask));
 		}
 		else {
-			bvhBuffer[i] = glm::vec4(INVALID); // Invalid value
+			// If we didn't hit anything just clear the index
+			bvhBuffer[i] = glm::vec4(std::bit_cast<float>(0));
 		}
 	});
 	
 	// Copy valid shadow values to a separate buffer
 	for (const auto& val : bvhBuffer)
-		if (val.w != INVALID)
+		if (val.w != std::bit_cast<float>(0))
 			shadowBuffer.push_back(val);
 #endif
 

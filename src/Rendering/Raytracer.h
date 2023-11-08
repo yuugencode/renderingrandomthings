@@ -39,7 +39,7 @@ public:
 
 	// 1920 1080 common factors
 	// 1 | 2 | 3 | 4 | 5 | 6 | 8 | 10 | 12 | 15 | 20 | 24 | 30 | 40 | 60 | 120
-	const uint32_t bvhBufferDiv = 2;
+	const uint32_t bvhBufferDiv = 4;
 
 	// Shortlisted bvhBuffer from which shadowbvh is generated
 	std::vector<glm::vec4> shadowBuffer;

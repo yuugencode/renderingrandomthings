@@ -2,11 +2,10 @@
 
 #include <glm/glm.hpp>
 
-class Light {
-public:
+struct Light {
 	glm::vec3 position;
-	float range, invRange, intensity;
-	Light(const glm::vec3& position, const float& range, const float& intensity);
+	glm::vec3 color;
+	float range, intensity;
 
 	// Calculates boring lighting for given pos/nrm
 	// @TODO: Exciting lighting instead

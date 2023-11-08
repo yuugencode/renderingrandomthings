@@ -2,13 +2,6 @@
 
 #include "Engine/Utils.h"
 
-Light::Light(const glm::vec3& position, const float& range, const float& intensity) {
-	this->range = range;
-	this->intensity = intensity;
-	this->position = position;
-	invRange = 1.0f / range;
-}
-
 void Light::CalcGenericLighting(const glm::vec3& pos, const glm::vec3& nrm, float& attenuation, float& nl) const {
 	using namespace glm;
 	vec3 os = position - pos;

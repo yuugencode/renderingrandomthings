@@ -21,6 +21,8 @@ public:
 	static double time; // Running time
 	static float timeF; // Running time
 	
+	static double timeSpeed; // Multiplier for global time
+
 	static double smoothDeltaTime; // Smoothed delta time over several samples
 
 	// Updates current time values, should be called once at the beginning of a frame

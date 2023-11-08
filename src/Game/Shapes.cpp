@@ -2,10 +2,13 @@
 
 #include "Rendering/RayResult.h"
 
+// All the local intersection tests are against an object of size 1 in the middle due to inv transformed ray
+// This means the AABB for the shapes is often trivial size 1 box
+
 // Sphere
 
 Sphere::Sphere(const glm::vec3& pos, const float& radius) {
-	aabb = AABB(radius * 2.00001f); // Fixes some precision errors on indirect bounces
+	aabb = AABB(1.00001f); // Fixes some precision errors on indirect bounces
 	transform.position = pos;
 	transform.rotation = glm::quat();
 	transform.scale = glm::vec3(radius, radius, radius);
@@ -13,8 +16,6 @@ Sphere::Sphere(const glm::vec3& pos, const float& radius) {
 	shaderType = Shader::Normals;
 	id = idCount--;
 }
-
-// All the local intersection tests are against an object of size 1 in the middle due to inv transformed ray
 
 bool Sphere::IntersectLocal(const Ray& ray, glm::vec3& normal, int& data, float& depth) const {
 	if (ray.mask == id) return false;
@@ -43,7 +44,7 @@ v2f Sphere::VertexShader(const glm::vec3& worldPos, const RayResult& rayResult) 
 // Disk
 
 Disk::Disk(const glm::vec3& pos, const glm::vec3& normal, const float& radius) {
-	aabb = AABB(radius);
+	aabb = AABB(-glm::vec3(1.0f, 0.01f, 1.0f), glm::vec3(1.0f, 0.01f, 1.0f)); // Flat aabb
 	transform.position = pos;
 	transform.rotation = glm::normalize(glm::quatLookAt(glm::vec3(0, 0, 1), glm::vec3(0, 1, 0))); //glm::normalize(glm::quat(1.0f, normal.x, normal.y, normal.z)); // Generate quat from a single direction
 	transform.scale = glm::vec3(radius);
@@ -74,7 +75,7 @@ v2f Disk::VertexShader(const glm::vec3& worldPos, const RayResult& rayResult) co
 Box::Box(const glm::vec3& pos, const glm::vec3& size) {
 	transform.position = pos;
 	transform.scale = size;
-	aabb = AABB(-size, size);
+	aabb = AABB(1.0f); //AABB(-size, size);
 	type = Entity::Type::Box;
 	id = idCount--;
 	shaderType = Shader::PlainWhite;
@@ -82,7 +83,7 @@ Box::Box(const glm::vec3& pos, const glm::vec3& size) {
 
 bool Box::IntersectLocal(const Ray& ray, glm::vec3& normal, int& data, float& depth) const {
 	if (ray.mask == id) return false;
-	auto res = AABB(-transform.scale, transform.scale).Intersect(ray);
+	auto res = AABB(1.0f).Intersect(ray);
 	if (res > 0.0f && id != ray.mask) {
 		depth = res;
 		normal = LocalNormal(ray.ro + ray.rd * res);
@@ -93,13 +94,14 @@ bool Box::IntersectLocal(const Ray& ray, glm::vec3& normal, int& data, float& de
 }
 
 glm::vec3 Box::LocalNormal(const glm::vec3& pos) const {
-	const auto nrm = pos / transform.scale;
-	if (glm::abs(nrm.x) > glm::abs(nrm.y) && glm::abs(nrm.x) > glm::abs(nrm.z))
-		return nrm.x < 0.0f ? glm::vec3(-1.0f, 0.0f, 0.0f) : glm::vec3(1.0f, 0.0f, 0.0f);
-	else if (glm::abs(nrm.y) > glm::abs(nrm.z))
-		return nrm.y < 0.0f ? glm::vec3(0.0f, -1.0f, 0.0f) : glm::vec3(0.0f, 1.0f, 0.0f);
+	using namespace glm;
+	const auto nrm = pos;// / (transform.scale);
+	if (abs(nrm.x) > abs(nrm.y) && abs(nrm.x) > abs(nrm.z))
+		return nrm.x < 0.0f ? vec3(-1.0f, 0.0f, 0.0f) : vec3(1.0f, 0.0f, 0.0f);
+	else if (abs(nrm.y) > abs(nrm.z))
+		return nrm.y < 0.0f ? vec3(0.0f, -1.0f, 0.0f) : vec3(0.0f, 1.0f, 0.0f);
 	else
-		return nrm.z < 0.0f ? glm::vec3(0.0f, 0.0f, -1.0f) : glm::vec3(0.0f, 0.0f, 1.0f);
+		return nrm.z < 0.0f ? vec3(0.0f, 0.0f, -1.0f) : vec3(0.0f, 0.0f, 1.0f);
 }
 
 v2f Box::VertexShader(const glm::vec3& worldPos, const RayResult& rayResult) const {

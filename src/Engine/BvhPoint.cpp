@@ -201,13 +201,12 @@ void BvhPoint::CalculateNodeAABB(BvhNode& node) {
 // There's some repetition for 1, 3, 4 cases due to testing with quadrilaterals and triangles
 // @TODO: Template to N case static array? might have perf traps
 
-void BvhPoint::GetClosest(const glm::vec3& pos, float& dist, BvhPointData& d0) const {
-	dist = 99999999.9f;
-	IntersectNode(0, pos, dist, d0);
+void BvhPoint::GetClosest(const glm::vec3& pos, const int& mask, float& dist, BvhPointData& d0) const {
+	IntersectNode(0, pos, mask, dist, d0);
 }
 
 // Recursed func
-void BvhPoint::IntersectNode(const int& nodeIndex, const glm::vec3& pos, float& minDist, BvhPointData& d0) const {
+void BvhPoint::IntersectNode(const int& nodeIndex, const glm::vec3& pos, const int& mask, float& minDist, BvhPointData& d0) const {
 
 	const auto& node = stack[nodeIndex];
 
@@ -215,6 +214,9 @@ void BvhPoint::IntersectNode(const int& nodeIndex, const glm::vec3& pos, float& 
 	if (node.IsLeaf()) {
 		for (int i = node.GetLeftIndex(); i < node.GetRightIndex(); i++) {
 			const auto& pt = points[i];
+
+			if ((pt.mask & mask) == 0) continue; // No lights of queried mask hit this
+
 			const glm::vec3 os = (pt.point - pos);
 			float dist = glm::dot(os, os);
 
@@ -242,20 +244,19 @@ void BvhPoint::IntersectNode(const int& nodeIndex, const glm::vec3& pos, float& 
 		}
 		
 		if (distA < minDist)
-			IntersectNode(nodeA, pos, minDist, d0);
+			IntersectNode(nodeA, pos, mask, minDist, d0);
 		if (distB < minDist)
-			IntersectNode(nodeB, pos, minDist, d0);
+			IntersectNode(nodeB, pos, mask, minDist, d0);
 	}
 }
 
 // Returns 2 closest points and returns their dist and payload
-void BvhPoint::Get3Closest(const glm::vec3& queryPos, glm::vec3& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2) const {
-	dists = glm::vec3(99999999.9f);
-	Gather3Closest(0, queryPos, dists, d0, d1, d2);
+void BvhPoint::Get3Closest(const glm::vec3& queryPos, const int& mask, glm::vec3& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2) const {
+	Gather3Closest(0, queryPos, mask, dists, d0, d1, d2);
 }
 
 // Recursed func
-void BvhPoint::Gather3Closest(const int& nodeIndex, const glm::vec3& pos, glm::vec3& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2) const {
+void BvhPoint::Gather3Closest(const int& nodeIndex, const glm::vec3& pos, const int& mask, glm::vec3& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2) const {
 
 	const auto& node = stack[nodeIndex];
 
@@ -264,6 +265,9 @@ void BvhPoint::Gather3Closest(const int& nodeIndex, const glm::vec3& pos, glm::v
 		for (int i = node.GetLeftIndex(); i < node.GetRightIndex(); i++) {
 			
 			const auto& pt = points[i];
+
+			if ((pt.mask & mask) == 0) continue; // No lights of queried mask hit this
+
 			const glm::vec3 os = (pt.point - pos);
 			const float dist = glm::dot(os, os);
 
@@ -304,21 +308,20 @@ void BvhPoint::Gather3Closest(const int& nodeIndex, const glm::vec3& pos, glm::v
 		}
 
 		if (distA < dists[2])
-			Gather3Closest(nodeA, pos, dists, d0, d1, d2);
+			Gather3Closest(nodeA, pos, mask, dists, d0, d1, d2);
 		
 		if (distB < dists[2])
-			Gather3Closest(nodeB, pos, dists, d0, d1, d2);
+			Gather3Closest(nodeB, pos, mask, dists, d0, d1, d2);
 	}
 }
 
-// Returns 2 closest points and returns their dist and payload
-void BvhPoint::Get4Closest(const glm::vec3& queryPos, glm::vec4& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2, BvhPointData& d3) const {
-	dists = glm::vec4(99999999.9f);
-	Gather4Closest(0, queryPos, dists, d0, d1, d2, d3);
+// Returns the 4 closest points to queryPos
+void BvhPoint::Get4Closest(const glm::vec3& queryPos, const int& mask, glm::vec4& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2, BvhPointData& d3) const {
+	Gather4Closest(0, queryPos, mask, dists, d0, d1, d2, d3);
 }
 
 // Recursed func
-void BvhPoint::Gather4Closest(const int& nodeIndex, const glm::vec3& pos, glm::vec4& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2, BvhPointData& d3) const {
+void BvhPoint::Gather4Closest(const int& nodeIndex, const glm::vec3& pos, const int& mask, glm::vec4& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2, BvhPointData& d3) const {
 
 	const auto& node = stack[nodeIndex];
 
@@ -327,6 +330,9 @@ void BvhPoint::Gather4Closest(const int& nodeIndex, const glm::vec3& pos, glm::v
 		for (int i = node.GetLeftIndex(); i < node.GetRightIndex(); i++) {
 
 			const auto& pt = points[i];
+
+			if ((pt.mask & mask) == 0) continue; // No lights of queried mask hit this
+
 			const glm::vec3 os = (pt.point - pos);
 			const float dist = glm::dot(os, os);
 
@@ -375,9 +381,9 @@ void BvhPoint::Gather4Closest(const int& nodeIndex, const glm::vec3& pos, glm::v
 		}
 
 		if (distA < dists[3])
-			Gather4Closest(nodeA, pos, dists, d0, d1, d2, d3);
+			Gather4Closest(nodeA, pos, mask, dists, d0, d1, d2, d3);
 
 		if (distB < dists[3])
-			Gather4Closest(nodeB, pos, dists, d0, d1, d2, d3);
+			Gather4Closest(nodeB, pos, mask, dists, d0, d1, d2, d3);
 	}
 }

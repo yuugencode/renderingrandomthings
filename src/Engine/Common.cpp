@@ -80,8 +80,8 @@ glm::vec3 AABB::Size() const { return max - min; }
 
 bool AABB::Contains(const glm::vec3& pt) const {
     return pt.x >= min.x && pt.x <= max.x &&
-        pt.y >= min.y && pt.y <= max.y &&
-        pt.z >= min.z && pt.z <= max.z;
+           pt.y >= min.y && pt.y <= max.y &&
+           pt.z >= min.z && pt.z <= max.z;
 }
 
 void AABB::Encapsulate(const glm::vec3& point) {

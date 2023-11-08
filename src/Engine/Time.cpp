@@ -6,6 +6,7 @@ size_t Time::deltaTimesI = 0;
 Uint64 Time::framecount = 0;
 double Time::deltaTime = 0.001, Time::time = 0.0;
 double Time::smoothDeltaTime = 0.0;
+double Time::timeSpeed = 1.0;
 float Time::deltaTimeF = 0.0f, Time::timeF = 0.0f;
 std::vector<double> Time::deltaTimes;
 
@@ -13,11 +14,12 @@ void Time::Tick() {
 	prevTime = currTime;
 	currTime = SDL_GetPerformanceCounter();
 	deltaTime = ((currTime - prevTime) / (double)(SDL_GetPerformanceFrequency()));
+	deltaTime *= timeSpeed;
 	if (framecount == 0) deltaTime = 0.001; // Fake deltatime for the first frame
 	deltaTimeF = (float)deltaTime;
 
-	if (deltaTimes.size() < 64) deltaTimes.push_back(deltaTime);
-	else deltaTimes[(deltaTimesI++) % deltaTimes.size()] = deltaTime;
+	if (deltaTimes.size() < 64) deltaTimes.push_back(deltaTime / timeSpeed);
+	else deltaTimes[(deltaTimesI++) % deltaTimes.size()] = deltaTime / timeSpeed;
 
 	smoothDeltaTime = 0.0;
 	for (size_t i = 0; i < deltaTimes.size(); i++)
