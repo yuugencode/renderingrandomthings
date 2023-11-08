@@ -10,7 +10,7 @@
 
 struct RayResult; // RayResults contain an entity pointer so have to declare it here
 
-// Abstract object in the scene, can be raytraced against
+// Abstract object in the scene that can be raytraced against
 class Entity {
 public:
 	
@@ -23,17 +23,18 @@ public:
 	// What kind of shader should this use
 	Shader shaderType;
 
-	// Unique object id
+	// Unique object id, used for masking rays for procedural objects
 	int id = 0;
 
 	Transform transform;
 	AABB aabb;
 	Bvh bvh;
 
+	// "Material" properties
+
 	std::vector<uint32_t> textureHandles; // Indices to texture assets array
 	int meshHandle = -1; // Mesh, if any
 	float reflectivity = 0.0f; // How much should light bounce off this
-
 	glm::mat4x3 invModelMatrix;
 
 	bool HasTexture() const { return textureHandles.size() != 0; }

@@ -73,6 +73,9 @@ namespace Utils {
     // 2 in, 2 out
     glm::vec2 Hash22(const glm::vec2& p);
 
+    // 3 in, 2 out
+    glm::vec2 Hash23(glm::vec3 p);
+
     // Constructs a model matrix from given params
     glm::mat4x4 ModelMatrix(const glm::vec3& pos, const glm::vec3& lookAtTarget, const glm::vec3& scale);
     

@@ -120,16 +120,15 @@ void ImguiDrawer::DrawUI() {
 	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 1, 1, 1));
 	ImGui::SameLine(); ImGui::Text("%.2fms", Game::raytracer.traceTimer.GetAveragedTime() * 1000.0);
 	ImGui::PopStyleColor();
-	//ImGui::SameLine();
-	//auto mrays = (double)(Game::window.width * Game::window.height) / Game::raytracer.traceTimer.GetAveragedTime();
-	//ImGui::Text("(%.1f MRays/s)", mrays / 1000000.0); // Doesn't consider bounces
 
 	ImGui::Text("Shadows sample:"); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 1, 1, 1));
 	ImGui::SameLine(); ImGui::Text("%.2fms", Game::raytracer.shadowTimerSample.GetAveragedTime() * 1000.0); ImGui::PopStyleColor();
 	
 	ImGui::Text("Shadows accelerator:"); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 1, 1, 1));
 	ImGui::SameLine(); ImGui::Text("%.2fms", Game::raytracer.shadowTimerGen.GetAveragedTime() * 1000.0); ImGui::PopStyleColor();
-	ImGui::SameLine(); ImGui::Text("(%d pts)", Game::raytracer.shadowBuffer.size());
+	int ptCnt = 0;
+	for (const auto& light : Game::scene.lights) ptCnt += (int)light._shadowBuffer.size();
+	ImGui::SameLine(); ImGui::Text("(%d pts)", ptCnt);
 
 	// Vtx count
 	uint32_t meshes = 0, parametrics = 0;

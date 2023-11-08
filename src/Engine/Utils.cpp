@@ -177,6 +177,12 @@ glm::vec2 Utils::Hash22(const glm::vec2& p) {
     p3 += glm::dot(p3, glm::vec3(p3.y, p3.z, p3.x) + 33.33f);
     return glm::fract((glm::vec2(p3.x, p3.x) + glm::vec2(p3.y, p3.z)) * glm::vec2(p3.z, p3.y));
 }
+glm::vec2 Utils::Hash23(glm::vec3 p3) {
+    p3 = glm::fract(p3 * glm::vec3(0.1031f, 0.1030f, 0.0973f));
+    p3 += glm::dot(p3, glm::vec3(p3.y, p3.z, p3.x) + 33.33f);
+    return glm::fract((glm::vec2(p3.x, p3.x) + glm::vec2(p3.y, p3.z)) * glm::vec2(p3.z, p3.y));
+}
+
 
 glm::mat4x4 Utils::ModelMatrix(const glm::vec3& pos, const glm::vec3& lookAtTarget, const glm::vec3& scale) {
     auto mat_pos = glm::translate(glm::mat4x4(1.0f), pos);

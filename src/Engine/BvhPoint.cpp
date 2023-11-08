@@ -6,6 +6,10 @@
 #include "Engine/Timer.h"
 #include "Engine/Log.h"
 
+// With top-down generation it seems faster to generate one large bvh with multiple threads,
+// but generating multiple small ones with single thread. This is mostly used for multiple lights so keep it single threaded.
+#define MULTI_THREADED_GEN 0
+
 void BvhPoint::Generate(const std::vector<glm::vec4>& srcPoints) {
 
 	stack.clear();
@@ -24,10 +28,10 @@ void BvhPoint::Generate(const std::vector<glm::vec4>& srcPoints) {
 	root.SetLeftIndex(0);
 	root.SetRightIndex((int)points.size());
 	CalculateNodeAABB(root);
-	cc_stack.push_back(root);
-	//SplitNodeRecurse(0); // Single threaded
 
-	
+#if MULTI_THREADED_GEN
+	cc_stack.push_back(root);
+
 	// @TODO: Really need a bottom-up generation to replace this top-down one, but that needs a radix sort prepass for good query speeds
 	// Top-down inherently doesn't parallelize well due to first pass always having to partition entire array
 	const int numThreads = std::thread::hardware_concurrency();
@@ -64,13 +68,27 @@ void BvhPoint::Generate(const std::vector<glm::vec4>& srcPoints) {
 		}
 	});
 
-	// Copy to standard vector to speed up querying
+	// Copy to a standard vector to speed up querying
 	stack.assign(cc_stack.begin(), cc_stack.end());
+#else
+	stack.push_back(root);
+	SplitNodeRecurse(0); // Single threaded
+#endif
+}
+
+void BvhPoint::Clear() {
+	cc_stack.clear();
+	points.clear();
+	stack.clear();
 }
 
 void BvhPoint::SplitNodeSingle(const int& nodeIdx, int& nextLeft, int& nextRight) {
 
+#if MULTI_THREADED_GEN
 	auto& node = cc_stack[nodeIdx];
+#else
+	auto& node = stack[nodeIdx];
+#endif
 	const auto aabbSize = node.aabb.Size();
 
 #if false // SAH Splits
@@ -144,10 +162,13 @@ void BvhPoint::SplitNodeSingle(const int& nodeIdx, int& nextLeft, int& nextRight
 	// Generate new left / right nodes and split further
 	BvhNode left, right;
 
+#if MULTI_THREADED_GEN
 	const int leftStackIndex = (int)(cc_stack.push_back(BvhNode()) - cc_stack.begin());
 	const int rightStackIndex = (int)(cc_stack.push_back(BvhNode()) - cc_stack.begin());
-	//const auto leftStackIndex = (int)stack.size();
-	//const auto rightStackIndex = (int)stack.size() + 1;
+#else
+	const auto leftStackIndex = (int)stack.size();
+	const auto rightStackIndex = (int)stack.size() + 1;
+#endif
 
 	left.SetLeftIndex(node.GetLeftIndex());
 	left.SetRightIndex(splitPoint);
@@ -161,10 +182,13 @@ void BvhPoint::SplitNodeSingle(const int& nodeIdx, int& nextLeft, int& nextRight
 	CalculateNodeAABB(left);
 	CalculateNodeAABB(right);
 
+#if MULTI_THREADED_GEN
 	cc_stack[leftStackIndex] = left;
 	cc_stack[rightStackIndex] = right;
-	//stack.push_back(left);
-	//stack.push_back(right);
+#else
+	stack.push_back(left);
+	stack.push_back(right);
+#endif
 
 	if (left.ElementCount() > maxNodeEntries) nextLeft = leftStackIndex;
 	if (right.ElementCount() > maxNodeEntries) nextRight = rightStackIndex;
@@ -201,12 +225,12 @@ void BvhPoint::CalculateNodeAABB(BvhNode& node) {
 // There's some repetition for 1, 3, 4 cases due to testing with quadrilaterals and triangles
 // @TODO: Template to N case static array? might have perf traps
 
-void BvhPoint::GetClosest(const glm::vec3& pos, const int& mask, float& dist, BvhPointData& d0) const {
-	IntersectNode(0, pos, mask, dist, d0);
+void BvhPoint::GetClosest(const glm::vec3& pos, float& dist, BvhPointData& d0) const {
+	IntersectNode(0, pos, dist, d0);
 }
 
 // Recursed func
-void BvhPoint::IntersectNode(const int& nodeIndex, const glm::vec3& pos, const int& mask, float& minDist, BvhPointData& d0) const {
+void BvhPoint::IntersectNode(const int& nodeIndex, const glm::vec3& pos, float& minDist, BvhPointData& d0) const {
 
 	const auto& node = stack[nodeIndex];
 
@@ -214,9 +238,6 @@ void BvhPoint::IntersectNode(const int& nodeIndex, const glm::vec3& pos, const i
 	if (node.IsLeaf()) {
 		for (int i = node.GetLeftIndex(); i < node.GetRightIndex(); i++) {
 			const auto& pt = points[i];
-
-			if ((pt.mask & mask) == 0) continue; // No lights of queried mask hit this
-
 			const glm::vec3 os = (pt.point - pos);
 			float dist = glm::dot(os, os);
 
@@ -244,19 +265,19 @@ void BvhPoint::IntersectNode(const int& nodeIndex, const glm::vec3& pos, const i
 		}
 		
 		if (distA < minDist)
-			IntersectNode(nodeA, pos, mask, minDist, d0);
+			IntersectNode(nodeA, pos, minDist, d0);
 		if (distB < minDist)
-			IntersectNode(nodeB, pos, mask, minDist, d0);
+			IntersectNode(nodeB, pos, minDist, d0);
 	}
 }
 
 // Returns 2 closest points and returns their dist and payload
-void BvhPoint::Get3Closest(const glm::vec3& queryPos, const int& mask, glm::vec3& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2) const {
-	Gather3Closest(0, queryPos, mask, dists, d0, d1, d2);
+void BvhPoint::Get3Closest(const glm::vec3& queryPos, glm::vec3& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2) const {
+	Gather3Closest(0, queryPos, dists, d0, d1, d2);
 }
 
 // Recursed func
-void BvhPoint::Gather3Closest(const int& nodeIndex, const glm::vec3& pos, const int& mask, glm::vec3& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2) const {
+void BvhPoint::Gather3Closest(const int& nodeIndex, const glm::vec3& pos, glm::vec3& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2) const {
 
 	const auto& node = stack[nodeIndex];
 
@@ -265,9 +286,6 @@ void BvhPoint::Gather3Closest(const int& nodeIndex, const glm::vec3& pos, const 
 		for (int i = node.GetLeftIndex(); i < node.GetRightIndex(); i++) {
 			
 			const auto& pt = points[i];
-
-			if ((pt.mask & mask) == 0) continue; // No lights of queried mask hit this
-
 			const glm::vec3 os = (pt.point - pos);
 			const float dist = glm::dot(os, os);
 
@@ -308,24 +326,24 @@ void BvhPoint::Gather3Closest(const int& nodeIndex, const glm::vec3& pos, const 
 		}
 
 		if (distA < dists[2])
-			Gather3Closest(nodeA, pos, mask, dists, d0, d1, d2);
+			Gather3Closest(nodeA, pos, dists, d0, d1, d2);
 		
 		if (distB < dists[2])
-			Gather3Closest(nodeB, pos, mask, dists, d0, d1, d2);
+			Gather3Closest(nodeB, pos, dists, d0, d1, d2);
 	}
 }
 
 
 // Returns the 4 closest points to queryPos
-void BvhPoint::Get4Closest(const glm::vec3& queryPos, const int& mask, glm::vec4& dists, 
+void BvhPoint::Get4Closest(const glm::vec3& queryPos, glm::vec4& dists, 
 	BvhPointData& d0, BvhPointData& d1, BvhPointData& d2, BvhPointData& d3) const {
 
 	// Recursion seems faster than stack based search
-	Gather4Closest(0, queryPos, mask, dists, d0, d1, d2, d3);
+	Gather4Closest(0, queryPos, dists, d0, d1, d2, d3);
 }
 
 // Recursed func
-void BvhPoint::Gather4Closest(const int& nodeIndex, const glm::vec3& pos, const int& mask, glm::vec4& dists, 
+void BvhPoint::Gather4Closest(const int& nodeIndex, const glm::vec3& pos, glm::vec4& dists, 
 	BvhPointData& d0, BvhPointData& d1, BvhPointData& d2, BvhPointData& d3) const {
 
 	const auto& node = stack[nodeIndex];
@@ -335,9 +353,6 @@ void BvhPoint::Gather4Closest(const int& nodeIndex, const glm::vec3& pos, const 
 		for (int i = node.GetLeftIndex(); i < node.GetRightIndex(); i++) {
 
 			const auto& pt = points[i];
-
-			if ((pt.mask & mask) == 0) continue; // No lights of queried mask hit this
-
 			const glm::vec3 os = (pt.point - pos);
 			const float dist = glm::dot(os, os);
 
@@ -385,7 +400,7 @@ void BvhPoint::Gather4Closest(const int& nodeIndex, const glm::vec3& pos, const 
 			std::swap(nodeA, nodeB);
 		}
 
-		if (distA < dists[3]) Gather4Closest(nodeA, pos, mask, dists, d0, d1, d2, d3);
-		if (distB < dists[3]) Gather4Closest(nodeB, pos, mask, dists, d0, d1, d2, d3);
+		if (distA < dists[3]) Gather4Closest(nodeA, pos, dists, d0, d1, d2, d3);
+		if (distB < dists[3]) Gather4Closest(nodeB, pos, dists, d0, d1, d2, d3);
 	}
 }

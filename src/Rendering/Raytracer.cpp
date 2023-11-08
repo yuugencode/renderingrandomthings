@@ -7,11 +7,8 @@
 #include "Rendering/Shaders.h"
 #include "Engine/Log.h"
 
-Raytracer* Raytracer::Instance = nullptr;
-
 void Raytracer::Create(const Window& window) {
 
-	Instance = this;
 	this->window = &window;
 
 	vtxLayout
@@ -30,7 +27,6 @@ void Raytracer::Create(const Window& window) {
 	textureBuffer = new Color[textureBufferSize];
 
 	bvhBuffer.resize((window.width * window.height) / bvhBufferDiv);
-	shadowBuffer.resize(bvhBuffer.size());
 
 	u_texture = bgfx::createUniform("s_tex", bgfx::UniformType::Sampler);
 
@@ -151,7 +147,7 @@ glm::vec4 Raytracer::TraceRay(const Scene& scene, const Ray& ray, int& recursion
 	}
 }
 
-void Raytracer::RenderScene(const Scene& scene) {
+void Raytracer::RenderScene(Scene& scene) {
 
 	// Matrices
 	const Transform& camTransform = scene.camera.transform;
@@ -170,12 +166,13 @@ void Raytracer::RenderScene(const Scene& scene) {
 	const auto scaledHeight = window->height / bvhBufferDiv;
 
 	// Prepass for generating shadow buffer for interpolating smooth shadows
-	shadowBuffer.clear();
 	shadowTimerSample.Start();
 
-	// @TODO: Light rays need a re-implementation because rays shot from lights hit different points so can't save them in a single value
-	// However they are also kinda extra and only useful for reflections..
-	// However however having only view rays is prone to massive perf penalty if all rays hit a tiny area
+	// Clear and regenerate shadow buffer for each light
+	for (auto& light : scene.lights) {
+		light.shadowBvh.Clear();
+		light._shadowBuffer.clear();
+	}
 
 #if true // Shadow buffer rays shot from the camera
 	
@@ -223,17 +220,66 @@ void Raytracer::RenderScene(const Scene& scene) {
 		}
 	});
 	
-	// Copy valid shadow values to a separate buffer
-	for (const auto& val : bvhBuffer)
-		if (val.w != std::bit_cast<float>(0))
-			shadowBuffer.push_back(val);
+	// Add each point to each lights internal shadow buffer if the point was lit by that light
+	for (const auto& val : bvhBuffer) {
+		for (int i = 0; i < scene.lights.size(); i++) {
+			if ((std::bit_cast<int>(val.w) & (1 << i)) == 0) continue;
+			scene.lights[i]._shadowBuffer.push_back(val);
+		}
+	}
+
+#endif
+
+#if true // Shadow rays shot from lights
+
+	// Limit the count of samples per light, these are extra data mostly useful for reflections backups
+	const size_t samplesPerLight = scene.lights.size() > 0 ? glm::min(bvhBuffer.size() / scene.lights.size(), (size_t)(2 << 12)) : 0;
+
+	for (int i = 0; i < scene.lights.size(); i++) {
+		const auto& light = scene.lights[i];
+
+		const glm::vec2 rngBase = Utils::Hash23(light.position);
+
+		concurrency::parallel_for(size_t(0), samplesPerLight, [&](size_t j) {
+			
+			// Random primes
+			glm::vec2 rngSeed = rngBase * (float)(j + 1);
+
+			// Generate random direction in 3D
+			auto rng = Utils::Hash22(rngSeed) * Globals::PI;
+			rng.y *= 2.0f;
+			auto s = glm::sin(rng);
+			auto c = glm::cos(rng);
+			auto dir = glm::normalize(glm::vec3(s.x * c.y, s.x * s.y, c.x));
+
+			const Ray ray{ .ro = light.position, .rd = dir, .inv_rd = 1.0f / dir, .mask = std::numeric_limits<int>::min() };
+			auto res = RaycastScene(scene, ray);
+
+			if (res.Hit()) 
+				bvhBuffer[i * samplesPerLight + j] = glm::vec4(ray.ro + ray.rd * res.depth, std::bit_cast<float>(1 << i));
+			else 
+				bvhBuffer[i * samplesPerLight + j] = glm::vec4(std::bit_cast<float>(0));
+		});
+	}
+
+	// Add each point to each lights internal shadow buffer if the point was lit by that light
+	for (int i = 0; i < samplesPerLight * scene.lights.size(); i++) {
+		const auto& val = bvhBuffer[i];
+		for (int i = 0; i < scene.lights.size(); i++) {
+			if ((std::bit_cast<int>(val.w) & (1 << i)) == 0) continue;
+			scene.lights[i]._shadowBuffer.push_back(val);
+		}
+	}
+
 #endif
 
 	shadowTimerSample.End();
 	shadowTimerGen.Start();
 
-	// Generate the shadow buffer
-	shadowBvh.Generate(shadowBuffer);
+	// Generate the shadow buffer for each light
+	concurrency::parallel_for(size_t(0), scene.lights.size(), [&](size_t i) {
+		scene.lights[i].shadowBvh.Generate(scene.lights[i]._shadowBuffer);
+	});
 
 	shadowTimerGen.End();
 	traceTimer.Start();

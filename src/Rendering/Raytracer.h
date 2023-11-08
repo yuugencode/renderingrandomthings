@@ -17,8 +17,6 @@ class Raytracer {
 
 public:
 
-	static Raytracer* Instance;
-
 	// bgfx Rendering layer
 	const bgfx::ViewId VIEW_LAYER = 0;
 
@@ -40,12 +38,6 @@ public:
 	// 1920 1080 common factors
 	// 1 | 2 | 3 | 4 | 5 | 6 | 8 | 10 | 12 | 15 | 20 | 24 | 30 | 40 | 60 | 120
 	const uint32_t bvhBufferDiv = 4;
-
-	// Shortlisted bvhBuffer from which shadowbvh is generated
-	std::vector<glm::vec4> shadowBuffer;
-
-	// Bvh sampled for smooth shadows
-	BvhPoint shadowBvh;
 
 	// Vertex layout for the full screen pass
 	struct PosColorTexCoord0Vertex {
@@ -72,7 +64,7 @@ public:
 	glm::vec4 TraceRay(const Scene& scene, const Ray& ray, int& recursionDepth) const;
 
 	// Renders given scene to a texture and blits on screen
-	void RenderScene(const Scene& scene);
+	void RenderScene(Scene& scene);
 
 	~Raytracer() {
 		bgfx::destroy(texture);

@@ -3,13 +3,12 @@
 #include "Engine/Utils.h"
 #include "Game/Game.h"
 
-// Samples N closest points on a bvh for nearby lit points
+// Samples N closest points on a bvh for nearby lit points of given light
 // Uses pre-sampled blocker distance to define an accurate smoothing upper bound
 float SmoothDilatedShadows(const Scene& scene, const Light& light, const int& lightIndex, const RayResult& rayResult, const v2f& input, const int& recursionDepth, const float& blockerDist) {
 	using namespace glm;
 
-	//if (!Raytracer::Instance->shadowBvh.Exists()) return 0.0f;
-	if (!Game::raytracer.shadowBvh.Exists()) return 0.0f;
+	if (!light.shadowBvh.Exists()) return 0.0f;
 
 	BvhPoint::BvhPointData d0, d1, d2, d3;
 	
@@ -17,14 +16,14 @@ float SmoothDilatedShadows(const Scene& scene, const Light& light, const int& li
 	// Ideally very high, but relates to perf
 	vec4 dist = vec4(2.0f);
 
-	Game::raytracer.shadowBvh.Get4Closest(input.worldPosition, 1 << lightIndex, dist, d0, d1, d2, d3);
-	dist = sqrt(dist); // Bvh returns squared distances
+	light.shadowBvh.Get4Closest(input.worldPosition, dist, d0, d1, d2, d3);
+	dist = sqrt(dist); // Bvh returns squared distances, could lerp using them for perf but produces uncanny softening
 	
 	float penumbraSize = blockerDist * 0.3f; // example values 0.1 for buffer div 2, 0.3 for buffer div 4
 
 	float distFromEdge = (dist[0] + dist[1] + dist[2] + dist[3]) * 0.25f;
-	
-	float shadow = 1.0f - Utils::InvLerpClamp(distFromEdge, 0.0f, penumbraSize);
+
+	float shadow = 1.0f - Utils::InvLerpClamp(distFromEdge, 0.0f, penumbraSize * penumbraSize);
 
 	return shadow;
 }
@@ -36,7 +35,7 @@ inline bool ShadowRay(const Scene& scene, const glm::vec3& from, const glm::vec3
 	float dist = length(dir);
 	dir /= dist; // Normalize
 	Ray ray{ .ro = from, .rd = dir, .inv_rd = 1.0f / dir, .mask = collisionMask };
-	RayResult res = Raytracer::Instance->RaycastScene(scene, ray);
+	RayResult res = Game::raytracer.RaycastScene(scene, ray);
 	blockerDist = res.depth;
 	return res.Hit() && res.depth < dist - 0.001f;
 }
@@ -61,8 +60,8 @@ glm::vec4 Shaders::Textured(const Scene& scene, const RayResult& rayResult, cons
 	if (rayResult.obj->HasMesh() && rayResult.obj->HasTexture()) {
 
 		const auto& mesh = Assets::Meshes[rayResult.obj->meshHandle];
-		const auto& material = mesh->materials[rayResult.data / 3]; // .data = triangle index for meshes
-		const auto& texID = rayResult.obj->textureHandles[material];
+		const auto& materialID = mesh->materials[rayResult.data / 3]; // .data = triangle index for meshes
+		const auto& texID = rayResult.obj->textureHandles[materialID];
 
 		c = Assets::Textures[texID]->SampleUVClamp(input.uv).ToVec4();
 	}
@@ -98,9 +97,9 @@ glm::vec4 Shaders::Grid(const Scene& scene, const RayResult& rayResult, const v2
 
 	vec4 c = vec4(vec3(res), 1.0f);
 
+	// Loop lights
 	vec3 lighting = vec3(0.0f);
 
-	// Loop lights
 	for (int i = 0; i < scene.lights.size(); i++) {
 		const auto& light = scene.lights[i];
 		if (Utils::SqrLength(input.worldPosition - light.position) > light.range * light.range)
