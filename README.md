@@ -1,12 +1,22 @@
 # Rendering Random Things
 
-Heavily work in progress.
+Simple real-time CPU Ray Tracer.
 
-Experimenting with modern C++ and various graphics libraries.
-Goal is to try out various non-realistic raytracing rendering ideas.
+Experimenting with modern C++, various graphics libraries and nonrealistic rendering ideas. Started off with C++20 modules but dropped midway due to poor Intellisense support.
 
-Currently just a simple 1SPP raytracer with reflections/hard shadows.
-It's faster than I expected from a standard CPU raytracer, but maybe I have too many CPU cores.
+Not a path-tracer and not trying to solve the rendering equation (for now), so no stochastic methods, temporal blurring or denoising utilized. Currently it's a simple raytracer with reflections and fake soft shadows. Has basic features like mesh loading and SAH BVH etc.
+
+Soft shadows are implemented via dilating shadows inwards based on a precomputed view space shadow point BVH.\
+Works pretty well for a realtime trick running only on CPU.
+
+https://github.com/yuugencode/renderingrandomthings/assets/146561683/ab5490fb-8a82-419e-8bd0-c3038faa589e
+
+Some files of interest:\
+\
+[Shaders.cpp](src/Rendering/Shaders.cpp) (CPU Implemented "shaders")\
+[main.cpp](main.cpp) (Main loop and setup)\
+[Bvh.cpp](src/Engine/Bvh.cpp) (Triangle bvh)\
+[Raytracer.cpp](src/Rendering/Raytracer.cpp) (Raytracer logic)
 
 Exists mostly for portfolio purposes, so no build files or anything included.
 
