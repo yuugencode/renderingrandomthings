@@ -128,7 +128,7 @@ glm::vec4 Raytracer::TraceRay(const Scene& scene, const Ray& ray, int& recursion
 		glm::vec4 c = GetColor(scene, rayResult, hitPt, recursionDepth);
 
 		// Transparent or cutout
-		if (c.a < 0.99f && recursionDepth < 1) {
+		if (c.a < 0.99f && recursionDepth < 2) {
 			Ray newRay{ .ro = hitPt, .rd = ray.rd, .inv_rd = ray.inv_rd, .mask = rayResult.data };
 			glm::vec4 behind = TraceRay(scene, newRay, ++recursionDepth);
 			c = Utils::Lerp(c, behind, 1.0f - c.a);
@@ -175,6 +175,7 @@ void Raytracer::RenderScene(const Scene& scene) {
 
 	// @TODO: Light rays need a re-implementation because rays shot from lights hit different points so can't save them in a single value
 	// However they are also kinda extra and only useful for reflections..
+	// However however having only view rays is prone to massive perf penalty if all rays hit a tiny area
 
 #if true // Shadow buffer rays shot from the camera
 	

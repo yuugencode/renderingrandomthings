@@ -315,13 +315,18 @@ void BvhPoint::Gather3Closest(const int& nodeIndex, const glm::vec3& pos, const 
 	}
 }
 
+
 // Returns the 4 closest points to queryPos
-void BvhPoint::Get4Closest(const glm::vec3& queryPos, const int& mask, glm::vec4& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2, BvhPointData& d3) const {
+void BvhPoint::Get4Closest(const glm::vec3& queryPos, const int& mask, glm::vec4& dists, 
+	BvhPointData& d0, BvhPointData& d1, BvhPointData& d2, BvhPointData& d3) const {
+
+	// Recursion seems faster than stack based search
 	Gather4Closest(0, queryPos, mask, dists, d0, d1, d2, d3);
 }
 
 // Recursed func
-void BvhPoint::Gather4Closest(const int& nodeIndex, const glm::vec3& pos, const int& mask, glm::vec4& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2, BvhPointData& d3) const {
+void BvhPoint::Gather4Closest(const int& nodeIndex, const glm::vec3& pos, const int& mask, glm::vec4& dists, 
+	BvhPointData& d0, BvhPointData& d1, BvhPointData& d2, BvhPointData& d3) const {
 
 	const auto& node = stack[nodeIndex];
 
@@ -380,10 +385,7 @@ void BvhPoint::Gather4Closest(const int& nodeIndex, const glm::vec3& pos, const 
 			std::swap(nodeA, nodeB);
 		}
 
-		if (distA < dists[3])
-			Gather4Closest(nodeA, pos, mask, dists, d0, d1, d2, d3);
-
-		if (distB < dists[3])
-			Gather4Closest(nodeB, pos, mask, dists, d0, d1, d2, d3);
+		if (distA < dists[3]) Gather4Closest(nodeA, pos, mask, dists, d0, d1, d2, d3);
+		if (distB < dists[3]) Gather4Closest(nodeB, pos, mask, dists, d0, d1, d2, d3);
 	}
 }

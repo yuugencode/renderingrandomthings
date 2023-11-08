@@ -101,8 +101,9 @@ int main(int argc, char* argv[]) {
 	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(1.0f, 0.5f, 5.0f), 0.5f));
 	Game::scene.entities.back()->reflectivity = 0.7f;
 	
-	Game::scene.entities.push_back(std::make_unique<Box>(glm::vec3(-2.0f, 0.5f, 0.0f), glm::vec3(1.0f, 4.0f, 0.25f)));
+	Game::scene.entities.push_back(std::make_unique<Box>(glm::vec3(-2.0f, 0.5f, 0.0f), glm::vec3(1.0f, 4.0f, 0.05f)));
 	Game::scene.entities.back()->reflectivity = 0.5f;
+	auto box = Game::scene.entities.back().get();
 
 	// Mesh 1
 	auto meshHandle = Assets::NewMesh(std::filesystem::path("ext/char.fbx"));
@@ -202,6 +203,9 @@ int main(int argc, char* argv[]) {
 		dragon->transform.rotation = glm::angleAxis(-Time::deltaTimeF * 2.0f, glm::vec3(0, 1, 0)) * dragon->transform.rotation;
 		dragon->transform.rotation = glm::normalize(dragon->transform.rotation);
 		dragon->transform.scale = glm::vec3(0.002f) + glm::abs(glm::sin(Time::timeF) * 0.8f * 0.02f);
+
+		box->transform.rotation = glm::angleAxis(-Time::deltaTimeF * 0.1f, glm::vec3(0, 1, 0)) * box->transform.rotation;
+		box->transform.rotation = glm::normalize(box->transform.rotation);
 
 		for (int i = 0; i < Game::scene.lights.size(); i++) {
 			Light& light = Game::scene.lights[i];

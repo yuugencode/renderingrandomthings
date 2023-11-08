@@ -68,7 +68,7 @@ private:
 	std::vector<BvhPointData> points;
 
 	/// Number of points after which we stop splitting nodes
-	static const int maxNodeEntries = 20;
+	static const int maxNodeEntries = 64;
 
 	// Splits bvh node into 2
 	void SplitNodeSingle(const int& nodeIdx, int& nextLeft, int& nextRight);
@@ -85,5 +85,6 @@ private:
 
 	void Gather3Closest(const int& nodeIndex, const glm::vec3& pos, const int& mask, glm::vec3& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2) const;
 
-	void Gather4Closest(const int& nodeIndex, const glm::vec3& pos, const int& mask, glm::vec4& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2, BvhPointData& d3) const;
+	void Gather4Closest(const int& nodeIndex, const glm::vec3& pos, const int& mask, glm::vec4& dists, 
+		BvhPointData& d0, BvhPointData& d1, BvhPointData& d2, BvhPointData& d3) const;
 };
