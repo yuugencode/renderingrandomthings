@@ -107,31 +107,66 @@ int main(int argc, char* argv[]) {
 	auto box = Game::scene.entities.back().get();
 
 	// Mesh 1
-	auto meshHandle = Assets::NewMesh(std::filesystem::path("models/char.fbx"));
-	auto rendMesh = std::make_unique<RenderedMesh>(meshHandle);
-	auto chara = rendMesh.get();
-	
-	// Mesh 1 textures
-	for (std::string file : rendMesh->GetMesh()->textureNames) {
-		auto path = std::filesystem::path("models") / file.append(".png");
-		rendMesh->textureHandles.push_back(Assets::NewTexture(path, true));
+	RenderedMesh* chara;
+	{
+		auto meshHandle = Assets::NewMesh(std::filesystem::path("models/char.fbx"));
+		auto rendMesh = std::make_unique<RenderedMesh>(meshHandle);
+		chara = rendMesh.get();
+
+		// Mesh 1 textures
+		for (std::string file : rendMesh->GetMesh()->textureNames) {
+			auto path = std::filesystem::path("models") / file.append(".png");
+			rendMesh->textureHandles.push_back(Assets::NewTexture(path, true));
+		}
+
+		Game::scene.entities.push_back(std::move(rendMesh));
+
+		chara->transform.rotation = glm::angleAxis(glm::radians(-90.0f), glm::vec3(1, 0, 0));
 	}
 
-	Game::scene.entities.push_back(std::move(rendMesh));
-
-	chara->transform.rotation = glm::angleAxis(glm::radians(-90.0f), glm::vec3(1,0,0));
-
 	// Mesh 2
-	auto meshHandle2 = Assets::NewMesh(std::filesystem::path("models/dragon_vrip.obj"));
-	auto rendMesh2 = std::make_unique<RenderedMesh>(meshHandle2);
-	auto dragon = rendMesh2.get();
-	
-	Game::scene.entities.push_back(std::move(rendMesh2));
-	
-	dragon->transform.scale = glm::vec3(10.0f);
-	dragon->transform.position += glm::vec3(4.0f, -0.5f, 0.0f);
-	dragon->transform.LookAtDir(glm::vec3(-1, 0, 0), glm::vec3(0, 1, 0));
-	dragon->shaderType = RenderedMesh::Shader::PlainWhite;
+	RenderedMesh* dragon;
+	{
+		auto meshHandle = Assets::NewMesh(std::filesystem::path("models/dragon_vrip.obj"));
+		auto rendMesh = std::make_unique<RenderedMesh>(meshHandle);
+		dragon = rendMesh.get();
+
+		Game::scene.entities.push_back(std::move(rendMesh));
+
+		dragon->transform.scale = glm::vec3(10.0f);
+		dragon->transform.position += glm::vec3(4.0f, -0.5f, 0.0f);
+		dragon->shaderType = RenderedMesh::Shader::PlainWhite;
+	}
+
+	// Mesh 3
+	RenderedMesh* bunny;
+	{
+		auto meshHandle = Assets::NewMesh(std::filesystem::path("models/bunny.obj"));
+		auto rendMesh = std::make_unique<RenderedMesh>(meshHandle);
+		bunny = rendMesh.get();
+
+		Game::scene.entities.push_back(std::move(rendMesh));
+
+		bunny->transform.scale = glm::vec3(10.0f);
+		bunny->transform.position += glm::vec3(-6.0f, -0.3f, 0.0f);
+		bunny->transform.LookAtDir(glm::vec3(-1, 0, 0), glm::vec3(0, 1, 0));
+		bunny->shaderType = RenderedMesh::Shader::PlainWhite;
+	}
+
+	// Mesh 4
+	RenderedMesh* arma;
+	{
+		auto meshHandle = Assets::NewMesh(std::filesystem::path("models/armadillo.obj"));
+		auto rendMesh = std::make_unique<RenderedMesh>(meshHandle);
+		arma = rendMesh.get();
+
+		Game::scene.entities.push_back(std::move(rendMesh));
+
+		arma->transform.scale = glm::vec3(0.02f);
+		arma->transform.position += glm::vec3(0.0f, 1.1f, 3.0f);
+		arma->transform.LookAtDir(glm::vec3(1, 0, 0), glm::vec3(0, 1, 0));
+		arma->shaderType = RenderedMesh::Shader::PlainWhite;
+	}
 
 	bool showBgfxStats = false;
 
@@ -190,9 +225,12 @@ int main(int argc, char* argv[]) {
 		chara->transform.rotation = glm::angleAxis(Time::deltaTimeF * 2.0f, glm::vec3(0, 1, 0)) * chara->transform.rotation;
 		chara->transform.rotation = glm::normalize(chara->transform.rotation);
 
-		dragon->transform.rotation = glm::angleAxis(-Time::deltaTimeF * 2.0f, glm::vec3(0, 1, 0)) * dragon->transform.rotation;
-		dragon->transform.rotation = glm::normalize(dragon->transform.rotation);
-		dragon->transform.scale = glm::vec3(10.0f) + glm::abs(glm::sin(Time::timeF) * 0.8f * 10.0f);
+		bunny->transform.rotation = glm::angleAxis(Time::deltaTimeF * 2.0f, glm::vec3(0, 1, 0)) * bunny->transform.rotation;
+		bunny->transform.rotation = glm::normalize(bunny->transform.rotation);
+		bunny->transform.scale = glm::vec3(10.0f) + glm::abs(glm::sin(Time::timeF) * 0.8f * 10.0f);
+
+		arma->transform.rotation = glm::angleAxis(-Time::deltaTimeF * 4.0f, glm::vec3(0, 0, 1)) * arma->transform.rotation;
+		arma->transform.rotation = glm::normalize(arma->transform.rotation);
 
 		box->transform.rotation = glm::angleAxis(-Time::deltaTimeF * 0.1f, glm::vec3(0, 1, 0)) * box->transform.rotation;
 		box->transform.rotation = glm::normalize(box->transform.rotation);
