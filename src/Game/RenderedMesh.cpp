@@ -66,5 +66,31 @@ v2f RenderedMesh::VertexShader(const glm::vec3& worldPos, const RayResult& rayRe
 	else
 		ret.localNormal = rayResult.faceNormal;
 
+	ret.worldNormal = transform.rotation * ret.localNormal;
+
 	return ret;
+}
+
+bool RenderedMesh::IsTransparentAt(const int& triIdx, const glm::vec3& pos) const {
+	
+	if (!HasMesh() || !HasTexture()) return false;
+	
+	const auto& mesh = GetMesh();
+	const auto& v0i = mesh->triangles[triIdx + 0];
+	const auto& v1i = mesh->triangles[triIdx + 1];
+	const auto& v2i = mesh->triangles[triIdx + 2];
+	const auto& p0 = mesh->vertices[v0i];
+	const auto& p1 = mesh->vertices[v1i];
+	const auto& p2 = mesh->vertices[v2i];
+	const auto& uv0 = mesh->uvs[v0i];
+	const auto& uv1 = mesh->uvs[v1i];
+	const auto& uv2 = mesh->uvs[v2i];
+
+	const auto& materialID = mesh->materials[triIdx / 3];
+	const auto& texID = textureHandles[materialID];
+
+	const glm::vec3 b = Utils::Barycentric(pos, p0, p1, p2);
+	const auto uv = uv0 * b.x + uv1 * b.y + uv2 * b.z;
+
+	return Assets::Textures[texID]->SampleUVClamp(uv).a < 1;
 }

@@ -38,7 +38,7 @@ glm::vec3 Sphere::LocalNormal(const glm::vec3& pos) const {
 }
 
 v2f Sphere::VertexShader(const glm::vec3& worldPos, const RayResult& rayResult) const {
-	return v2f{ .worldPosition = worldPos, .localNormal = rayResult.faceNormal, .uv = glm::vec2(0) };
+	return v2f{ .worldPosition = worldPos, .localNormal = rayResult.faceNormal, .worldNormal = transform.rotation * rayResult.faceNormal, .uv = glm::vec2(0) };
 }
 
 // Disk
@@ -67,7 +67,7 @@ bool Disk::IntersectLocal(const Ray& ray, glm::vec3& normal, int& data, float& d
 }
 
 v2f Disk::VertexShader(const glm::vec3& worldPos, const RayResult& rayResult) const {
-	return v2f{ .worldPosition = worldPos, .localNormal = rayResult.faceNormal, .uv = glm::vec2(0) };
+	return v2f{ .worldPosition = worldPos, .localNormal = rayResult.faceNormal, .worldNormal = transform.rotation * rayResult.faceNormal, .uv = glm::vec2(0) };
 }
 
 // Box
@@ -105,5 +105,5 @@ glm::vec3 Box::LocalNormal(const glm::vec3& pos) const {
 }
 
 v2f Box::VertexShader(const glm::vec3& worldPos, const RayResult& rayResult) const {
-	return v2f{ .worldPosition = worldPos, .localNormal = rayResult.faceNormal, .uv = glm::vec2(0) };
+	return v2f{ .worldPosition = worldPos, .localNormal = rayResult.faceNormal, .worldNormal = transform.rotation * rayResult.faceNormal, .uv = glm::vec2(0) };
 }

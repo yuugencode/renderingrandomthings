@@ -9,6 +9,6 @@ void Light::CalcGenericLighting(const glm::vec3& pos, const glm::vec3& nrm, floa
 	float dist = sqrt(distSqr);
 	os /= dist + 0.000001f; // Normalize
 	nl = dot(os, nrm) * 0.5f + 0.5f;
-	//attenuation = clamp((range / distSqr) * intensity, 0.0f, 1.0f);
+	//attenuation = clamp(range / dist, 0.0f, 1.0f);
 	attenuation = 1.0f - Utils::InvLerpClamp(dist, 0.0f, range); // Linear falloff
 }

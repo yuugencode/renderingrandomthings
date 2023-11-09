@@ -27,7 +27,7 @@ int Mesh::ReadNode(int i, int vertexOffset) {
     uint32_t* meshIndices = mesh->vertex_indices.data;
 
     vertices.reserve(vertices.size() + mesh->vertices.count);
-    triangles.reserve(triangles.size() + mesh->num_triangles);
+    triangles.reserve(vertices.size());
     colors.reserve(vertices.size());
     uvs.reserve(vertices.size());
     normals.reserve(vertices.size());
@@ -40,22 +40,22 @@ int Mesh::ReadNode(int i, int vertexOffset) {
         auto firstIndex = mesh->vertex_first_index[i];
 
         connectivity.emplace_back();
-
-        if (mesh->vertex_color.exists) {
+        
+        if (mesh->vertex_color.exists && firstIndex != UFBX_NO_INDEX) {
             const auto& clr = mesh->vertex_color.values[mesh->vertex_color.indices[firstIndex]];
             colors.push_back(glm::vec4((float)clr.x, (float)clr.y, (float)clr.z, (float)clr.w));
             hasColors = true;
         }
         else colors.push_back(glm::vec4(0, 0, 0, 0));
 
-        if (mesh->vertex_uv.exists) {
+        if (mesh->vertex_uv.exists && firstIndex != UFBX_NO_INDEX) {
             const auto& uv = mesh->vertex_uv.values[mesh->vertex_uv.indices[firstIndex]];
             uvs.push_back(glm::vec2((float)uv.x, (float)uv.y));
             hasUVs = true;
         }
         else uvs.push_back(glm::vec2(0, 0));
 
-        if (mesh->vertex_normal.exists) {
+        if (mesh->vertex_normal.exists && firstIndex != UFBX_NO_INDEX) {
             const auto& nrm = mesh->vertex_normal.values[mesh->vertex_normal.indices[firstIndex]];
             normals.push_back(glm::normalize(glm::vec3((float)nrm.x, (float)nrm.y, (float)nrm.z)));
             hasNormals = true;
@@ -159,6 +159,7 @@ void Mesh::UnloadMesh() {
 }
 
 void Mesh::Clear() {
+    textureNames.clear();
     vertices.clear();
     triangles.clear();
     uvs.clear();
@@ -172,13 +173,19 @@ void Mesh::ReadAllNodes() {
 
     Clear();
 
+    for (size_t i = 0; i < scene->textures.count; i++) {
+        auto path = std::string(scene->textures.data[i]->filename.data, scene->textures.data[0]->filename.length);
+        auto filename = std::filesystem::path(path).filename().replace_extension();
+        textureNames.push_back(filename.string());
+    }
+
     int meshCount = GetMeshNodeCount();
     int vertexCnt = 0;
     for (size_t i = 0; i < meshCount; i++)
         vertexCnt += ReadNode((int)i, vertexCnt);
     CheckData();
 
-    Log::LineFormatted("Read a mesh with {} vertices and {} triangles.", vertices.size(), triangles.size() / 3);
+    Log::LineFormatted("Read a mesh with {} vertices, {} triangles and {} materials.", vertices.size(), triangles.size() / 3, scene->materials.count);
     Log::LineFormatted("Has UVs: {}, Has Normals: {}, Has Colors: {}", hasUVs, hasNormals, hasColors);
 }
 
@@ -191,10 +198,16 @@ void Mesh::ReadSceneMeshNode(int nodeIndex) {
     if (nodeIndex < 0 || nodeIndex >= scene->nodes.count)
         Log::FatalError("Tried to read a mesh file node past file scene indices");
 
+    for (size_t i = 0; i < scene->textures.count; i++) {
+        auto path = std::string(scene->textures.data[i]->filename.data, scene->textures.data[0]->filename.length);
+        auto filename = std::filesystem::path(path).filename().replace_extension();
+        textureNames.push_back(filename.string());
+    }
+
     ReadNode(nodeIndex);
     CheckData();
 
-    Log::LineFormatted("Read a mesh with {} vertices and {} triangles.", vertices.size(), triangles.size() / 3);
+    Log::LineFormatted("Read a mesh with {} vertices, {} triangles and {} materials.", vertices.size(), triangles.size() / 3, scene->materials.count);
     Log::LineFormatted("Has UVs: {}, Has Normals: {}, Has Colors: {}", hasUVs, hasNormals, hasColors);
 }
 

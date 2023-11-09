@@ -90,10 +90,11 @@ int main(int argc, char* argv[]) {
 	// Lights
 	Game::scene.lights.push_back(Light{ .position = glm::vec3(4.0f, 7.5f,  7.0f), .color = glm::vec3(1.0f, 0.9f, 0.7f), .range = 15.0f, .intensity = 1.5f });
 	Game::scene.lights.push_back(Light{ .position = glm::vec3(4.0f, 5.5f, -7.0f), .color = glm::vec3(0.8f, 1.0f, 1.0f), .range = 15.0f, .intensity = 1.5f });
+	Game::scene.lights.push_back(Light{ .position = glm::vec3(-4.0f, 5.5f, -7.0f), .color = glm::vec3(0.8f, 1.0f, 0.7f), .range = 15.0f, .intensity = 1.5f });
 
 	// Random parametric shapes
 	Game::scene.entities.push_back(std::make_unique<Disk>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 20.0f));
-
+	
 	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(1.0f, 0.5f, 0.0f), 0.5f));
 	Game::scene.entities.back()->reflectivity = 0.3f;
 	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(0.0f, 1.5f, -5.0f), 1.5f));
@@ -106,42 +107,31 @@ int main(int argc, char* argv[]) {
 	auto box = Game::scene.entities.back().get();
 
 	// Mesh 1
-	auto meshHandle = Assets::NewMesh(std::filesystem::path("ext/char.fbx"));
+	auto meshHandle = Assets::NewMesh(std::filesystem::path("models/char.fbx"));
 	auto rendMesh = std::make_unique<RenderedMesh>(meshHandle);
-	
-	// Hardcoded mesh 1 textures, kind of like materials without materials
-	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex1.png"), true));
-	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex4.png"), true));
-	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex3.png"), true));
-	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex3.png"), true));
-	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex5.png"), true));
-	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex2.png"), true));
-	rendMesh->textureHandles.push_back(Assets::NewTexture(std::filesystem::path("ext/tex3.png"), true));
-	
 	auto chara = rendMesh.get();
+	
+	// Mesh 1 textures
+	for (std::string file : rendMesh->GetMesh()->textureNames) {
+		auto path = std::filesystem::path("models") / file.append(".png");
+		rendMesh->textureHandles.push_back(Assets::NewTexture(path, true));
+	}
 
-	rendMesh->transform.rotation = glm::angleAxis(glm::radians(-90.0f), glm::vec3(1,0,0));
 	Game::scene.entities.push_back(std::move(rendMesh));
 
-	// Mesh 2
-	auto meshHandle2 = Assets::NewMesh(std::filesystem::path("ext/dragon.obj"));
-	
-	auto rendMesh2 = std::make_unique<RenderedMesh>(meshHandle2);
-	Game::scene.entities.push_back(std::move(rendMesh2));
+	chara->transform.rotation = glm::angleAxis(glm::radians(-90.0f), glm::vec3(1,0,0));
 
-	auto dragon = Game::scene.entities.back().get();
-	dragon->transform.scale = glm::vec3(1, 1, 1) * 0.02f;
-	dragon->transform.position += glm::vec3(4.0f, 0.8f, 0.0f);
+	// Mesh 2
+	auto meshHandle2 = Assets::NewMesh(std::filesystem::path("models/dragon_vrip.obj"));
+	auto rendMesh2 = std::make_unique<RenderedMesh>(meshHandle2);
+	auto dragon = rendMesh2.get();
+	
+	Game::scene.entities.push_back(std::move(rendMesh2));
+	
+	dragon->transform.scale = glm::vec3(10.0f);
+	dragon->transform.position += glm::vec3(4.0f, -0.5f, 0.0f);
 	dragon->transform.LookAtDir(glm::vec3(-1, 0, 0), glm::vec3(0, 1, 0));
 	dragon->shaderType = RenderedMesh::Shader::PlainWhite;
-
-	// Mesh 3
-	//auto meshHandle3 = Assets::NewMesh(std::filesystem::path("ext/rock.fbx"));
-	//Assets::Meshes[meshHandle3]->ScaleVertices(0.1f);
-	//
-	//auto rendMesh3 = std::make_unique<RenderedMesh>(meshHandle3);
-	//rendMesh3->GenerateBVH();
-	//Game::scene.entities.push_back(std::move(rendMesh3));
 
 	bool showBgfxStats = false;
 
@@ -202,7 +192,7 @@ int main(int argc, char* argv[]) {
 
 		dragon->transform.rotation = glm::angleAxis(-Time::deltaTimeF * 2.0f, glm::vec3(0, 1, 0)) * dragon->transform.rotation;
 		dragon->transform.rotation = glm::normalize(dragon->transform.rotation);
-		dragon->transform.scale = glm::vec3(0.002f) + glm::abs(glm::sin(Time::timeF) * 0.8f * 0.02f);
+		dragon->transform.scale = glm::vec3(10.0f) + glm::abs(glm::sin(Time::timeF) * 0.8f * 10.0f);
 
 		box->transform.rotation = glm::angleAxis(-Time::deltaTimeF * 0.1f, glm::vec3(0, 1, 0)) * box->transform.rotation;
 		box->transform.rotation = glm::normalize(box->transform.rotation);
@@ -210,6 +200,7 @@ int main(int argc, char* argv[]) {
 		for (int i = 0; i < Game::scene.lights.size(); i++) {
 			Light& light = Game::scene.lights[i];
 			light.position = glm::normalize(glm::angleAxis(Time::deltaTimeF * 0.6f * Utils::Hash11((float)(i + 33)), glm::vec3(0, 1, 0))) * light.position;
+			//light.position = camTf.position;
 		}
 
 		// Update matrices

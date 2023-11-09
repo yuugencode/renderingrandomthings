@@ -142,7 +142,11 @@ void ImguiDrawer::DrawUI() {
 		}
 		else parametrics++;
 	}
-	ImGui::Text("%d meshes, %d parametric shapes", meshes, parametrics);
+
+	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::Text("%d meshes, %d parametric shapes, %d lights", meshes, parametrics, Game::scene.lights.size());
 	ImGui::Text("%d vertices, %d triangles", totalVertices, totalTris);
 
 	ImGui::PopItemWidth();

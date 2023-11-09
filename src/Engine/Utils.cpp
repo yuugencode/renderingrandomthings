@@ -50,9 +50,6 @@ glm::vec3 Utils::ConfinedBarycentric(const glm::vec3& p, const glm::vec3& a, con
         if (dist0 < dist1 && dist0 < dist2) return vec3(1.0f, 0.0f, 0.0f);
         else if (dist1 < dist2) return vec3(0.0f, 1.0f, 0.0f);
         else return vec3(0.0f, 0.0f, 1.0f);
-        
-        //const float sum = dist0 + dist1 + dist2;
-        //return vec3(dist0, dist1, dist2) / sum;
     }
     const float v = (d11 * d20 - d01 * d21) / denom;
     const float w = (d00 * d21 - d01 * d20) / denom;

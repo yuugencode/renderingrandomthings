@@ -14,6 +14,7 @@ struct Ray {
 struct v2f {
     glm::vec3 worldPosition;
     glm::vec3 localNormal;
+    glm::vec3 worldNormal;
     glm::vec2 uv;
 };
 

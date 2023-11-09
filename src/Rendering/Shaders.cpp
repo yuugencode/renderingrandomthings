@@ -2,10 +2,11 @@
 
 #include "Engine/Utils.h"
 #include "Game/Game.h"
+#include "Game/RenderedMesh.h"
 
 // Samples N closest points on a bvh for nearby lit points of given light
 // Uses pre-sampled blocker distance to define an accurate smoothing upper bound
-float SmoothDilatedShadows(const Scene& scene, const Light& light, const int& lightIndex, const RayResult& rayResult, const v2f& input, const int& recursionDepth, const float& blockerDist) {
+float SmoothDilatedShadows(const Scene& scene, const Light& light, const RayResult& rayResult, const v2f& input, const int& recursionDepth, const float& blockerDist) {
 	using namespace glm;
 
 	if (!light.shadowBvh.Exists()) return 0.0f;
@@ -29,23 +30,46 @@ float SmoothDilatedShadows(const Scene& scene, const Light& light, const int& li
 }
 
 // Shoots a ray towards a light returns if it hit anything before reaching it
-inline bool ShadowRay(const Scene& scene, const glm::vec3& from, const glm::vec3& to, const int& collisionMask, float& blockerDist) {
+inline bool ShadowRay(const Scene& scene, const glm::vec3& from, const glm::vec3& to, const int& collisionMask, int& recursionDepth, float& blockerDist) {
 	using namespace glm;
+
+	// If we're passing multiple transparent things just return no shadow, mostly inf loop safeguard with textured objs
+	if (recursionDepth > 5) return 1.0f;
+
 	vec3 dir = (to - from);
 	float dist = length(dir);
 	dir /= dist; // Normalize
 	Ray ray{ .ro = from, .rd = dir, .inv_rd = 1.0f / dir, .mask = collisionMask };
 	RayResult res = Game::raytracer.RaycastScene(scene, ray);
-	blockerDist = res.depth;
-	return res.Hit() && res.depth < dist - 0.001f;
+
+	if (res.Hit() && res.depth < dist - 0.001f) {
+		
+		blockerDist += res.depth;
+
+		// If we hit a textured object gotta check for transparency and go on recursively.. not very elegant
+		// While this is very proper way of dealing with it, ideally there's an early exit here instead of sampling textures
+		// Options: per object "casts shadows" flag, per-triangle extra data in bvh or an extra 1 bit buffer in the renderedmesh
+		if (res.obj->HasMesh() && res.obj->HasTexture())
+			if (static_cast<RenderedMesh*>(res.obj)->IsTransparentAt(res.data, res.localPos))
+				return ShadowRay(scene, ray.ro + ray.rd * res.depth, to, res.data, ++recursionDepth, blockerDist);
+
+		return true;
+	}
+	return false;
 }
 
-float CalculateShadow(const Scene& scene, const Light& light, const int& lightIndex, const RayResult& rayResult, const v2f& input, const int& recursionDepth) {
-	float blockerDist;
+float CalculateShadow(const Scene& scene, const Light& light, const RayResult& rayResult, const v2f& input, const int& recursionDepth) {
 	
+	float blockerDist = 0.0f;
+	int shadowRecursionCount = 0;
+
+	// Lowpoly meshes require still bias to avoid self-shadowing artifacts
+	// Could try using some smart filtering instead for example angle diff + dist requirement if self-intersect detected
+	const glm::vec3 bias = input.worldNormal * 0.008f;
+
 	// If the primary shadow ray hits a blocker -> this is in shadow -> calculate smooth shadows using light mask
-	if (ShadowRay(scene, input.worldPosition, light.position, rayResult.data, blockerDist))
-		return SmoothDilatedShadows(scene, light, lightIndex, rayResult, input, recursionDepth, blockerDist);
+	if (ShadowRay(scene, input.worldPosition + bias, light.position, rayResult.data, shadowRecursionCount, blockerDist))
+		return SmoothDilatedShadows(scene, light, rayResult, input, recursionDepth, blockerDist);
 	else 
 		return 1.0f;
 }
@@ -75,8 +99,8 @@ glm::vec4 Shaders::Textured(const Scene& scene, const RayResult& rayResult, cons
 			continue; // Skip lights out of range
 
 		float atten, nl;
-		light.CalcGenericLighting(input.worldPosition, rayResult.obj->transform.rotation * input.localNormal, atten, nl);
-		float shadow = CalculateShadow(scene, light, i, rayResult, input, recursionDepth);
+		light.CalcGenericLighting(input.worldPosition, input.worldNormal, atten, nl);
+		float shadow = CalculateShadow(scene, light, rayResult, input, recursionDepth);
 		lighting += light.color * nl * atten * shadow * light.intensity;
 	}
 
@@ -106,8 +130,8 @@ glm::vec4 Shaders::Grid(const Scene& scene, const RayResult& rayResult, const v2
 			continue; // Skip lights out of range
 
 		float atten, nl;
-		light.CalcGenericLighting(input.worldPosition, rayResult.obj->transform.rotation * input.localNormal, atten, nl);
-		float shadow = CalculateShadow(scene, light, i, rayResult, input, recursionDepth);
+		light.CalcGenericLighting(input.worldPosition, input.worldNormal, atten, nl);
+		float shadow = CalculateShadow(scene, light, rayResult, input, recursionDepth);
 		lighting += light.color * nl * atten * shadow * light.intensity;
 	}
 
@@ -132,8 +156,8 @@ glm::vec4 Shaders::Normals(const Scene& scene, const RayResult& rayResult, const
 			continue; // Skip lights out of range
 
 		float atten, nl;
-		light.CalcGenericLighting(input.worldPosition, rayResult.obj->transform.rotation * input.localNormal, atten, nl);
-		float shadow = CalculateShadow(scene, light, i, rayResult, input, recursionDepth);
+		light.CalcGenericLighting(input.worldPosition, input.worldNormal, atten, nl);
+		float shadow = CalculateShadow(scene, light, rayResult, input, recursionDepth);
 		lighting += light.color * nl * atten * shadow * light.intensity;
 	}
 
@@ -158,8 +182,8 @@ glm::vec4 Shaders::PlainWhite(const Scene& scene, const RayResult& rayResult, co
 			continue; // Skip lights out of range
 
 		float atten, nl;
-		light.CalcGenericLighting(input.worldPosition, rayResult.obj->transform.rotation * input.localNormal, atten, nl);
-		float shadow = CalculateShadow(scene, light, i, rayResult, input, recursionDepth);
+		light.CalcGenericLighting(input.worldPosition, input.worldNormal, atten, nl);
+		float shadow = CalculateShadow(scene, light, rayResult, input, recursionDepth);
 		lighting += light.color * nl * atten * shadow * light.intensity;
 	}
 

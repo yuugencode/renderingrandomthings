@@ -26,6 +26,7 @@ public:
     std::vector<uint32_t> materials; // tri index -> material index
     std::vector<std::vector<uint32_t>> connectivity; // vertex index -> triangle list
     std::vector<std::vector<uint32_t>> triConnectivity; // triangle index -> neighbor triangles
+    std::vector<std::string> textureNames;
 
     bool hasColors = false, hasNormals = false, hasUVs = false;
 
