@@ -31,10 +31,11 @@ public:
 	Bvh bvh;
 
 	// "Material" properties
-
 	std::vector<uint32_t> textureHandles; // Indices to texture assets array
 	int meshHandle = -1; // Mesh, if any
 	float reflectivity = 0.0f; // How much should light bounce off this
+	glm::vec4 color = glm::vec4(1.0f);
+
 	glm::mat4x3 invModelMatrix;
 
 	bool HasTexture() const { return textureHandles.size() != 0; }
@@ -45,7 +46,7 @@ public:
 	const Mesh* GetMesh() const { return Assets::Meshes[meshHandle].get(); }
 
 	// Fills v2f-style struct with relevant data for this shape
-	virtual v2f VertexShader(const glm::vec3& worldPos, const RayResult& rayResult) const = 0;
+	virtual v2f VertexShader(const Ray& ray, const RayResult& rayResult) const = 0;
 
 	virtual bool IntersectLocal(const Ray& ray, glm::vec3& normal, int& data, float& depth) const = 0;
 

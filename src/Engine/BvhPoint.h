@@ -9,6 +9,7 @@
 #include "Engine/Common.h"
 
 // Acceleration structure for 3D points
+template <typename T>
 class BvhPoint {
 public:
 
@@ -36,11 +37,11 @@ public:
 	// Single datapoint in bvh
 	struct BvhPointData {
 		glm::vec3 point;
-		int mask;
+		T payload;
 	};
 
 	// Generates a new BVH from given points
-	void Generate(const std::vector<glm::vec4>& srcPoints);
+	void Generate(const void* data, const int& count);
 
 	bool Exists() const { return stack.size() != 0; }
 
@@ -49,6 +50,8 @@ public:
 
 	// Returns the closest point in this bvh
 	void GetClosest(const glm::vec3& pos, float& dist, BvhPointData& d0) const;
+
+	void Get2Closest(const glm::vec3& queryPos, glm::vec2& dists, BvhPointData& d0, BvhPointData& d1) const;
 
 	// Returns the 3 closest points in this bvh
 	void Get3Closest(const glm::vec3& queryPos, glm::vec3& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2) const;
@@ -59,6 +62,9 @@ public:
 	// Array of bvh nodes, 0 is root
 	std::vector<BvhNode> stack;
 
+	/// Sorted points with indices to original positions
+	std::vector<BvhPointData> points;
+
 private:
 
 	// Concurrent stack used during generation
@@ -66,9 +72,6 @@ private:
 
 	// Queue used during generation
 	concurrency::concurrent_queue<int> queue;
-
-	/// Sorted points with indices to original positions
-	std::vector<BvhPointData> points;
 
 	/// Number of points after which we stop splitting nodes
 	static const int maxNodeEntries = 32;
@@ -82,9 +85,9 @@ private:
 
 	AABB CalculateAABB(const int& left, const int& right) const;
 
-	void CalculateNodeAABB(BvhNode& node);
-
 	void IntersectNode(const int& nodeIndex, const glm::vec3& pos, float& minDist, BvhPointData& d0) const;
+
+	void Gather2Closest(const int& nodeIndex, const glm::vec3& pos, glm::vec2& dists, BvhPointData& d0, BvhPointData& d1) const;
 
 	void Gather3Closest(const int& nodeIndex, const glm::vec3& pos, glm::vec3& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2) const;
 

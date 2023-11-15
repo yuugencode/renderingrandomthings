@@ -127,7 +127,7 @@ void ImguiDrawer::DrawUI() {
 	ImGui::Text("Shadows accelerator:"); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 1, 1, 1));
 	ImGui::SameLine(); ImGui::Text("%.2fms", Game::raytracer.shadowTimerGen.GetAveragedTime() * 1000.0); ImGui::PopStyleColor();
 	int ptCnt = 0;
-	for (const auto& light : Game::scene.lights) ptCnt += (int)light._shadowBuffer.size();
+	for (const auto& light : Game::scene.lights) ptCnt += (int)light.shadowBvh.points.size();
 	ImGui::SameLine(); ImGui::Text("(%d pts)", ptCnt);
 
 	// Vtx count

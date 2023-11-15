@@ -22,6 +22,9 @@ namespace Utils {
     // Returns barycentric uvw coordinates for the point b, interpolated between abc, confined in the triangle if it was outside
     glm::vec3 ConfinedBarycentric(const glm::vec3& p, const glm::vec3& a, const glm::vec3& b, const glm::vec3& c);
 
+    // Returns 0...1 value representing how close p is to b compared to a, faux InvLerp in 3D
+    float InvSegmentLerp(const glm::vec3& p, const glm::vec3& a, const glm::vec3& b);
+
     // Returns point p interpolated between a b c d
     glm::vec4 InvQuadrilateral(const glm::vec3& p, const glm::vec3& a, const glm::vec3& b, const glm::vec3& c, const glm::vec3& d);
 
@@ -79,11 +82,21 @@ namespace Utils {
     // Constructs a model matrix from given params
     glm::mat4x4 ModelMatrix(const glm::vec3& pos, const glm::vec3& lookAtTarget, const glm::vec3& scale);
     
+    // Returns if given enum has
+    template <typename T> requires std::is_enum_v<T>
+    bool HasFlag(const T& val, const T& flag);
+
     // Pretty print for a matrix
     void PrintMatrix(const glm::mat4x4& matrix);
 };
 
+// Global functions
+
 // Quick hack for swizzling without importing entire glm swizzle catalog 
 inline glm::vec3& swizzle_xyz(glm::vec4& vec) {
     return reinterpret_cast<glm::vec3&>(vec);
+}
+// Quick hack for swizzling without importing entire glm swizzle catalog 
+inline const glm::vec3 xyz(const glm::vec4& vec) {
+    return vec;
 }

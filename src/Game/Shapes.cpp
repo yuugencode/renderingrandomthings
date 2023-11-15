@@ -2,6 +2,17 @@
 
 #include "Rendering/RayResult.h"
 
+// All parametric shapes use a similar generic vertex shader
+v2f GenericVertexShader(const Entity* obj, const Ray& ray, const RayResult& rayResult) {
+	return v2f{ 
+		.worldPosition = ray.ro + ray.rd * rayResult.depth, 
+		.localNormal = rayResult.faceNormal, 
+		.worldNormal = obj->transform.rotation * rayResult.faceNormal,
+		.rayDirection = ray.rd,
+		.uv = glm::vec2(0) 
+	};
+}
+
 // All the local intersection tests are against an object of size 1 in the middle due to inv transformed ray
 // This means the AABB for the shapes is often trivial size 1 box
 
@@ -37,8 +48,8 @@ glm::vec3 Sphere::LocalNormal(const glm::vec3& pos) const {
 	return glm::normalize(pos - transform.position);
 }
 
-v2f Sphere::VertexShader(const glm::vec3& worldPos, const RayResult& rayResult) const {
-	return v2f{ .worldPosition = worldPos, .localNormal = rayResult.faceNormal, .worldNormal = transform.rotation * rayResult.faceNormal, .uv = glm::vec2(0) };
+v2f Sphere::VertexShader(const Ray& ray, const RayResult& rayResult) const {
+	return GenericVertexShader(this, ray, rayResult);
 }
 
 // Disk
@@ -66,8 +77,8 @@ bool Disk::IntersectLocal(const Ray& ray, glm::vec3& normal, int& data, float& d
 	return false;
 }
 
-v2f Disk::VertexShader(const glm::vec3& worldPos, const RayResult& rayResult) const {
-	return v2f{ .worldPosition = worldPos, .localNormal = rayResult.faceNormal, .worldNormal = transform.rotation * rayResult.faceNormal, .uv = glm::vec2(0) };
+v2f Disk::VertexShader(const Ray& ray, const RayResult& rayResult) const {
+	return GenericVertexShader(this, ray, rayResult);
 }
 
 // Box
@@ -104,6 +115,6 @@ glm::vec3 Box::LocalNormal(const glm::vec3& pos) const {
 		return nrm.z < 0.0f ? vec3(0.0f, 0.0f, -1.0f) : vec3(0.0f, 0.0f, 1.0f);
 }
 
-v2f Box::VertexShader(const glm::vec3& worldPos, const RayResult& rayResult) const {
-	return v2f{ .worldPosition = worldPos, .localNormal = rayResult.faceNormal, .worldNormal = transform.rotation * rayResult.faceNormal, .uv = glm::vec2(0) };
+v2f Box::VertexShader(const Ray& ray, const RayResult& rayResult) const {
+	return GenericVertexShader(this, ray, rayResult);
 }

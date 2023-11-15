@@ -74,7 +74,7 @@ int main(int argc, char* argv[]) {
 	// Add stuff to the scene
 
 	// Camera
-	const auto camStartPos = glm::vec3(10.0f, 10.0f, 10.0f) * 0.5f;
+	const auto camStartPos = glm::vec3(25.0f, 8.0f, -15.0f) * 0.5f;
 	Game::scene.camera = {
 		.transform = { 
 			.position = camStartPos,
@@ -88,57 +88,47 @@ int main(int argc, char* argv[]) {
 	auto& camTf = Game::scene.camera.transform; // Shorter alias
 
 	// Lights
-	Game::scene.lights.push_back(Light{ .position = glm::vec3(4.0f, 7.5f,  7.0f), .color = glm::vec3(1.0f, 0.9f, 0.7f), .range = 15.0f, .intensity = 1.5f });
-	Game::scene.lights.push_back(Light{ .position = glm::vec3(4.0f, 5.5f, -7.0f), .color = glm::vec3(0.8f, 1.0f, 1.0f), .range = 15.0f, .intensity = 1.5f });
-	Game::scene.lights.push_back(Light{ .position = glm::vec3(-4.0f, 5.5f, -7.0f), .color = glm::vec3(0.8f, 1.0f, 0.7f), .range = 15.0f, .intensity = 1.5f });
+	Game::scene.lights.push_back(Light{ .position = glm::vec3(4.0f, 5.5f,  5.0f), .color = glm::vec3(1.0f, 0.9f, 0.7f), .range = 20.0f, .intensity = 1.5f });
+	//Game::scene.lights.push_back(Light{ .position = glm::vec3(4.0f, 5.5f, -7.0f), .color = glm::vec3(0.8f, 1.0f, 1.0f), .range = 15.0f, .intensity = 1.5f });
+	//Game::scene.lights.push_back(Light{ .position = glm::vec3(-4.0f, 5.5f, -7.0f), .color = glm::vec3(0.8f, 1.0f, 0.7f), .range = 15.0f, .intensity = 1.5f });
 
 	// Random parametric shapes
 	Game::scene.entities.push_back(std::make_unique<Disk>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 20.0f));
 	
-	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(1.0f, 0.5f, 0.0f), 0.5f));
+	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(10.0f, 0.5f, 0.0f), 0.1f));
 	Game::scene.entities.back()->reflectivity = 0.3f;
-	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(0.0f, 1.5f, -5.0f), 1.5f));
-	Game::scene.entities.back()->reflectivity = 0.5f;
-	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(1.0f, 0.5f, 5.0f), 0.5f));
-	Game::scene.entities.back()->reflectivity = 0.7f;
+	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(0.0f, 0.0f, -5.0f), 2.0f));
+	Game::scene.entities.back()->reflectivity = 0.3f;
+	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(1.0f, 0.5f, 7.0f), 1.0f));
+	Game::scene.entities.back()->reflectivity = 1.0f;
 	
 	Game::scene.entities.push_back(std::make_unique<Box>(glm::vec3(-2.0f, 0.5f, 0.0f), glm::vec3(1.0f, 4.0f, 0.05f)));
 	Game::scene.entities.back()->reflectivity = 0.5f;
 	auto box = Game::scene.entities.back().get();
 
-	// Mesh 1
-	RenderedMesh* chara;
-	{
-		auto meshHandle = Assets::NewMesh(std::filesystem::path("models/char.fbx"));
-		auto rendMesh = std::make_unique<RenderedMesh>(meshHandle);
-		chara = rendMesh.get();
+	//Game::scene.entities.push_back(std::make_unique<Box>(glm::vec3(6.0f, 0.5f, 0.0f), glm::vec3(0.05f, 4.0f, 3.0f)));
+	Game::scene.entities.push_back(std::make_unique<Box>(glm::vec3(6.0f, 0.5f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f)));
+	Game::scene.entities.back().get()->color = glm::vec4(1.0f, 0.2f, 0.2f, 1.0f);
 
-		// Mesh 1 textures
-		for (std::string file : rendMesh->GetMesh()->textureNames) {
-			auto path = std::filesystem::path("models") / file.append(".png");
-			rendMesh->textureHandles.push_back(Assets::NewTexture(path, true));
-		}
+	// Mesh
+	//RenderedMesh* chara;
+	//{
+	//	auto meshHandle = Assets::NewMesh(std::filesystem::path("models/char.fbx"));
+	//	auto rendMesh = std::make_unique<RenderedMesh>(meshHandle);
+	//	chara = rendMesh.get();
+	//
+	//	// Mesh 1 textures
+	//	for (std::string file : rendMesh->GetMesh()->textureNames) {
+	//		auto path = std::filesystem::path("models") / file.append(".png");
+	//		rendMesh->textureHandles.push_back(Assets::NewTexture(path, true));
+	//	}
+	//
+	//	Game::scene.entities.push_back(std::move(rendMesh));
+	//
+	//	chara->transform.rotation = glm::angleAxis(glm::radians(-90.0f), glm::vec3(1, 0, 0));
+	//}
 
-		Game::scene.entities.push_back(std::move(rendMesh));
-
-		chara->transform.rotation = glm::angleAxis(glm::radians(-90.0f), glm::vec3(1, 0, 0));
-	}
-
-	// Mesh 2
-	RenderedMesh* dragon;
-	{
-		auto meshHandle = Assets::NewMesh(std::filesystem::path("models/dragon_vrip.obj"));
-		auto rendMesh = std::make_unique<RenderedMesh>(meshHandle);
-		dragon = rendMesh.get();
-
-		Game::scene.entities.push_back(std::move(rendMesh));
-
-		dragon->transform.scale = glm::vec3(10.0f);
-		dragon->transform.position += glm::vec3(4.0f, -0.5f, 0.0f);
-		dragon->shaderType = RenderedMesh::Shader::PlainWhite;
-	}
-
-	// Mesh 3
+	// Mesh
 	RenderedMesh* bunny;
 	{
 		auto meshHandle = Assets::NewMesh(std::filesystem::path("models/bunny.obj"));
@@ -168,17 +158,21 @@ int main(int argc, char* argv[]) {
 		arma->shaderType = RenderedMesh::Shader::PlainWhite;
 	}
 
-	bool showBgfxStats = false;
+	bool showBgfxStats = false, paused = false;
+
 
 	// Main loop
 	while (true) {
 		
 		Time::Tick();
-		
 		Input::UpdateKeys();
-		
+
+		// Loop in place if paused, useful for saving CPU while staring at the screen in thought
+		if (Input::OnKeyDown(SDL_KeyCode::SDLK_SPACE)) paused = !paused;
+		if (paused) { SDL_Delay(10); continue; }
+
 		// Clear view
-		bgfx::touch(MAIN_VIEW);
+		if (!paused) bgfx::touch(MAIN_VIEW);
 
 		// Imgui
 		ImguiDrawer::NewFrame();
@@ -188,7 +182,7 @@ int main(int argc, char* argv[]) {
 		if (Input::OnKeyDown(SDL_KeyCode::SDLK_ESCAPE) || Input::OnKeyDown(SDL_KeyCode::SDLK_RETURN)) break;
 		if (Input::OnKeyDown(SDL_KeyCode::SDLK_F1)) showBgfxStats = !showBgfxStats;
 		if (Input::OnKeyDown(SDL_KeyCode::SDLK_t)) Time::timeSpeed = Time::timeSpeed > 0.5 ? 0.1 : 1.0;
-		if (Input::OnKeyDown(SDL_KeyCode::SDLK_y)) Time::timeSpeed = Time::timeSpeed > 0.05 ? 0.001 : 1.0;
+		if (Input::OnKeyDown(SDL_KeyCode::SDLK_y)) Time::timeSpeed = Time::timeSpeed > 0.05 ? 0.00001 : 1.0;
 
 		// Camera movement
 		auto offset = glm::vec3(0, 0, 0);
@@ -199,7 +193,7 @@ int main(int argc, char* argv[]) {
 		if (Input::KeyHeld(SDL_KeyCode::SDLK_e)) offset += glm::vec3(0, 1,0);
 		if (Input::KeyHeld(SDL_KeyCode::SDLK_q)) offset += glm::vec3(0,-1,0);
 		if (Input::KeyHeld(SDL_KeyCode::SDLK_LSHIFT)) offset *= 0.2f;
-		camTf.position += camTf.rotation * offset * Time::deltaTimeF * 4.0f;
+		camTf.position += camTf.rotation * offset * Time::unscaledDeltaTimeF * 4.0f;
 
 		// Press R to drop light at current pos
 		if (Input::OnKeyDown(SDL_KeyCode::SDLK_r))
@@ -221,9 +215,9 @@ int main(int argc, char* argv[]) {
 		bgfx::setDebug(showBgfxStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
 
 		// Temp debug movement for things
-		chara->transform.position += glm::vec3(0, 1, 0) * glm::sin(Time::timeF * 2.0f) * 0.01f;
-		chara->transform.rotation = glm::angleAxis(Time::deltaTimeF * 2.0f, glm::vec3(0, 1, 0)) * chara->transform.rotation;
-		chara->transform.rotation = glm::normalize(chara->transform.rotation);
+		//chara->transform.position += glm::vec3(0, 1, 0) * glm::sin(Time::timeF * 2.0f) * 0.01f;
+		//chara->transform.rotation = glm::angleAxis(Time::deltaTimeF * 2.0f, glm::vec3(0, 1, 0)) * chara->transform.rotation;
+		//chara->transform.rotation = glm::normalize(chara->transform.rotation);
 
 		bunny->transform.rotation = glm::angleAxis(Time::deltaTimeF * 2.0f, glm::vec3(0, 1, 0)) * bunny->transform.rotation;
 		bunny->transform.rotation = glm::normalize(bunny->transform.rotation);
@@ -232,14 +226,14 @@ int main(int argc, char* argv[]) {
 		arma->transform.rotation = glm::angleAxis(-Time::deltaTimeF * 4.0f, glm::vec3(0, 0, 1)) * arma->transform.rotation;
 		arma->transform.rotation = glm::normalize(arma->transform.rotation);
 
-		box->transform.rotation = glm::angleAxis(-Time::deltaTimeF * 0.1f, glm::vec3(0, 1, 0)) * box->transform.rotation;
-		box->transform.rotation = glm::normalize(box->transform.rotation);
+		//box->transform.rotation = glm::angleAxis(-Time::deltaTimeF * 0.1f, glm::vec3(0, 1, 0)) * box->transform.rotation;
+		//box->transform.rotation = glm::normalize(box->transform.rotation);
 
-		for (int i = 0; i < Game::scene.lights.size(); i++) {
-			Light& light = Game::scene.lights[i];
-			light.position = glm::normalize(glm::angleAxis(Time::deltaTimeF * 0.6f * Utils::Hash11((float)(i + 33)), glm::vec3(0, 1, 0))) * light.position;
-			//light.position = camTf.position;
-		}
+		//for (int i = 0; i < Game::scene.lights.size(); i++) {
+		//	Light& light = Game::scene.lights[i];
+		//	light.position = glm::normalize(glm::angleAxis(Time::deltaTimeF * 0.6f * Utils::Hash11((float)(i + 33)), glm::vec3(0, 1, 0))) * light.position;
+		//	//light.position = camTf.position;
+		//}
 
 		// Update matrices
 		for (const auto& obj : Game::scene.entities) {

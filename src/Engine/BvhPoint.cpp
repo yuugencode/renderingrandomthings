@@ -6,28 +6,26 @@
 #include "Engine/Timer.h"
 #include "Engine/Log.h"
 
-// With top-down generation it seems faster to generate one large bvh with multiple threads,
-// but generating multiple small ones with single thread. This is mostly used for multiple lights so keep it single threaded.
-#define MULTI_THREADED_GEN 0
+#define MULTI_THREADED_GEN 1
 
-void BvhPoint::Generate(const std::vector<glm::vec4>& srcPoints) {
+template <typename T>
+void BvhPoint<T>::Generate(const void* data, const int& count) {
 
 	stack.clear();
 	cc_stack.clear();
 	points.clear();
 
-	if (srcPoints.size() == 0) return;
+	if (count == 0) return;
 
 	// Remove indirection at the cost of an additional buffer
-	static_assert(sizeof(BvhPointData) == sizeof(glm::vec4));
-	points.resize(srcPoints.size());
-	memcpy(points.data(), srcPoints.data(), srcPoints.size() * sizeof(glm::vec4));
+	points.resize(count);
+	memcpy(points.data(), data, count * sizeof(BvhPointData));
 
 	// Generate root
 	BvhNode root;
 	root.SetLeftIndex(0);
 	root.SetRightIndex((int)points.size());
-	CalculateNodeAABB(root);
+	root.aabb = CalculateAABB(root.GetLeftIndex(), root.GetRightIndex());
 
 #if MULTI_THREADED_GEN
 	cc_stack.push_back(root);
@@ -76,13 +74,15 @@ void BvhPoint::Generate(const std::vector<glm::vec4>& srcPoints) {
 #endif
 }
 
-void BvhPoint::Clear() {
+template <typename T>
+void BvhPoint<T>::Clear() {
 	cc_stack.clear();
 	points.clear();
 	stack.clear();
 }
 
-void BvhPoint::SplitNodeSingle(const int& nodeIdx, int& nextLeft, int& nextRight) {
+template <typename T>
+void BvhPoint<T>::SplitNodeSingle(const int& nodeIdx, int& nextLeft, int& nextRight) {
 
 #if MULTI_THREADED_GEN
 	auto& node = cc_stack[nodeIdx];
@@ -179,8 +179,8 @@ void BvhPoint::SplitNodeSingle(const int& nodeIdx, int& nextLeft, int& nextRight
 	node.SetLeftChild(leftStackIndex);
 	node.SetRightChild(rightStackIndex);
 
-	CalculateNodeAABB(left);
-	CalculateNodeAABB(right);
+	left.aabb = CalculateAABB(left.GetLeftIndex(), left.GetRightIndex());
+	right.aabb = CalculateAABB(right.GetLeftIndex(), right.GetRightIndex());
 
 #if MULTI_THREADED_GEN
 	cc_stack[leftStackIndex] = left;
@@ -194,14 +194,21 @@ void BvhPoint::SplitNodeSingle(const int& nodeIdx, int& nextLeft, int& nextRight
 	if (right.ElementCount() > maxNodeEntries) nextRight = rightStackIndex;
 }
 
-void BvhPoint::SplitNodeRecurse(const int& nodeIdx) {
+template <typename T>
+void BvhPoint<T>::SplitNodeRecurse(const int& nodeIdx) {
 	int nextLeft = -1, nextRight = -1;
 	SplitNodeSingle(nodeIdx, nextLeft, nextRight);
 	if (nextLeft != -1) SplitNodeRecurse(nextLeft);
 	if (nextRight != -1) SplitNodeRecurse(nextRight);
 }
 
-int BvhPoint::Partition(const int& low, const int& high, const glm::vec3& splitPos, const int& axis) {
+//template <typename T>
+//const glm::vec3& BvhPoint<T>::ReadPos(const int& i) const {
+//	return *reinterpret_cast<glm::vec3*>(&points.data()[i]);
+//}
+
+template <typename T>
+int BvhPoint<T>::Partition(const int& low, const int& high, const glm::vec3& splitPos, const int& axis) {
 	int pt = low;
 	for (int i = low; i < high; i++)
 		if (points[i].point[axis] < splitPos[axis])
@@ -209,28 +216,25 @@ int BvhPoint::Partition(const int& low, const int& high, const glm::vec3& splitP
 	return pt;
 }
 
-AABB BvhPoint::CalculateAABB(const int& left, const int& right) const {
+template <typename T>
+AABB BvhPoint<T>::CalculateAABB(const int& left, const int& right) const {
 	AABB ret = AABB(points[left].point);
 	for (int i = left + 1; i < right; i++)
 		ret.Encapsulate(points[i].point);
 	return ret;
 }
 
-void BvhPoint::CalculateNodeAABB(BvhNode& node) {
-	node.aabb = AABB(points[node.GetLeftIndex()].point);
-	for (int i = node.GetLeftIndex() + 1; i < node.GetRightIndex(); i++)
-		node.aabb.Encapsulate(points[i].point);
-}
-
 // There's some repetition for 1, 3, 4 cases due to testing with quadrilaterals and triangles
 // @TODO: Template to N case static array? might have perf traps
 
-void BvhPoint::GetClosest(const glm::vec3& pos, float& dist, BvhPointData& d0) const {
+template <typename T>
+void BvhPoint<T>::GetClosest(const glm::vec3& pos, float& dist, BvhPointData& d0) const {
 	IntersectNode(0, pos, dist, d0);
 }
 
 // Recursed func
-void BvhPoint::IntersectNode(const int& nodeIndex, const glm::vec3& pos, float& minDist, BvhPointData& d0) const {
+template <typename T>
+void BvhPoint<T>::IntersectNode(const int& nodeIndex, const glm::vec3& pos, float& minDist, BvhPointData& d0) const {
 
 	const auto& node = stack[nodeIndex];
 
@@ -272,12 +276,73 @@ void BvhPoint::IntersectNode(const int& nodeIndex, const glm::vec3& pos, float& 
 }
 
 // Returns 2 closest points and returns their dist and payload
-void BvhPoint::Get3Closest(const glm::vec3& queryPos, glm::vec3& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2) const {
+template <typename T>
+void BvhPoint<T>::Get2Closest(const glm::vec3& queryPos, glm::vec2& dists, BvhPointData& d0, BvhPointData& d1) const {
+	Gather2Closest(0, queryPos, dists, d0, d1);
+}
+
+// Recursed func
+template <typename T>
+void BvhPoint<T>::Gather2Closest(const int& nodeIndex, const glm::vec3& pos, glm::vec2& dists, BvhPointData& d0, BvhPointData& d1) const {
+
+	const auto& node = stack[nodeIndex];
+
+	// Leaf -> Check tris
+	if (node.IsLeaf()) {
+		for (int i = node.GetLeftIndex(); i < node.GetRightIndex(); i++) {
+
+			const auto& pt = points[i];
+			const glm::vec3 os = (pt.point - pos);
+			const float dist = glm::dot(os, os);
+
+			// Dist 2 = furthest
+			if (dist < dists[1]) {
+				if (dist < dists[0]) { // newdist = 0
+					dists[1] = dists[0]; d1 = d0;
+					dists[0] = dist;	 d0 = pt;
+				}
+				else { // newdist = 1
+					dists[1] = dist;	 d1 = pt;
+				}
+			}
+		}
+		return;
+	}
+
+	// Node -> Check left/right node
+	else {
+
+		// Check if either hit
+		auto nodeA = node.GetLeftChild();
+		auto distA = stack[nodeA].aabb.SqrDist(pos);
+		auto nodeB = node.GetRightChild();
+		auto distB = stack[nodeB].aabb.SqrDist(pos);
+
+		// Check closer first or else recursion becomes insanely slow
+		if (distB < distA) {
+			std::swap(distA, distB);
+			std::swap(nodeA, nodeB);
+		}
+
+		if (distA < dists[1])
+			Gather2Closest(nodeA, pos, dists, d0, d1);
+
+		if (distB < dists[1])
+			Gather2Closest(nodeB, pos, dists, d0, d1);
+	}
+}
+
+
+
+// Returns 3 closest points and returns their dist and payload
+template <typename T>
+void BvhPoint<T>::Get3Closest(const glm::vec3& queryPos, glm::vec3& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2) const {
 	Gather3Closest(0, queryPos, dists, d0, d1, d2);
 }
 
 // Recursed func
-void BvhPoint::Gather3Closest(const int& nodeIndex, const glm::vec3& pos, glm::vec3& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2) const {
+template <typename T>
+void BvhPoint<T>::Gather3Closest(const int& nodeIndex, const glm::vec3& pos, glm::vec3& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2) const {
 
 	const auto& node = stack[nodeIndex];
 
@@ -335,7 +400,8 @@ void BvhPoint::Gather3Closest(const int& nodeIndex, const glm::vec3& pos, glm::v
 
 
 // Returns the 4 closest points to queryPos
-void BvhPoint::Get4Closest(const glm::vec3& queryPos, glm::vec4& dists, 
+template <typename T>
+void BvhPoint<T>::Get4Closest(const glm::vec3& queryPos, glm::vec4& dists,
 	BvhPointData& d0, BvhPointData& d1, BvhPointData& d2, BvhPointData& d3) const {
 
 	// Recursion seems faster than stack based search
@@ -343,7 +409,8 @@ void BvhPoint::Get4Closest(const glm::vec3& queryPos, glm::vec4& dists,
 }
 
 // Recursed func
-void BvhPoint::Gather4Closest(const int& nodeIndex, const glm::vec3& pos, glm::vec4& dists, 
+template <typename T>
+void BvhPoint<T>::Gather4Closest(const int& nodeIndex, const glm::vec3& pos, glm::vec4& dists,
 	BvhPointData& d0, BvhPointData& d1, BvhPointData& d2, BvhPointData& d3) const {
 
 	const auto& node = stack[nodeIndex];
@@ -404,3 +471,8 @@ void BvhPoint::Gather4Closest(const int& nodeIndex, const glm::vec3& pos, glm::v
 		if (distB < dists[3]) Gather4Closest(nodeB, pos, dists, d0, d1, d2, d3);
 	}
 }
+
+// Have to explicit instantiate all used types
+template class BvhPoint<float>;
+template class BvhPoint<glm::vec3>;
+template class BvhPoint<Empty>;

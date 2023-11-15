@@ -27,7 +27,7 @@ void Bvh::Generate(const std::vector<glm::vec3>& srcVertices, const std::vector<
 	BvhNode root;
 	root.SetLeftIndex(0);
 	root.SetRightIndex((int)triangles.size());
-	CalculateNodeAABB(root);
+	root.aabb = CalculateAABB(root.GetLeftIndex(), root.GetRightIndex());
 
 	stack.push_back(root);
 
@@ -122,8 +122,8 @@ void Bvh::SplitNode(const int& nodeIdx) {
 	node.SetLeftChild(leftStackIndex);
 	node.SetRightChild(rightStackIndex);
 
-	CalculateNodeAABB(left);
-	CalculateNodeAABB(right);
+	left.aabb = CalculateAABB(left.GetLeftIndex(), right.GetRightIndex());
+	right.aabb = CalculateAABB(right.GetLeftIndex(), right.GetRightIndex());
 
 	stack.push_back(left);
 	stack.push_back(right);
@@ -148,15 +148,6 @@ AABB Bvh::CalculateAABB(const int& left, const int& right) const {
 		ret.Encapsulate(triangles[i].v2);
 	}
 	return ret;
-}
-
-void Bvh::CalculateNodeAABB(BvhNode& node) {
-	node.aabb = AABB(triangles[node.GetLeftIndex()].v0);
-	for (int i = node.GetLeftIndex(); i < node.GetRightIndex(); i++) {
-		node.aabb.Encapsulate(triangles[i].v0);
-		node.aabb.Encapsulate(triangles[i].v1);
-		node.aabb.Encapsulate(triangles[i].v2);
-	}
 }
 
 // Adapted from Inigo Quilez https://iquilezles.org/articles/

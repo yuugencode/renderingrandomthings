@@ -51,20 +51,9 @@ Color Color::Lerp(const Color& other, const float& t) const {
 }
 
 glm::vec4 Color::ToVec4() const {
-    return glm::vec4(r, g, b, a) / 255.0f;
+    constexpr float div = 1.0f / 255.0f;
+    return glm::vec4(r, g, b, a) * div;
 }
-
-Color Color::operator+(const Color& c) {
-    Color ret;
-    ret.r = r + c.r; ret.g = r + c.g; ret.b = r + c.b; ret.a = r + c.a;
-    return ret;
-}
-
-Color& Color::operator+=(const Color& rhs) {
-    r += rhs.r; g += rhs.g; b += rhs.b; a += rhs.a;
-    return *this;
-}
-
 
 // AABB
 

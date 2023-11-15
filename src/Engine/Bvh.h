@@ -66,8 +66,6 @@ private:
 
 	AABB CalculateAABB(const int& left, const int& right) const;
 
-	void CalculateNodeAABB(BvhNode& node);
-
 	float ray_tri_intersect(const glm::vec3& ro, const glm::vec3& rd, const BvhTriangle& tri) const;
 
 	void IntersectNode(const int& nodeIndex, const Ray& ray, glm::vec3& normal, int& minTriIdx, float& minDist) const;

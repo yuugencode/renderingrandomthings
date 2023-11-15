@@ -26,7 +26,7 @@ bool RenderedMesh::IntersectLocal(const Ray& ray, glm::vec3& normal, int& triIdx
 	return bvh.Intersect(ray, normal, triIdx, depth);
 }
 
-v2f RenderedMesh::VertexShader(const glm::vec3& worldPos, const RayResult& rayResult) const {
+v2f RenderedMesh::VertexShader(const Ray& ray, const RayResult& rayResult) const {
 	using namespace glm; // Pretend we're a shader
 
 	v2f ret;
@@ -52,7 +52,8 @@ v2f RenderedMesh::VertexShader(const glm::vec3& worldPos, const RayResult& rayRe
 	// Barycentric interpolation
 	const auto b = Utils::Barycentric(rayResult.localPos, p0, p1, p2);
 
-	ret.worldPosition = worldPos;
+	ret.worldPosition = ray.ro + ray.rd * rayResult.depth;
+	ret.rayDirection = ray.rd;
 
 	// Texture sample
 	if (HasTexture())
@@ -71,14 +72,13 @@ v2f RenderedMesh::VertexShader(const glm::vec3& worldPos, const RayResult& rayRe
 	return ret;
 }
 
-bool RenderedMesh::IsTransparentAt(const int& triIdx, const glm::vec3& pos) const {
-	
-	if (!HasMesh() || !HasTexture()) return false;
-	
+Color RenderedMesh::SampleAt(const glm::vec3& pos, const int& data) const {
+	if (!HasMesh() || !HasTexture()) return Color{ .r = 0x00, .g = 0x00, .b = 0x00, .a = 0xff };
+
 	const auto& mesh = GetMesh();
-	const auto& v0i = mesh->triangles[triIdx + 0];
-	const auto& v1i = mesh->triangles[triIdx + 1];
-	const auto& v2i = mesh->triangles[triIdx + 2];
+	const auto& v0i = mesh->triangles[data + 0];
+	const auto& v1i = mesh->triangles[data + 1];
+	const auto& v2i = mesh->triangles[data + 2];
 	const auto& p0 = mesh->vertices[v0i];
 	const auto& p1 = mesh->vertices[v1i];
 	const auto& p2 = mesh->vertices[v2i];
@@ -86,11 +86,11 @@ bool RenderedMesh::IsTransparentAt(const int& triIdx, const glm::vec3& pos) cons
 	const auto& uv1 = mesh->uvs[v1i];
 	const auto& uv2 = mesh->uvs[v2i];
 
-	const auto& materialID = mesh->materials[triIdx / 3];
+	const auto& materialID = mesh->materials[data / 3];
 	const auto& texID = textureHandles[materialID];
 
 	const glm::vec3 b = Utils::Barycentric(pos, p0, p1, p2);
 	const auto uv = uv0 * b.x + uv1 * b.y + uv2 * b.z;
 
-	return Assets::Textures[texID]->SampleUVClamp(uv).a < 1;
+	return Assets::Textures[texID]->SampleUVClamp(uv);
 }

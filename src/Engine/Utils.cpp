@@ -77,12 +77,12 @@ glm::vec3 Utils::ConfinedBarycentric(const glm::vec3& p, const glm::vec3& a, con
     return vec3(u, v, w); // Inside tri
 }
 
-// Returns 0...1 value representing how close p is to b compared to a, weird InvLerp in 3D
-inline float InvSegmentLerp(const glm::vec3& p, const glm::vec3& a, const glm::vec3& b) {
+inline float Utils::InvSegmentLerp(const glm::vec3& p, const glm::vec3& a, const glm::vec3& b) {
     const auto pa = p - a;
     const auto ba = b - a;
     const auto baMagn = glm::length(ba);
-    const auto baNorm = ba / glm::max(baMagn, 0.000001f);
+    if (baMagn < 0.000001f) return 0.0f;
+    const auto baNorm = ba / baMagn;
     const auto dot = glm::dot(pa, baNorm);
     if (dot < 0.0f) return 0.0f;
     const auto proj = baNorm * dot;
@@ -121,6 +121,8 @@ glm::vec4 Utils::InvQuadrilateral(const glm::vec3& p, const glm::vec3& a, const 
     wtB *= 1.0f - wt6;
 
     const float sum = wtA + wtB + wtC + wtD;
+
+    if (sum < 0.001f) return glm::vec4(0.0f);
 
     return glm::vec4(wtA, wtB, wtC, wtD) / sum;
 }
@@ -186,6 +188,11 @@ glm::mat4x4 Utils::ModelMatrix(const glm::vec3& pos, const glm::vec3& lookAtTarg
     auto mat_rot = glm::mat4x4(glm::quatLookAt(glm::normalize(lookAtTarget - pos), glm::vec3(0, 1, 0)));
     auto mat_scl = glm::scale(glm::vec3(1.0f, 1.0f, 1.0f));
     return mat_pos * mat_rot * mat_scl;
+}
+
+template <typename T> requires std::is_enum_v<T>
+bool Utils::HasFlag(const T& val, const T& flag) {
+    return (val & flag) != 0;
 }
 
 void Utils::PrintMatrix(const glm::mat4x4& matrix) {

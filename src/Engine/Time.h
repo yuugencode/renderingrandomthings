@@ -18,6 +18,9 @@ public:
 	static double deltaTime; // Frame delta
 	static float deltaTimeF; // Frame delta
 	
+	static double unscaledTime, unscaledDeltaTime;
+	static float unscaledDeltaTimeF, unscaledTimeF;
+
 	static double time; // Running time
 	static float timeF; // Running time
 	

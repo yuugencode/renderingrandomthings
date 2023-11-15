@@ -33,11 +33,12 @@ public:
 	uint32_t textureBufferSize;
 
 	// "Backbuffer" used during shadow accelerator sampling
-	std::vector<glm::vec4> bvhBuffer;
+	std::vector<glm::vec4> screenTempBuffer;
+	std::vector<glm::vec4> indirectBuffer;
 
 	// 1920 1080 common factors
 	// 1 | 2 | 3 | 4 | 5 | 6 | 8 | 10 | 12 | 15 | 20 | 24 | 30 | 40 | 60 | 120
-	const uint32_t bvhBufferDiv = 4;
+	const uint32_t screenTempBufferDiv = 4;
 
 	// Vertex layout for the full screen pass
 	struct PosColorTexCoord0Vertex {
@@ -57,11 +58,13 @@ public:
 	// Initializes a new raytracer for given window
 	void Create(const Window& window);
 
+	glm::vec4 GetColor(const Scene& scene, const RayResult& rayResult, const Ray& ray, TraceData& opts) const;
+
 	// Shoots a ray against the scene and returns the result
 	RayResult RaycastScene(const Scene& scene, const Ray& ray) const;
 	
 	// Traces a ray against the scene and returns the color for whatever it hit
-	glm::vec4 TraceRay(const Scene& scene, const Ray& ray, int& recursionDepth) const;
+	glm::vec4 TraceRay(const Scene& scene, const Ray& ray, TraceData& opts) const;
 
 	// Renders given scene to a texture and blits on screen
 	void RenderScene(Scene& scene);

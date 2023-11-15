@@ -10,11 +10,12 @@ struct Ray {
     int mask;
 };
 
-// Vertex interpolator output
+// Vertex interpolator output sent to ""fragment shader""
 struct v2f {
     glm::vec3 worldPosition;
     glm::vec3 localNormal;
     glm::vec3 worldNormal;
+    glm::vec3 rayDirection;
     glm::vec2 uv;
 };
 
@@ -41,9 +42,6 @@ struct Color {
     Color Lerp(const Color& other, const float& t) const;
     
     glm::vec4 ToVec4() const;
-    
-    Color operator+(const Color& c);
-    Color& operator+=(const Color& rhs);
 };
 
 // Simple axis-aligned bounding box
@@ -77,12 +75,19 @@ struct AABB {
     float SqrDist(const glm::vec3& pos) const;
 };
 
+struct Empty {
+    // Empty!
+};
+
 // Global constants
-namespace Globals {
+namespace Colors {
     inline constexpr Color Red = Color(0xff, 0x00, 0x00, 0xff);
     inline constexpr Color Green = Color(0x00, 0xff, 0x00, 0xff);
     inline constexpr Color Blue = Color(0x00, 0x00, 0xff, 0xff);
     inline constexpr Color White = Color(0xff, 0xff, 0xff, 0xff);
     inline constexpr Color Black = Color(0x00, 0x00, 0x00, 0xff);
-    inline constexpr float PI = 3.14159265358979f;
+    inline constexpr Color Clear = Color(0x00, 0x00, 0x00, 0x00);
 }
+
+inline constexpr float PI = 3.14159265358979f;
+
