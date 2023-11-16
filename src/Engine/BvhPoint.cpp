@@ -224,194 +224,19 @@ AABB BvhPoint<T>::CalculateAABB(const int& left, const int& right) const {
 	return ret;
 }
 
-// There's some repetition for 1, 3, 4 cases due to testing with quadrilaterals and triangles
-// @TODO: Template to N case static array? might have perf traps
-
-template <typename T>
-void BvhPoint<T>::GetClosest(const glm::vec3& pos, float& dist, BvhPointData& d0) const {
-	IntersectNode(0, pos, dist, d0);
-}
-
-// Recursed func
-template <typename T>
-void BvhPoint<T>::IntersectNode(const int& nodeIndex, const glm::vec3& pos, float& minDist, BvhPointData& d0) const {
-
-	const auto& node = stack[nodeIndex];
-
-	// Leaf -> Check tris
-	if (node.IsLeaf()) {
-		for (int i = node.GetLeftIndex(); i < node.GetRightIndex(); i++) {
-			const auto& pt = points[i];
-			const glm::vec3 os = (pt.point - pos);
-			float dist = glm::dot(os, os);
-
-			if (dist < minDist) {
-				minDist = dist;
-				d0 = pt;
-			}
-		}
-		return;
-	}
-
-	// Node -> Check left/right node
-	else {
-
-		// Check if either hit
-		auto nodeA = node.GetLeftChild();
-		auto nodeB = node.GetRightChild();
-		auto distA = stack[nodeA].aabb.SqrDist(pos);
-		auto distB = stack[nodeB].aabb.SqrDist(pos);
-
-		// Check closer first or else recursion becomes insanely slow
-		if (distB < distA) {
-			std::swap(distA, distB);
-			std::swap(nodeA, nodeB);
-		}
-		
-		if (distA < minDist)
-			IntersectNode(nodeA, pos, minDist, d0);
-		if (distB < minDist)
-			IntersectNode(nodeB, pos, minDist, d0);
-	}
-}
-
-// Returns 2 closest points and returns their dist and payload
-template <typename T>
-void BvhPoint<T>::Get2Closest(const glm::vec3& queryPos, glm::vec2& dists, BvhPointData& d0, BvhPointData& d1) const {
-	Gather2Closest(0, queryPos, dists, d0, d1);
-}
-
-// Recursed func
-template <typename T>
-void BvhPoint<T>::Gather2Closest(const int& nodeIndex, const glm::vec3& pos, glm::vec2& dists, BvhPointData& d0, BvhPointData& d1) const {
-
-	const auto& node = stack[nodeIndex];
-
-	// Leaf -> Check tris
-	if (node.IsLeaf()) {
-		for (int i = node.GetLeftIndex(); i < node.GetRightIndex(); i++) {
-
-			const auto& pt = points[i];
-			const glm::vec3 os = (pt.point - pos);
-			const float dist = glm::dot(os, os);
-
-			// Dist 2 = furthest
-			if (dist < dists[1]) {
-				if (dist < dists[0]) { // newdist = 0
-					dists[1] = dists[0]; d1 = d0;
-					dists[0] = dist;	 d0 = pt;
-				}
-				else { // newdist = 1
-					dists[1] = dist;	 d1 = pt;
-				}
-			}
-		}
-		return;
-	}
-
-	// Node -> Check left/right node
-	else {
-
-		// Check if either hit
-		auto nodeA = node.GetLeftChild();
-		auto distA = stack[nodeA].aabb.SqrDist(pos);
-		auto nodeB = node.GetRightChild();
-		auto distB = stack[nodeB].aabb.SqrDist(pos);
-
-		// Check closer first or else recursion becomes insanely slow
-		if (distB < distA) {
-			std::swap(distA, distB);
-			std::swap(nodeA, nodeB);
-		}
-
-		if (distA < dists[1])
-			Gather2Closest(nodeA, pos, dists, d0, d1);
-
-		if (distB < dists[1])
-			Gather2Closest(nodeB, pos, dists, d0, d1);
-	}
-}
-
-
-
-// Returns 3 closest points and returns their dist and payload
-template <typename T>
-void BvhPoint<T>::Get3Closest(const glm::vec3& queryPos, glm::vec3& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2) const {
-	Gather3Closest(0, queryPos, dists, d0, d1, d2);
-}
-
-// Recursed func
-template <typename T>
-void BvhPoint<T>::Gather3Closest(const int& nodeIndex, const glm::vec3& pos, glm::vec3& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2) const {
-
-	const auto& node = stack[nodeIndex];
-
-	// Leaf -> Check tris
-	if (node.IsLeaf()) {
-		for (int i = node.GetLeftIndex(); i < node.GetRightIndex(); i++) {
-			
-			const auto& pt = points[i];
-			const glm::vec3 os = (pt.point - pos);
-			const float dist = glm::dot(os, os);
-
-			// Dist 2 = furthest
-			if (dist < dists[2]) {
-				if (dist < dists[1]) {
-					if (dist < dists[0]) { // newdist = 0
-						dists[2] = dists[1]; d2 = d1;
-						dists[1] = dists[0]; d1 = d0;
-						dists[0] = dist;	 d0 = pt;
-					}
-					else { // newdist = 1
-						dists[2] = dists[1]; d2 = d1;
-						dists[1] = dist;	 d1 = pt;
-					}
-				}
-				else { // newdist = 2
-					dists[2] = dist; d2 = pt;
-				}
-			}
-		}
-		return;
-	}
-
-	// Node -> Check left/right node
-	else {
-
-		// Check if either hit
-		auto nodeA = node.GetLeftChild();
-		auto distA = stack[nodeA].aabb.SqrDist(pos);
-		auto nodeB = node.GetRightChild();
-		auto distB = stack[nodeB].aabb.SqrDist(pos);
-
-		// Check closer first or else recursion becomes insanely slow
-		if (distB < distA) {
-			std::swap(distA, distB);
-			std::swap(nodeA, nodeB);
-		}
-
-		if (distA < dists[2])
-			Gather3Closest(nodeA, pos, dists, d0, d1, d2);
-		
-		if (distB < dists[2])
-			Gather3Closest(nodeB, pos, dists, d0, d1, d2);
-	}
-}
-
-
 // Returns the 4 closest points to queryPos
 template <typename T>
-void BvhPoint<T>::Get4Closest(const glm::vec3& queryPos, glm::vec4& dists,
-	BvhPointData& d0, BvhPointData& d1, BvhPointData& d2, BvhPointData& d3) const {
-
+template <int N>
+void BvhPoint<T>::GetNClosest(const glm::vec3& queryPos, float* dists, BvhPointData* data) const {
+	static_assert(N > 0);
 	// Recursion seems faster than stack based search
-	Gather4Closest(0, queryPos, dists, d0, d1, d2, d3);
+	GatherNClosest<N>(0, queryPos, dists, data);
 }
 
 // Recursed func
-template <typename T>
-void BvhPoint<T>::Gather4Closest(const int& nodeIndex, const glm::vec3& pos, glm::vec4& dists,
-	BvhPointData& d0, BvhPointData& d1, BvhPointData& d2, BvhPointData& d3) const {
+template <typename T> 
+template <int N>
+void BvhPoint<T>::GatherNClosest(const int& nodeIndex, const glm::vec3& pos, float* dists, BvhPointData* data) const {
 
 	const auto& node = stack[nodeIndex];
 
@@ -423,31 +248,19 @@ void BvhPoint<T>::Gather4Closest(const int& nodeIndex, const glm::vec3& pos, glm
 			const glm::vec3 os = (pt.point - pos);
 			const float dist = glm::dot(os, os);
 
-			// Dist 3 = furthest
-			if (dist < dists[3]) {
-				if (dist < dists[2]) {
-					if (dist < dists[1]) {
-						if (dist < dists[0]) { // newdist = 0
-							dists[3] = dists[2]; d3 = d2;
-							dists[2] = dists[1]; d2 = d1;
-							dists[1] = dists[0]; d1 = d0;
-							dists[0] = dist;	 d0 = pt;
-						}
-						else { // newdist = 1
-							dists[3] = dists[2]; d3 = d2;
-							dists[2] = dists[1]; d2 = d1;
-							dists[1] = dist;	 d1 = pt;
-						}
-					}
-					else { // newdist = 2
-						dists[3] = dists[2]; d3 = d2;
-						dists[2] = dist; d2 = pt;
-					}
-				}
-				else { // newdist = 3
-					dists[3] = dist; d3 = pt;
-				}
-			}
+			if (dist > dists[N - 1]) continue;
+
+			// Smaller than largest current, find spot, memmove current contents right and copy to position
+			int j;
+			for (j = N - 2; j >= 0; j--)
+				if (dists[j] < dist)
+					break;
+
+			// Spot is j + 1
+			memmove(&dists[j + 2], &dists[j + 1], (N - (j + 2)) * sizeof(float));
+			memmove(&data[j + 2], &data[j + 1], (N - (j + 2)) * sizeof(BvhPointData));
+			dists[j + 1] = dist;
+			data[j + 1] = pt;
 		}
 		return;
 	}
@@ -467,8 +280,8 @@ void BvhPoint<T>::Gather4Closest(const int& nodeIndex, const glm::vec3& pos, glm
 			std::swap(nodeA, nodeB);
 		}
 
-		if (distA < dists[3]) Gather4Closest(nodeA, pos, dists, d0, d1, d2, d3);
-		if (distB < dists[3]) Gather4Closest(nodeB, pos, dists, d0, d1, d2, d3);
+		if (distA < dists[N - 1]) GatherNClosest<N>(nodeA, pos, dists, data);
+		if (distB < dists[N - 1]) GatherNClosest<N>(nodeB, pos, dists, data);
 	}
 }
 
@@ -476,3 +289,13 @@ void BvhPoint<T>::Gather4Closest(const int& nodeIndex, const glm::vec3& pos, glm
 template class BvhPoint<float>;
 template class BvhPoint<glm::vec3>;
 template class BvhPoint<Empty>;
+
+// Just add all 1-4 variants
+template void BvhPoint<glm::vec3>::GetNClosest<1>(const glm::vec3& queryPos, float* dists, BvhPointData* data) const;
+template void BvhPoint<glm::vec3>::GetNClosest<2>(const glm::vec3& queryPos, float* dists, BvhPointData* data) const;
+template void BvhPoint<glm::vec3>::GetNClosest<3>(const glm::vec3& queryPos, float* dists, BvhPointData* data) const;
+template void BvhPoint<glm::vec3>::GetNClosest<4>(const glm::vec3& queryPos, float* dists, BvhPointData* data) const;
+template void BvhPoint<Empty>::GetNClosest<1>(const glm::vec3& queryPos, float* dists, BvhPointData* data) const;
+template void BvhPoint<Empty>::GetNClosest<2>(const glm::vec3& queryPos, float* dists, BvhPointData* data) const;
+template void BvhPoint<Empty>::GetNClosest<3>(const glm::vec3& queryPos, float* dists, BvhPointData* data) const;
+template void BvhPoint<Empty>::GetNClosest<4>(const glm::vec3& queryPos, float* dists, BvhPointData* data) const;

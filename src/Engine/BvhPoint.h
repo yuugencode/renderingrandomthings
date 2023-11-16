@@ -48,16 +48,9 @@ public:
 	// Clears the data this bvh holds
 	void Clear();
 
-	// Returns the closest point in this bvh
-	void GetClosest(const glm::vec3& pos, float& dist, BvhPointData& d0) const;
-
-	void Get2Closest(const glm::vec3& queryPos, glm::vec2& dists, BvhPointData& d0, BvhPointData& d1) const;
-
-	// Returns the 3 closest points in this bvh
-	void Get3Closest(const glm::vec3& queryPos, glm::vec3& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2) const;
-
-	// Returns the 4 closest points in this bvh
-	void Get4Closest(const glm::vec3& queryPos, glm::vec4& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2, BvhPointData& d3) const;
+	// Returns the N closest points in this bvh
+	template <int N>
+	void GetNClosest(const glm::vec3& queryPos, float* dists, BvhPointData* data) const;
 
 	// Array of bvh nodes, 0 is root
 	std::vector<BvhNode> stack;
@@ -85,12 +78,6 @@ private:
 
 	AABB CalculateAABB(const int& left, const int& right) const;
 
-	void IntersectNode(const int& nodeIndex, const glm::vec3& pos, float& minDist, BvhPointData& d0) const;
-
-	void Gather2Closest(const int& nodeIndex, const glm::vec3& pos, glm::vec2& dists, BvhPointData& d0, BvhPointData& d1) const;
-
-	void Gather3Closest(const int& nodeIndex, const glm::vec3& pos, glm::vec3& dists, BvhPointData& d0, BvhPointData& d1, BvhPointData& d2) const;
-
-	void Gather4Closest(const int& nodeIndex, const glm::vec3& pos, glm::vec4& dists, 
-		BvhPointData& d0, BvhPointData& d1, BvhPointData& d2, BvhPointData& d3) const;
+	template <int N>
+	void GatherNClosest(const int& nodeIndex, const glm::vec3& pos, float* dists, BvhPointData* data) const;
 };

@@ -339,7 +339,6 @@ void Raytracer::RenderScene(Scene& scene) {
 					if (llen > maxScale) continue; // If further than max scale axis -> can't reflect here -> skip
 
 					glm::vec3 reflectPt, worldNormal;
-					int reflectMask;
 
 					if (obj->type == Entity::Type::Sphere) {
 
@@ -349,7 +348,6 @@ void Raytracer::RenderScene(Scene& scene) {
 						auto toLight = glm::normalize(light.position - p);
 						reflectPt = obj->transform.position + glm::normalize(toHitpt + toLight) * obj->transform.scale.x;
 						worldNormal = glm::normalize(reflectPt - obj->transform.position);
-						reflectMask = obj->id;
 					}
 					else if (obj->type == Entity::Type::Box) {
 						
@@ -381,7 +379,10 @@ void Raytracer::RenderScene(Scene& scene) {
 						if (isect <= 0.0f) continue; // No hit
 
 						reflectPt = ro + rd * depth;
-						reflectMask = obj->id;
+					}
+
+					else if (obj->type == Entity::Type::RenderedMesh) {
+						continue;
 					}
 					else {
 						continue;
@@ -413,6 +414,7 @@ void Raytracer::RenderScene(Scene& scene) {
 
 					indirect += color * ang * atten * reflectFade;
 
+					// Add mask data to indirect about the obj who cast it
 					if (ids[0] == 0) ids[1] = obj->id;
 					else ids[0] = obj->id;
 

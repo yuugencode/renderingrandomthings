@@ -7,27 +7,26 @@
 
 // Samples N closest points on a bvh for nearby lit points of given light
 // Uses pre-sampled blocker distance to define an accurate smoothing upper bound
-float SmoothDilatedShadows(const Scene& scene, const Light& light, const RayResult& rayResult, const v2f& input, const int& recursionDepth, const float& blockerDist) {
+float SampleSmoothShadow(const Light& light, const v2f& input, const float& blockerDist) {
 	using namespace glm;
 
 	if (!light.shadowBvh.Exists()) return 0.0f;
 
-	BvhPoint<Empty>::BvhPointData d0, d1, d2, d3;
-	
-	// Range limit for searches, should be higher than max expected penumbra size
-	// Ideally very high, but relates to perf
-	constexpr vec4 distLim = vec4(4.0f);
-	vec4 dist = distLim;
+	constexpr int N = 4; // Num closest samples to average
+	constexpr float distLim = 4.0f; // Range limit for searches, should be higher than max expected penumbra size
+	float dist[N] { distLim, distLim, distLim, distLim };
+	BvhPoint<Empty>::BvhPointData data[N];
 
-	light.shadowBvh.Get4Closest(input.worldPosition, dist, d0, d1, d2, d3);
-	if (dist[3] == distLim.x) return 0.0f;
-	
-	dist = sqrt(dist); // Bvh returns squared distances, could lerp using them for perf but produces uncanny softening
+	light.shadowBvh.GetNClosest<N>(input.worldPosition, dist, data);
+
+	if (dist[N - 1] == distLim) return 0.0f;
 	
 	float penumbraSize = Utils::InvLerpClamp(blockerDist * 0.3f, 0.0f, 3.0f); // Penumbra range
 	penumbraSize *= 2.0f; // Max size of penumbra
 
-	float distFromEdge = (dist[0] + dist[1] + dist[2] + dist[3]) * 0.25f;
+	// Bvh returns squared distances, could lerp using them to avoid sqrt but produces uncanny softening
+	float distFromEdge = 0.0f;
+	for (int i = 0; i < N; i++) distFromEdge += sqrt(dist[i]) * (1.0f / N);
 
 	float shadow = 1.0f - Utils::InvLerpClamp(distFromEdge, 0.0f, penumbraSize);
 
@@ -40,62 +39,30 @@ glm::vec4 SampleGI(const Light& light, const RayResult& rayResult, const v2f& in
 
 	if (!light.lightBvh.Exists()) return vec4(0.0f);
 
-#if true
-	BvhPoint<vec3>::BvhPointData d0;
+	constexpr int N = 1;
+	constexpr float distLim = 1.0f;
+	BvhPoint<vec3>::BvhPointData datas[N];
+	float dist[N]{ distLim };
+
+	light.lightBvh.GetNClosest<N>(input.worldPosition, dist, datas);
 	
-	const float distlim = 1.0f;
-	float dist = distlim;
-	light.lightBvh.GetClosest(input.worldPosition, dist, d0);
-	if (dist == distlim) return vec4(0.0f);
+	if (dist[N - 1] == distLim) return vec4(0.0f); // Couldn't find any pts nearby
 
 	// Remove receiving indirect light cast by self via a mask saved to the bvh during generation
-	if (std::bit_cast<int>(d0.payload[1]) == rayResult.obj->id || std::bit_cast<int>(d0.payload[2]) == rayResult.obj->id) 
-		return vec4(0.0f);
+	for (int i = 0; i < N; i++) {
+		if (std::bit_cast<int>(datas[i].payload[1]) == rayResult.obj->id ||
+			std::bit_cast<int>(datas[i].payload[2]) == rayResult.obj->id)
+			dist[i] = distLim; // Make contribution 0
+	}
 
-	dist = sqrt(dist);
-	dist = 1.0f - Utils::InvLerpClamp(dist, 0.2f, distlim);
-
-	return std::bit_cast<Color>(d0.payload[0]).ToVec4() * dist;
-#endif
-	
-#if false // Temp while testing
-	BvhPoint::BvhPointData d0, d1;
-	vec2 dist = vec2(1.0f);
-	light.lightBvh.Get2Closest(input.worldPosition, dist, d0, d1);
-	if (dist[1] == 1.0f) return vec4(0.0f);
-	
-	dist = sqrt(dist);
-	dist[0] = 1.0f - Utils::InvLerpClamp(dist[0], 0.5f, 1.0f);
-	dist[1] = 1.0f - Utils::InvLerpClamp(dist[1], 0.5f, 1.0f);
-	
-	auto b = Utils::InvSegmentLerp(input.worldPosition, d0.point, d1.point);
-	
-	vec4 avgClr = (std::bit_cast<Color>(d0.mask).ToVec4() * (1.0f - b) +
-				   std::bit_cast<Color>(d1.mask).ToVec4() * b );
-	return avgClr;
-#endif
-
-#if false // Temp while testing
-	BvhPoint::BvhPointData d0, d1, d2, d3;
-	vec4 dist = vec4(1.0f);
-	light.lightBvh.Get4Closest(input.worldPosition, dist, d0, d1, d2, d3);
-	if (dist[3] == 1.0f) return vec4(0.0f);
-	
-	dist = sqrt(dist);
-	dist[0] = 1.0f - Utils::InvLerpClamp(dist[0], 0.5f, 1.0f);
-	dist[1] = 1.0f - Utils::InvLerpClamp(dist[1], 0.5f, 1.0f);
-	dist[2] = 1.0f - Utils::InvLerpClamp(dist[2], 0.5f, 1.0f);
-	dist[3] = 1.0f - Utils::InvLerpClamp(dist[3], 0.5f, 1.0f);
-	
-	auto b = Utils::InvQuadrilateral(input.worldPosition, d0.point, d1.point, d2.point, d3.point);
-	
-	vec4 avgClr =  (std::bit_cast<Color>(d0.mask).ToVec4() * b.x * dist[0] +
-				    std::bit_cast<Color>(d1.mask).ToVec4() * b.y * dist[1] +
-					std::bit_cast<Color>(d2.mask).ToVec4() * b.z * dist[2] +
-					std::bit_cast<Color>(d3.mask).ToVec4() * b.w * dist[3] );
-	
-	return avgClr;
-#endif
+	// Average N nearest samples
+	vec4 ret = vec4(0.0f);
+	for (int i = 0; i < N; i++) {		
+		dist[i] = 1.0f - Utils::InvLerpClamp(sqrt(dist[i]), 0.2f, distLim);
+		ret += std::bit_cast<Color>(datas[i].payload[0]).ToVec4() * dist[i];
+	}
+	ret /= (float)N;
+	return ret;
 }
 
 // Shoots a ray towards a light returns if it hit anything before reaching it
@@ -138,7 +105,7 @@ float CalculateShadow(const Scene& scene, const Light& light, const RayResult& r
 
 	// If the primary shadow ray hits a blocker -> this is in shadow -> calculate smooth shadows using light mask
 	if (ShadowRay(scene, input.worldPosition + bias, light.position, rayResult.data, shadowRecursionCount, blockerDist))
-		return SmoothDilatedShadows(scene, light, rayResult, input, data.recursionDepth, blockerDist);
+		return SampleSmoothShadow(light, input, blockerDist);
 
 	return 1.0f;
 }
