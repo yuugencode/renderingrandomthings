@@ -11,7 +11,7 @@ public:
 	SDL_Window* sdlPtr;
 	HWND windowHandle;
 	HDC displayHandle;
-	uint32_t width, height;
+	int width, height;
 
 	void Create(int width, int height);
 	void Destroy();

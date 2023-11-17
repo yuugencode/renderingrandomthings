@@ -146,12 +146,13 @@ int main(int argc, char* argv[]) {
 	{
 		auto meshHandle = Assets::NewMesh(std::filesystem::path("models/bunny.obj"));
 		auto rendMesh = std::make_unique<RenderedMesh>(meshHandle);
+		rendMesh->materials[0].reflectivity = 0.5f;
 		bunny = rendMesh.get();
 
 		Game::scene.entities.push_back(std::move(rendMesh));
 
-		bunny->transform.scale = glm::vec3(10.0f);
-		bunny->transform.position += glm::vec3(-6.0f, -0.3f, 0.0f);
+		bunny->transform.scale = glm::vec3(20.0f);
+		bunny->transform.position += glm::vec3(3.0f, -0.6f, 0.0f);
 		bunny->transform.LookAtDir(glm::vec3(-1, 0, 0), glm::vec3(0, 1, 0));
 		bunny->shaderType = RenderedMesh::Shader::PlainWhite;
 	}

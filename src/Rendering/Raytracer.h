@@ -36,8 +36,12 @@ public:
 	std::vector<glm::vec4> screenTempBuffer;
 	std::vector<glm::vec4> indirectBuffer;
 
-	// 1920 1080 common factors
-	// 1 | 2 | 3 | 4 | 5 | 6 | 8 | 10 | 12 | 15 | 20 | 24 | 30 | 40 | 60 | 120
+	// Common divisors
+	// 1920x1080: 1 | 2 | 3 | 4 | 5 | 6 | 8 | 10 | 12 | 15 | 20 | 24 | 30 | 40 | 60 | 120
+	// 1280x720: 1 | 2 | 4 | 5 | 8 | 10 | 16 | 20 | 40 | 80
+	// 800x600: 1 | 2 | 4 | 5 | 8 | 10 | 20 | 25 | 40 | 50 | 100 | 200
+	// 640x480: 1 | 2 | 4 | 5 | 8 | 10 | 16 | 20 | 32 | 40 | 80 | 160
+
 	const uint32_t screenTempBufferDiv = 4;
 
 	// Vertex layout for the full screen pass

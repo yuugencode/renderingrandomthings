@@ -98,7 +98,7 @@ void Bvh::SplitNodeSingle(const int& nodeIdx, int& nextLeft, int& nextRight) {
 	const float invNodeArea = 1.0f / node.aabb.AreaHeuristic();
 
 	// Naive = 22.5ms, 6 = 19.7ms, 10 = 19.6ms, 20 = 19.4ms, 100 = 19.0ms
-	const float stepsize = 1.0f / 10.0f;
+	const float stepsize = 1.0f / 30.0f;
 	//const float stepsize = 0.1f / glm::max(aabbSize.x, glm::max(aabbSize.y, aabbSize.z));
 
 	for (uint32_t axis = 0; axis < 3; axis++) {
