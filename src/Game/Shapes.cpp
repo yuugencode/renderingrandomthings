@@ -25,6 +25,7 @@ Sphere::Sphere(const glm::vec3& pos, const float& radius) {
 	transform.scale = glm::vec3(radius, radius, radius);
 	type = Entity::Type::Sphere;
 	shaderType = Shader::Normals;
+	materials.push_back(Material());
 	id = idCount--;
 }
 
@@ -62,6 +63,7 @@ Disk::Disk(const glm::vec3& pos, const glm::vec3& normal, const float& radius) {
 	type = Entity::Type::Disk;
 	id = idCount--;
 	shaderType = Shader::Grid;
+	materials.push_back(Material());
 }
 
 bool Disk::IntersectLocal(const Ray& ray, glm::vec3& normal, int& data, float& depth) const {
@@ -90,6 +92,7 @@ Box::Box(const glm::vec3& pos, const glm::vec3& size) {
 	type = Entity::Type::Box;
 	id = idCount--;
 	shaderType = Shader::PlainWhite;
+	materials.push_back(Material());
 }
 
 bool Box::IntersectLocal(const Ray& ray, glm::vec3& normal, int& data, float& depth) const {

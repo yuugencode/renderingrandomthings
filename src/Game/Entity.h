@@ -4,6 +4,7 @@
 
 #include "Engine/Utils.h"
 #include "Engine/Bvh.h"
+#include "Engine/Material.h"
 #include "Engine/Mesh.h"
 #include "Engine/Assets.h"
 #include "Game/Transform.h"
@@ -28,20 +29,18 @@ public:
 
 	Transform transform;
 	AABB aabb;
+	AABB worldAABB;
 	Bvh bvh;
 
 	// "Material" properties
-	std::vector<uint32_t> textureHandles; // Indices to texture assets array
+	//std::vector<uint32_t> textureHandles; // Indices to texture assets array
 	int meshHandle = -1; // Mesh, if any
-	float reflectivity = 0.0f; // How much should light bounce off this
-	glm::vec4 color = glm::vec4(1.0f);
 
 	glm::mat4x3 invModelMatrix;
 
-	bool HasTexture() const { return textureHandles.size() != 0; }
+	std::vector<Material> materials;
 	bool HasMesh() const { return meshHandle >= 0; }
-	bool HasBVH() const { return bvh.Exists(); }
-	bool HasAABB() const { return aabb.min != aabb.max; }
+	bool HasMaterials() const { return materials.size() != 0; }
 
 	const Mesh* GetMesh() const { return Assets::Meshes[meshHandle].get(); }
 

@@ -12,8 +12,10 @@ public:
 
 	// Data gets converted to standard Color vector on load
 	std::vector<Color> data;
-	int width = 0, height = 0;
-	
+	//int width = 0, height = 0;
+	glm::ivec2 size;
+	glm::vec2 sizeF;
+
 	// Has anything been loaded?
 	bool Exists() const;
 

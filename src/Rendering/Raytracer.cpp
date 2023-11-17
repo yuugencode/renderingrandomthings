@@ -63,12 +63,21 @@ glm::vec4 Raytracer::GetColor(const Scene& scene, const RayResult& rayResult, co
 	}
 
 	// Reflection
-	if (data.HasFlag(TraceData::Reflection) && rayResult.obj->reflectivity != 0.0f && data.recursionDepth < 2) {
-		const auto newRd = glm::reflect(ray.rd, rayResult.obj->transform.rotation * rayResult.faceNormal);
-		Ray newRay{ .ro = interpolated.worldPosition, .rd = newRd, .inv_rd = 1.0f / newRd, .mask = rayResult.data };
-		data.recursionDepth++;
-		glm::vec4 reflColor = TraceRay(scene, newRay, data);
-		c = Utils::Lerp(c, reflColor, rayResult.obj->reflectivity);
+	if (data.HasFlag(TraceData::Reflection)) {
+
+		float reflectivity;
+		if (rayResult.obj->type == Entity::Type::RenderedMesh)
+			reflectivity = rayResult.obj->materials[rayResult.obj->GetMesh()->materials[rayResult.data / 3]].reflectivity;
+		else
+			reflectivity = rayResult.obj->materials[0].reflectivity;
+
+		if (reflectivity != 0.0f && data.recursionDepth < 2) {
+			const auto newRd = glm::reflect(ray.rd, rayResult.obj->transform.rotation * rayResult.faceNormal);
+			Ray newRay{ .ro = interpolated.worldPosition, .rd = newRd, .inv_rd = 1.0f / newRd, .mask = rayResult.data };
+			data.recursionDepth++;
+			glm::vec4 reflColor = TraceRay(scene, newRay, data);
+			c = Utils::Lerp(c, reflColor, reflectivity);
+		}
 	}
 
 	return c;
@@ -92,17 +101,15 @@ RayResult Raytracer::RaycastScene(const Scene& scene, const Ray& ray) const {
 	// Loop all objects, could use something more sophisticated but a simple loop gets us pretty far
 	for (const auto& entity : scene.entities) {
 
-		Ray _ray;
-		
+		// Early bounding box rejection for missed rays
+		if (entity->worldAABB.Intersect(ray) == 0.0f) continue;
+
 		// Inverse transform object to origin
 		const auto newPosDir = entity->invModelMatrix * glm::mat2x4(
 			glm::vec4(ray.ro, 1.0f),
 			glm::vec4(ray.rd, 0.0f)
 		);
-		_ray = Ray{ .ro = newPosDir[0], .rd = newPosDir[1], .inv_rd = 1.0f / newPosDir[1], .mask = ray.mask };
-
-		// Early bounding box rejection for missed rays
-		if (entity->aabb.Intersect(_ray) == 0.0f) continue;
+		const Ray _ray { .ro = newPosDir[0], .rd = newPosDir[1], .inv_rd = 1.0f / newPosDir[1], .mask = ray.mask };
 
 		// Check intersect (virtual function call but perf cost irrelevant compared to the entire frame)
 		intersect = entity->IntersectLocal(_ray, nrm, data, depth);
@@ -133,7 +140,7 @@ glm::vec4 Raytracer::TraceRay(const Scene& scene, const Ray& ray, TraceData& dat
 		glm::vec4 c = GetColor(scene, rayResult, ray, data);
 
 		// If we hit a transparent or cutout surface, skip it and check further
-		if (c.a < 0.99f && data.recursionDepth < 2) {
+		if (data.HasFlag(TraceData::Transparent) && c.a < 0.99f && data.recursionDepth < 2) {
 			const auto hitPt = ray.ro + ray.rd * rayResult.depth;
 			Ray newRay{ .ro = hitPt, .rd = ray.rd, .inv_rd = ray.inv_rd, .mask = rayResult.data };
 			data.recursionDepth++;
@@ -172,16 +179,16 @@ void Raytracer::RenderScene(Scene& scene) {
 	const auto scaledWidth = window->width / screenTempBufferDiv;
 	const auto scaledHeight = window->height / screenTempBufferDiv;
 
-	// Prepass for generating shadow buffer for interpolating smooth shadows
-	shadowTimerSample.Start();
+	// Prepass for generating light buffer for interpolating smooth shadows
+	lightBufferSampleTimer.Start();
 
-	// Clear and regenerate shadow buffer for each light
+	// Clear and regenerate light buffer for each light
 	for (auto& light : scene.lights) {
-		light.shadowBvh.Clear();
-		light._shadowTempBuffer.clear();
+		light.lightBvh.Clear();
+		light._lightBvhTempBuffer.clear();
 	}
 
-#if true // Shadow buffer rays shot from the camera
+#if true // Light buffer rays shot from the camera
 	
 	// Shoot rays from camera to find areas that are in light, these are used for smooth shadows later
 	concurrency::parallel_for(size_t(0), screenTempBuffer.size(), [&](size_t i) {
@@ -231,63 +238,22 @@ void Raytracer::RenderScene(Scene& scene) {
 	for (const auto& val : screenTempBuffer) {
 		for (int i = 0; i < scene.lights.size(); i++) {
 			if ((std::bit_cast<int>(val.w) & (1 << i)) == 0) continue;
-			scene.lights[i]._shadowTempBuffer.push_back(val);
+			scene.lights[i]._lightBvhTempBuffer.push_back(val);
 		}
 	}
 
 #endif
 
-#if false // Shadow rays shot from lights
-
-	// Limit the count of samples per light, these are extra data mostly useful for reflections backups
-	const size_t samplesPerLight = scene.lights.size() > 0 ? glm::min(bvhBuffer.size() / scene.lights.size(), (size_t)(2 << 12)) : 0;
-
-	for (int i = 0; i < scene.lights.size(); i++) {
-		const auto& light = scene.lights[i];
-
-		const glm::vec2 rngBase = Utils::Hash23(light.position);
-
-		concurrency::parallel_for(size_t(0), samplesPerLight, [&](size_t j) {
-			
-			glm::vec2 rngSeed = rngBase * (float)(j + 1);
-
-			// Generate random direction in 3D
-			auto rng = Utils::Hash22(rngSeed) * Globals::PI;
-			rng.y *= 2.0f;
-			auto s = glm::sin(rng);
-			auto c = glm::cos(rng);
-			auto dir = glm::normalize(glm::vec3(s.x * c.y, s.x * s.y, c.x));
-
-			const Ray ray{ .ro = light.position, .rd = dir, .inv_rd = 1.0f / dir, .mask = std::numeric_limits<int>::min() };
-			auto res = RaycastScene(scene, ray);
-
-			if (res.Hit()) 
-				bvhBuffer[i * samplesPerLight + j] = glm::vec4(ray.ro + ray.rd * res.depth, std::bit_cast<float>(1 << i));
-			else 
-				bvhBuffer[i * samplesPerLight + j] = glm::vec4(std::bit_cast<float>(0));
-		});
-	}
-
-	// Add each point to each lights internal shadow buffer if the point was lit by that light
-	for (int i = 0; i < samplesPerLight * scene.lights.size(); i++) {
-		const auto& val = bvhBuffer[i];
-		for (int i = 0; i < scene.lights.size(); i++) {
-			if ((std::bit_cast<int>(val.w) & (1 << i)) == 0) continue;
-			scene.lights[i]._shadowBuffer.push_back(val);
-		}
-	}
-
-#endif
-	shadowTimerSample.End();
-	shadowTimerGen.Start();
+	lightBufferSampleTimer.End();
+	lightBufferGenTimer.Start();
 
 	// Generate the view light buffer for each light
 	concurrency::parallel_for(size_t(0), scene.lights.size(), [&](size_t i) {
-		const auto& arr = scene.lights[i]._shadowTempBuffer;
-		scene.lights[i].shadowBvh.Generate(arr.data(), (int)arr.size());
+		const auto& arr = scene.lights[i]._lightBvhTempBuffer;
+		scene.lights[i].lightBvh.Generate(arr.data(), (int)arr.size());
 	});
 
-	shadowTimerGen.End();
+	lightBufferGenTimer.End();
 
 #if true
 
@@ -296,10 +262,8 @@ void Raytracer::RenderScene(Scene& scene) {
 
 	for (auto& light : scene.lights) {
 		light._indirectTempBuffer.resize(screenTempBuffer.size());
-		light.lightBvh.Clear();
+		light.indirectBvh.Clear();
 	}
-
-	constexpr TraceData optss = TraceData::Reflection;
 
 	// For every screenspace point, calculate the expected reflection here and save to buffer
 	concurrency::parallel_for(size_t(0), screenTempBuffer.size(), [&](size_t i) {
@@ -320,14 +284,20 @@ void Raytracer::RenderScene(Scene& scene) {
 
 		if (res.Hit()) {
 
+			// Hit something, figure out indirect for this pt
 			const auto hitpt = ray.ro + ray.rd * res.depth;
 
+			// Loop potential lights @TODO: Scene top level acceleration structure
 			for (auto& light : scene.lights) {
+
+				// Skip pts outside light range
+				if (Utils::SqrLength(light.position - hitpt) > light.range * light.range) continue;
 
 				vec4 indirect = vec4(0.0f);
 				bool hasReflections = false;
 				ivec2 ids = ivec2(0, 0); // Support masking 2 lights per point out
 
+				// Loop potential objs
 				for (const auto& obj : scene.entities) {
 					
 					if (obj.get() == res.obj) continue; // Disallow self reflections
@@ -338,6 +308,8 @@ void Raytracer::RenderScene(Scene& scene) {
 					float llen = glm::length((obj->aabb.ClosestPoint(tfHitpt) - tfHitpt) * obj->transform.scale * 0.5f);
 					if (llen > maxScale) continue; // If further than max scale axis -> can't reflect here -> skip
 
+					// Given raytrace hitpt + light position + object
+					// Compute the theoretical reflection point the obj would cast to this point, if any
 					glm::vec3 reflectPt, worldNormal;
 
 					if (obj->type == Entity::Type::Sphere) {
@@ -396,7 +368,7 @@ void Raytracer::RenderScene(Scene& scene) {
 					
 					TraceData data = TraceData::Reflection | TraceData::Shadows;
 					
-					// Can't call TraceRay directly because we need to assume hit target == obj
+					// Can't call TraceRay directly because we need to assume hit target == obj in case they're in shadow
 					RayResult rayResult = RaycastScene(scene, lightRay);
 					if (!rayResult.Hit() || rayResult.obj != obj.get()) continue;
 					glm::vec4 color = GetColor(scene, rayResult, lightRay, data);
@@ -448,15 +420,14 @@ void Raytracer::RenderScene(Scene& scene) {
 
 	concurrency::parallel_for(size_t(0), scene.lights.size(), [&](size_t i) {
 		auto& light = scene.lights[i];
-		light.lightBvh.Generate(light._toAddBuffer.data(), (int)light._toAddBuffer.size());
+		light.indirectBvh.Generate(light._toAddBuffer.data(), (int)light._toAddBuffer.size());
 	});
 
 #endif
 
 	traceTimer.Start();
 
-	// Modify the texture on cpu in a multithreaded function
-	// @TODO: Probably can optimize this with cache locality, loop order etc
+	// Modify the texture on cpu in a multithreaded function @TODO: Check cache locality, loop order etc
 	concurrency::parallel_for(size_t(0), size_t(textureBufferSize / sizeof(Color)), [&](size_t i) {
 		float xcoord = (float)(i % window->width) / window->width;
 		float ycoord = (float)(i / window->width) / window->height;
@@ -471,25 +442,23 @@ void Raytracer::RenderScene(Scene& scene) {
 		dir = normalize(dir);
 
 		const Ray ray{ .ro = camPos, .rd = dir, .inv_rd = 1.0f / dir, .mask = std::numeric_limits<int>::min() };
-		TraceData data = TraceData::Default;
+		TraceData data = TraceData::Default;// &(~TraceData::Shadows)& (~TraceData::Transparent);
 		glm::vec4 result = TraceRay(scene, ray, data);
 
 		textureBuffer[i] = Color::FromVec(result);
 	});
 
+	// Update gpu texture
 	bgfx::updateTexture2D(texture, 0, 0, 0, 0, window->width, window->height, mem);
 
 	// Render a single triangle as a fullscreen pass
 	if (bgfx::getAvailTransientVertexBuffer(3, vtxLayout) == 3) {
 
-		// Grab massive 3 vertice buffer
+		// Grab a massive 3 vertice buffer
 		bgfx::TransientVertexBuffer vb;
 		bgfx::allocTransientVertexBuffer(&vb, 3, vtxLayout);
 		PosColorTexCoord0Vertex* vertex = (PosColorTexCoord0Vertex*)vb.data;
 
-		// @NOTE: Framebuffer uv.x flipped after swapping out of c++20 modules
-		// Some #define somewhere changed probably? Causes no issues but anyway..
-		
 		// Vertices
 		const Color clr(0x00, 0x00, 0x00, 0xff);
 		vertex[0] = PosColorTexCoord0Vertex{ .pos = glm::vec3(0.0f, 0.0f, 0.0f),			.rgba = clr, .uv = glm::vec2(0.0f, 0.0f) };

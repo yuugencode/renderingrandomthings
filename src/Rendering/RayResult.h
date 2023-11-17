@@ -23,7 +23,8 @@ public:
 		Reflection = 1 << 2,
 		Skybox = 1 << 3,
 		Ambient = 1 << 4,
-		Default = Shadows | Indirect | Reflection | Skybox | Ambient,
+		Transparent = 1 << 5,
+		Default = Shadows | Indirect | Reflection | Skybox | Ambient | Transparent,
 	};
 	constexpr TraceData() { };
 	constexpr TraceData(int i) { val = (Arg)i; } // Allow logical or/and

@@ -22,6 +22,8 @@ int Mesh::ReadNode(int i, int vertexOffset) {
 
     if (node == nullptr) return 0;
 
+    std::vector<int> seenMaterials;
+
     ufbx_mesh* mesh = node->mesh;
     ufbx_vec3* meshVerts = mesh->vertices.data;
     uint32_t* meshIndices = mesh->vertex_indices.data;
@@ -31,6 +33,8 @@ int Mesh::ReadNode(int i, int vertexOffset) {
     colors.reserve(vertices.size());
     uvs.reserve(vertices.size());
     normals.reserve(vertices.size());
+    materials.reserve(vertices.size());
+    connectivity.reserve(vertices.size());
 
     // Vertices, uvs, normals, vertex colors
     for (size_t i = 0; i < mesh->vertex_position.values.count; i++) {
@@ -46,10 +50,11 @@ int Mesh::ReadNode(int i, int vertexOffset) {
             colors.push_back(glm::vec4((float)clr.x, (float)clr.y, (float)clr.z, (float)clr.w));
             hasColors = true;
         }
-        else colors.push_back(glm::vec4(0, 0, 0, 0));
+        else colors.push_back(glm::vec4(1, 1, 1, 1));
 
         if (mesh->vertex_uv.exists && firstIndex != UFBX_NO_INDEX) {
             const auto& uv = mesh->vertex_uv.values[mesh->vertex_uv.indices[firstIndex]];
+
             uvs.push_back(glm::vec2((float)uv.x, (float)uv.y));
             hasUVs = true;
         }
@@ -67,17 +72,22 @@ int Mesh::ReadNode(int i, int vertexOffset) {
     for (size_t i = 0; i < mesh->faces.count; i++) {
         auto face = mesh->faces.data[i];
 
-        uint32_t matIndex = -1;
+        int matIndex = 0;
         if (mesh->materials.count > 0) {
             const auto& internalId = mesh->face_material.data[i];
             matIndex = mesh->materials.data[internalId].material->typed_id;
             if (matIndex >= scene->materials.count)
                 Log::FatalError("Model has tri material indices outside material array length");
+
+            if (!Utils::Contains(seenMaterials, matIndex)) seenMaterials.push_back(matIndex);
         }
 
         const auto i0 = meshIndices[face.index_begin + 0];
         const auto i1 = meshIndices[face.index_begin + 1];
         const auto i2 = meshIndices[face.index_begin + 2];
+
+        if (std::find(ignoreMaterials.begin(), ignoreMaterials.end(), matIndex) != ignoreMaterials.end())
+            continue;
 
         if (face.num_indices == 3) {
             connectivity[vertexOffset + i0].push_back((uint32_t)triangles.size());
@@ -92,28 +102,30 @@ int Mesh::ReadNode(int i, int vertexOffset) {
 
         else if (face.num_indices == 4) {
             const auto i3 = meshIndices[face.index_begin + 3];
-
+        
             connectivity[vertexOffset + i0].push_back((uint32_t)triangles.size());
             connectivity[vertexOffset + i1].push_back((uint32_t)triangles.size());
             connectivity[vertexOffset + i2].push_back((uint32_t)triangles.size());
-
+        
             triangles.push_back(vertexOffset + i0);
             triangles.push_back(vertexOffset + i1);
             triangles.push_back(vertexOffset + i2);
+            materials.push_back(matIndex);
 
             connectivity[vertexOffset + i0].push_back((uint32_t)triangles.size());
             connectivity[vertexOffset + i2].push_back((uint32_t)triangles.size());
             connectivity[vertexOffset + i3].push_back((uint32_t)triangles.size());
-
+        
             triangles.push_back(vertexOffset + i0);
             triangles.push_back(vertexOffset + i2);
             triangles.push_back(vertexOffset + i3);
-
-            materials.push_back(matIndex);
             materials.push_back(matIndex);
         }
     }
 
+    numUniqueMaterials = (int)seenMaterials.size();
+
+#if false // Debugging
     // Update triangle connectivity
     triConnectivity.resize(triangles.size() / 3);
 
@@ -128,14 +140,16 @@ int Mesh::ReadNode(int i, int vertexOffset) {
                 triNeighborTris.push_back(otherTri);
             }
         }
-
     }
+#endif
 
     return (int)mesh->vertices.count;
 }
 
 void Mesh::CheckData() {
 
+    if (!sanityCheckData) return;
+    
     if (vertices.size() == 0) Log::Line("Checking mesh with no vertices?");
 
     // Sanity check data
@@ -147,8 +161,11 @@ void Mesh::CheckData() {
         Log::FatalError("Mesh array sizes don't match");
 }
 
-void Mesh::LoadMesh(const std::filesystem::path& path) {
-    ufbx_load_opts opts = { 0 };
+void Mesh::LoadMesh(const std::filesystem::path& path, bool loadMtl) {
+    ufbx_load_opts opts = { };
+
+    if (loadMtl) opts.obj_search_mtl_by_filename = true;
+
     ufbx_error error; // Can be null to disable errors
     scene = ufbx_load_file(path.string().c_str(), &opts, &error);
     if (!scene) Log::FatalError("Failed to load: ", error.description.data);
@@ -159,12 +176,39 @@ void Mesh::UnloadMesh() {
 }
 
 void Mesh::Clear() {
-    textureNames.clear();
+    connectivity.clear();
+    triConnectivity.clear();
+    materialMetadata.clear();
     vertices.clear();
     triangles.clear();
+    materials.clear();
     uvs.clear();
     normals.clear();
     colors.clear();
+    hasColors = hasNormals = hasUVs = false;
+    numUniqueMaterials = 0;
+}
+
+void Mesh::ReadTextures() {
+    for (size_t i = 0; i < scene->materials.count; i++) {
+        auto mat = scene->materials.data[i];
+
+        if (mat->textures.count == 0) {
+            materialMetadata.push_back(MaterialMetadata{
+                .materialName = std::string(mat->name.data, mat->name.length),
+                .textureFilename = ""
+            });
+            continue;
+        }
+
+        auto tex = mat->textures.data[0].texture;
+        auto path = std::string(tex->filename.data, tex->filename.length);
+        auto filename = std::filesystem::path(path).filename().replace_extension("png");
+        materialMetadata.push_back(MaterialMetadata{
+                .materialName = std::string(mat->name.data, mat->name.length),
+                .textureFilename = filename.string()
+        });
+    }
 }
 
 void Mesh::ReadAllNodes() {
@@ -173,11 +217,12 @@ void Mesh::ReadAllNodes() {
 
     Clear();
 
-    for (size_t i = 0; i < scene->textures.count; i++) {
-        auto path = std::string(scene->textures.data[i]->filename.data, scene->textures.data[0]->filename.length);
-        auto filename = std::filesystem::path(path).filename().replace_extension();
-        textureNames.push_back(filename.string());
-    }
+    ReadTextures();
+    //for (size_t i = 0; i < scene->textures.count; i++) {
+    //    auto path = std::string(scene->textures.data[i]->filename.data, scene->textures.data[0]->filename.length);
+    //    auto filename = std::filesystem::path(path).filename().replace_extension();
+    //    textureNames.push_back(filename.string());
+    //}
 
     int meshCount = GetMeshNodeCount();
     int vertexCnt = 0;
@@ -198,13 +243,14 @@ void Mesh::ReadSceneMeshNode(int nodeIndex) {
     if (nodeIndex < 0 || nodeIndex >= scene->nodes.count)
         Log::FatalError("Tried to read a mesh file node past file scene indices");
 
-    for (size_t i = 0; i < scene->textures.count; i++) {
-        auto path = std::string(scene->textures.data[i]->filename.data, scene->textures.data[0]->filename.length);
-        auto filename = std::filesystem::path(path).filename().replace_extension();
-        textureNames.push_back(filename.string());
-    }
+    ReadTextures();
+    //for (size_t i = 0; i < scene->textures.count; i++) {
+    //    auto path = std::string(scene->textures.data[i]->filename.data, scene->textures.data[0]->filename.length);
+    //    auto filename = std::filesystem::path(path).filename().replace_extension();
+    //    textureNames.push_back(filename.string());
+    //}
 
-    ReadNode(nodeIndex);
+    ReadNode(nodeIndex, 0);
     CheckData();
 
     Log::LineFormatted("Read a mesh with {} vertices, {} triangles and {} materials.", vertices.size(), triangles.size() / 3, scene->materials.count);

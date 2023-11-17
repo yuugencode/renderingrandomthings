@@ -15,8 +15,15 @@ class Mesh {
     
     void CheckData();
 
+    void ReadTextures();
+
 public:
     Mesh() = default;
+
+    struct MaterialMetadata {
+        std::string materialName;
+        std::string textureFilename;
+    };
 
     std::vector<glm::vec3> vertices;
     std::vector<uint32_t> triangles;
@@ -26,12 +33,18 @@ public:
     std::vector<uint32_t> materials; // tri index -> material index
     std::vector<std::vector<uint32_t>> connectivity; // vertex index -> triangle list
     std::vector<std::vector<uint32_t>> triConnectivity; // triangle index -> neighbor triangles
-    std::vector<std::string> textureNames;
+    std::vector<MaterialMetadata> materialMetadata;
 
     bool hasColors = false, hasNormals = false, hasUVs = false;
 
+    std::vector<int> ignoreMaterials;
+    int numUniqueMaterials = 0;
+
+    // Whether to check for indices out of vertex array etc
+    bool sanityCheckData = true;
+
     // Loads fbx/obj mesh from given path into ufbx structure
-    void LoadMesh(const std::filesystem::path& path);
+    void LoadMesh(const std::filesystem::path& path, bool loadMtl = false);
     
     // Unloads the internal ufbx representation
     void UnloadMesh();

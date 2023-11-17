@@ -17,9 +17,10 @@ bool Texture::Exists() const {
 }
 
 Color Texture::SampleUVClamp(const glm::vec2& uv) const {
-	int x = glm::clamp((int)(uv.x * width), 0, width);
-	int y = glm::clamp((int)(uv.y * height), 0, height);
-	return data[x + width * y];
+	//int x = glm::clamp((int)(glm::fract(uv.x) * width), 0, width);
+	//int y = glm::clamp((int)(glm::fract(uv.y) * height), 0, height);
+	const glm::ivec2 pt = glm::clamp((glm::ivec2)(glm::fract(uv) * sizeF), glm::ivec2(0, 0), size);
+	return data[pt.x + size.x * pt.y];
 }
 
 Texture::Texture(const std::filesystem::path& path, bool flip) {
@@ -27,34 +28,39 @@ Texture::Texture(const std::filesystem::path& path, bool flip) {
 	stbi_set_flip_vertically_on_load(flip);
 
 	int numChannels;
-	stbi_uc* img = stbi_load(path.string().c_str(), &width, &height, &numChannels, 4); // Request RGBA texture
+	stbi_uc* img = stbi_load(path.string().c_str(), &size.x, &size.y, &numChannels, 4); // Request RGBA texture
+	sizeF = size;
 	if (img == nullptr) {
 		Log::FatalError("Failed to load img: ", stbi_failure_reason());
 		return;
 	}
-	if (width == 0 || height == 0) Log::FatalError("Zero size image?");
+	if (size.x == 0 || size.y == 0) Log::FatalError("Zero size image?");
 
 	static_assert(sizeof(Color) == 4); // Make sure no overflow if color struct changes
 
+	constexpr int MAX_IMG_SIZE = 512;
+
 	// Resize image
-	if (width > 4096) {
-		double ratio = 4096 / (double)width;
-		int newWidth = (int)(ratio * width), newHeight = (int)(ratio * height);
+	if (size.x > MAX_IMG_SIZE) {
+		double ratio = MAX_IMG_SIZE / (double)size.x;
+		int newWidth = (int)(ratio * size.x), newHeight = (int)(ratio * size.y);
 
 		data.resize(newWidth * newHeight);
-		stbir_resize(img, width, height, 0, (unsigned char*)data.data(), newWidth, newHeight, 0, stbir_pixel_layout::STBIR_RGBA,
+		stbir_resize(img, size.x, size.y, 0, (unsigned char*)data.data(), newWidth, newHeight, 0, stbir_pixel_layout::STBIR_RGBA,
 			stbir_datatype::STBIR_TYPE_UINT8, stbir_edge::STBIR_EDGE_CLAMP, stbir_filter::STBIR_FILTER_DEFAULT);
-		width = newWidth;
-		height = newHeight;
+		size.x = newWidth;
+		size.y = newHeight;
+		sizeF = size;
 	}
 	else {
 		// Copies data, oof
-		data.resize(width * height);
-		memcpy(data.data(), img, width * height * 4);
+		data.resize(size.x * size.y);
+		memcpy(data.data(), img, size.x * size.y * 4);
 	}
+
 
 	stbi_image_free(img);
 
-	Log::LineFormatted("Read {}, Size {}x{}", path.string(), width, height);
+	Log::LineFormatted("Read {}, Size {}x{}", path.string(), size.x, size.y);
 }
 

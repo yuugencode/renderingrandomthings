@@ -31,8 +31,7 @@ namespace Utils {
     // Checks if vector contains given value 
     template <typename T>
     bool Contains(const std::vector<T>& vec, const T& x) {
-        for (size_t i = 0; i < vec.size(); i++)
-            if (vec[i] == x) return true;
+        for (size_t i = 0; i < vec.size(); i++) if (vec[i] == x) return true;
         return false;
     }
 

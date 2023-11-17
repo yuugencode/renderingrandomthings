@@ -52,8 +52,8 @@ public:
 	const Window* window;
 
 	Timer traceTimer;
-	Timer shadowTimerSample;
-	Timer shadowTimerGen;
+	Timer lightBufferSampleTimer;
+	Timer lightBufferGenTimer;
 
 	// Initializes a new raytracer for given window
 	void Create(const Window& window);

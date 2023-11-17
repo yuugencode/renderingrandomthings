@@ -87,6 +87,7 @@ namespace Colors {
     inline constexpr Color White = Color(0xff, 0xff, 0xff, 0xff);
     inline constexpr Color Black = Color(0x00, 0x00, 0x00, 0xff);
     inline constexpr Color Clear = Color(0x00, 0x00, 0x00, 0x00);
+    inline constexpr Color Cyan = Color(0x00, 0xff, 0xff, 0xff);
 }
 
 inline constexpr float PI = 3.14159265358979f;
