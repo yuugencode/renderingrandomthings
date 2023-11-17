@@ -2,6 +2,8 @@
 
 #include <glm/glm.hpp>
 #include <vector>
+#include <concurrent_vector.h>
+#include "concurrent_queue.h"
 
 #include "Engine/Common.h"
 
@@ -27,7 +29,7 @@ public:
 		void SetRightIndex(const int& val) { valR = val; }
 		void SetLeftChild(const int& val) { valL = -val - 1; }
 		void SetRightChild(const int& val) { valR = -val - 1; }
-		int TriangleCount() { return valR - valL; }
+		int TriangleCount() const { return valR - valL; }
 	};
 
 	// Generates a new BVH from given vertices/tris
@@ -42,6 +44,12 @@ public:
 	std::vector<BvhNode> stack;
 
 private:
+
+	// Concurrent stack used during generation
+	concurrency::concurrent_vector<BvhNode> cc_stack;
+
+	// Queue used during generation
+	concurrency::concurrent_queue<int> queue;
 
 	// Abstraction for a single triangle
 	struct BvhTriangle {
@@ -59,7 +67,9 @@ private:
 	static const int maxNodeEntries = 4;
 
 	// Splits bvh node into 2
-	void SplitNode(const int& nodeIdx);
+	void SplitNodeSingle(const int& nodeIdx, int& nextLeft, int& nextRight);
+
+	void SplitNodeRecurse(const int& nodeIdx);
 
 	// Partitions data to 2 sides based on given pos and axis. Right index is exclusive.
 	int Partition(const int& low, const int& high, const glm::vec3& splitPos, const int& axis);
@@ -68,5 +78,5 @@ private:
 
 	float ray_tri_intersect(const glm::vec3& ro, const glm::vec3& rd, const BvhTriangle& tri) const;
 
-	void IntersectNode(const int& nodeIndex, const Ray& ray, glm::vec3& normal, int& minTriIdx, float& minDist) const;
+	void IntersectNode(const int nodeIndex, const Ray& ray, glm::vec3& normal, int& minTriIdx, float& minDist) const;
 };

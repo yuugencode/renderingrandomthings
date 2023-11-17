@@ -1,5 +1,10 @@
 #include "Bvh.h"
 
+#include <thread>
+#include <ppl.h> // Parallel for
+
+#define MULTI_THREADED_GEN 1
+
 void Bvh::Generate(const std::vector<glm::vec3>& srcVertices, const std::vector<uint32_t>& srcTriangles) {
 
 	if (srcVertices.size() == 0) return;
@@ -29,14 +34,60 @@ void Bvh::Generate(const std::vector<glm::vec3>& srcVertices, const std::vector<
 	root.SetRightIndex((int)triangles.size());
 	root.aabb = CalculateAABB(root.GetLeftIndex(), root.GetRightIndex());
 
-	stack.push_back(root);
+#if MULTI_THREADED_GEN
+	cc_stack.push_back(root);
 
-	SplitNode(0);
+	// @TODO: Really need a bottom-up generation to replace this top-down one, but that needs a radix sort prepass for good query speeds
+	// Top-down inherently doesn't parallelize well due to first pass always having to partition entire array
+	const int numThreads = std::thread::hardware_concurrency();
+
+	// Standard queue based multithreaded recursion
+	queue.clear();
+	queue.push(0);
+	std::atomic_int cnt = 0;
+
+	concurrency::parallel_for(0, numThreads, [&](size_t i) {
+		int res = -1;
+		while (true) {
+			if (queue.try_pop(res)) {
+				cnt++;
+				int nl = -1, nr = -1;
+				SplitNodeSingle(res, nl, nr);
+
+				// Check if we're almost done and finish this root recursively without stressing queue if yes
+				// If not, just add to queue
+				if (nl != -1) {
+					if (cc_stack[nl].TriangleCount() < 128) SplitNodeRecurse(nl);
+					else queue.push(nl);
+				}
+				if (nr != -1) {
+					if (cc_stack[nr].TriangleCount() < 128) SplitNodeRecurse(nr);
+					else queue.push(nr);
+				}
+
+				cnt--;
+			}
+
+			// Cosmic level chance that a thread escapes but the algorithm works fine even with 1T
+			if (queue.empty() && cnt == 0) break;
+		}
+	});
+
+	// Copy to a standard vector to speed up querying
+	stack.assign(cc_stack.begin(), cc_stack.end());
+#else
+	stack.push_back(root);
+	SplitNodeRecurse(0); // Single threaded
+#endif
 }
 
-void Bvh::SplitNode(const int& nodeIdx) {
+void Bvh::SplitNodeSingle(const int& nodeIdx, int& nextLeft, int& nextRight) {
 
+#if MULTI_THREADED_GEN
+	auto& node = cc_stack[nodeIdx];
+#else
 	auto& node = stack[nodeIdx];
+#endif
 	const auto aabbSize = node.aabb.Size();
 
 #if true // SAH Splits
@@ -47,9 +98,13 @@ void Bvh::SplitNode(const int& nodeIdx) {
 	const float invNodeArea = 1.0f / node.aabb.AreaHeuristic();
 
 	// Naive = 22.5ms, 6 = 19.7ms, 10 = 19.6ms, 20 = 19.4ms, 100 = 19.0ms
-	const float stepsize = 1.0f / 6.0f;
+	const float stepsize = 1.0f / 10.0f;
+	//const float stepsize = 0.1f / glm::max(aabbSize.x, glm::max(aabbSize.y, aabbSize.z));
 
 	for (uint32_t axis = 0; axis < 3; axis++) {
+		
+		//const float stepsize = 1.0f / glm::clamp(0.1f / (aabbSize[axis] + 0.000001f), 0.001f, 0.5f);
+		
 		for (float t = stepsize; t < 1.0f; t += stepsize) {
 
 			const glm::vec3 splitPos = node.aabb.min + aabbSize * t;
@@ -110,8 +165,13 @@ void Bvh::SplitNode(const int& nodeIdx) {
 	// Generate new left / right nodes and split further
 	BvhNode left, right;
 
+#if MULTI_THREADED_GEN
+	const int leftStackIndex = (int)(cc_stack.push_back(BvhNode()) - cc_stack.begin());
+	const int rightStackIndex = (int)(cc_stack.push_back(BvhNode()) - cc_stack.begin());
+#else
 	const auto leftStackIndex = (int)stack.size();
 	const auto rightStackIndex = (int)stack.size() + 1;
+#endif
 
 	left.SetLeftIndex(node.GetLeftIndex());
 	left.SetRightIndex(splitPoint);
@@ -125,11 +185,23 @@ void Bvh::SplitNode(const int& nodeIdx) {
 	left.aabb = CalculateAABB(left.GetLeftIndex(), right.GetRightIndex());
 	right.aabb = CalculateAABB(right.GetLeftIndex(), right.GetRightIndex());
 
+#if MULTI_THREADED_GEN
+	cc_stack[leftStackIndex] = left;
+	cc_stack[rightStackIndex] = right;
+#else
 	stack.push_back(left);
 	stack.push_back(right);
+#endif
 
-	if (left.TriangleCount() > maxNodeEntries) SplitNode(leftStackIndex);
-	if (right.TriangleCount() > maxNodeEntries) SplitNode(rightStackIndex);
+	if (left.TriangleCount() > maxNodeEntries) nextLeft = leftStackIndex;
+	if (right.TriangleCount() > maxNodeEntries) nextRight = rightStackIndex;
+}
+
+void Bvh::SplitNodeRecurse(const int& nodeIdx) {
+	int nextLeft = -1, nextRight = -1;
+	SplitNodeSingle(nodeIdx, nextLeft, nextRight);
+	if (nextLeft != -1) SplitNodeRecurse(nextLeft);
+	if (nextRight != -1) SplitNodeRecurse(nextRight);
 }
 
 int Bvh::Partition(const int& low, const int& high, const glm::vec3& splitPos, const int& axis) {
@@ -176,7 +248,7 @@ float Bvh::Intersect(const Ray& ray, glm::vec3& normal, int& minIndex, float& de
 }
 
 // Recursed func
-void Bvh::IntersectNode(const int& nodeIndex, const Ray& ray, glm::vec3& normal, int& minTriIdx, float& minDist) const {
+void Bvh::IntersectNode(const int nodeIndex, const Ray& ray, glm::vec3& normal, int& minTriIdx, float& minDist) const {
 
 	const auto& node = stack[nodeIndex];
 
@@ -184,11 +256,11 @@ void Bvh::IntersectNode(const int& nodeIndex, const Ray& ray, glm::vec3& normal,
 	if (node.IsLeaf()) {
 		for (int i = node.GetLeftIndex(); i < node.GetRightIndex(); i++) {
 
-			const auto& tri = triangles[i];
+			const BvhTriangle& tri = triangles[i];
 
 			if (tri.originalIndex == ray.mask) continue;
 
-			const auto res = ray_tri_intersect(ray.ro, ray.rd, tri);
+			const float& res = ray_tri_intersect(ray.ro, ray.rd, tri);
 
 			if (res > 0.0f && res < minDist) {
 				minDist = res;
@@ -202,10 +274,10 @@ void Bvh::IntersectNode(const int& nodeIndex, const Ray& ray, glm::vec3& normal,
 	// Node -> Check left/right node
 	else {
 
-		auto nodeA = node.GetLeftChild();
-		auto nodeB = node.GetRightChild();
-		auto intersectA = stack[nodeA].aabb.Intersect(ray);
-		auto intersectB = stack[nodeB].aabb.Intersect(ray);
+		int nodeA = node.GetLeftChild();
+		int nodeB = node.GetRightChild();
+		float intersectA = stack[nodeA].aabb.Intersect(ray);
+		float intersectB = stack[nodeB].aabb.Intersect(ray);
 
 		// Swap A closer
 		if (intersectB < intersectA) {

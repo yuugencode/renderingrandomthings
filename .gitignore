@@ -56,3 +56,6 @@ imgui.ini
 *.obj
 *.png
 *.jpg
+*.tga
+*.mtl
+*.hdr
