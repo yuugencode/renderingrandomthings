@@ -101,11 +101,8 @@ void Bvh::SplitNodeSingle(const int& nodeIdx, int& nextLeft, int& nextRight) {
 
 	// Naive = 22.5ms, 6 = 19.7ms, 10 = 19.6ms, 20 = 19.4ms, 100 = 19.0ms
 	const float stepsize = 1.0f / 30.0f;
-	//const float stepsize = 0.1f / glm::max(aabbSize.x, glm::max(aabbSize.y, aabbSize.z));
 
 	for (uint32_t axis = 0; axis < 3; axis++) {
-		
-		//const float stepsize = 1.0f / glm::clamp(0.1f / (aabbSize[axis] + 0.000001f), 0.001f, 0.5f);
 		
 		for (float t = stepsize; t < 1.0f; t += stepsize) {
 
@@ -379,6 +376,7 @@ void Bvh::TraverseNode(const int& nodeIndex, const glm::vec3& pos, const glm::ve
 		return;
 	}
 	
+	// Node, check left/right and recurse if they're closer than closest
 	int nodeA = node.GetLeftChild();
 	int nodeB = node.GetRightChild();
 	auto distA = Utils::SqrLength(stack[nodeA].aabb.ClosestPoint(pos) - pos);

@@ -37,16 +37,16 @@ glm::vec3 Utils::ConfinedBarycentric(const glm::vec3& p, const glm::vec3& a, con
     using namespace glm;
 
     const auto v0 = b - a, v1 = c - a, v2 = p - a;
-    const float d00 = glm::dot(v0, v0);
-    const float d01 = glm::dot(v0, v1);
-    const float d11 = glm::dot(v1, v1);
-    const float d20 = glm::dot(v2, v0);
-    const float d21 = glm::dot(v2, v1);
+    const float d00 = dot(v0, v0);
+    const float d01 = dot(v0, v1);
+    const float d11 = dot(v1, v1);
+    const float d20 = dot(v2, v0);
+    const float d21 = dot(v2, v1);
     float denom = d00 * d11 - d01 * d01;
     if (denom < 0.00001f) { // We're a line
-        const float dist0 = glm::dot(p - a, p - a);
-        const float dist1 = glm::dot(p - b, p - b);
-        const float dist2 = glm::dot(p - c, p - c);
+        const float dist0 = dot(p - a, p - a);
+        const float dist1 = dot(p - b, p - b);
+        const float dist2 = dot(p - c, p - c);
         if (dist0 < dist1 && dist0 < dist2) return vec3(1.0f, 0.0f, 0.0f);
         else if (dist1 < dist2) return vec3(0.0f, 1.0f, 0.0f);
         else return vec3(0.0f, 0.0f, 1.0f);

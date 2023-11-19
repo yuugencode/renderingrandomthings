@@ -2,21 +2,12 @@
 
 #include <glm/glm.hpp>
 
-// Contains common standalone structs used all over
+// Contains common standalone structs used all over for various things
 
 // Raycasting ray
 struct Ray {
     glm::vec3 ro, rd, inv_rd;
     int mask;
-};
-
-// Vertex interpolator output sent to ""fragment shader""
-struct v2f {
-    glm::vec3 worldPosition;
-    glm::vec3 localNormal;
-    glm::vec3 worldNormal;
-    glm::vec3 rayDirection;
-    glm::vec2 uv;
 };
 
 // Color structure for 4 byte colors
@@ -78,8 +69,18 @@ struct AABB {
     glm::vec4 GetVertice(int i) const;
 };
 
-struct Empty {
-    // Empty!
+// Hardcoded CPU Shader
+enum class Shader {
+    PlainWhite, Normals, Textured, Grid, Debug
+};
+
+// Vertex interpolator output sent to ""fragment shader""
+struct v2f {
+    glm::vec3 worldPosition;
+    glm::vec3 localNormal;
+    glm::vec3 worldNormal;
+    glm::vec3 rayDirection;
+    glm::vec2 uv;
 };
 
 // Light's indirect buffer BVH payload struct
@@ -92,6 +93,10 @@ struct LightbufferPayload {
 struct LightbufferPt {
     glm::vec3 pt; // World position
     LightbufferPayload indirect;
+};
+
+struct Empty {
+    // Empty, used for "no-payload" in templated structs
 };
 
 // Global constants

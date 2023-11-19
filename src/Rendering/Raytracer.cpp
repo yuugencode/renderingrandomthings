@@ -7,6 +7,8 @@
 #include "Rendering/Shaders.h"
 #include "Engine/Log.h"
 
+using namespace glm; // Math heavy file, convenience
+
 void Raytracer::Create(const Window& window) {
 
 	this->window = &window;
@@ -26,9 +28,6 @@ void Raytracer::Create(const Window& window) {
 	textureBufferSize = info.storageSize;
 	textureBuffer = new Color[textureBufferSize];
 
-	screenTempBuffer.resize((window.width * window.height) / screenTempBufferDiv);
-	indirectBuffer.resize(screenTempBuffer.size());
-
 	u_texture = bgfx::createUniform("s_tex", bgfx::UniformType::Sampler);
 
 	// Read and compile shaders
@@ -45,20 +44,20 @@ void Raytracer::Create(const Window& window) {
 	bgfx::setViewRect(VIEW_LAYER, 0, 0, bgfx::BackbufferRatio::Equal);
 }
 
-glm::vec4 Raytracer::GetColor(const Scene& scene, const RayResult& rayResult, const Ray& ray, TraceData& data) const {
+vec4 Raytracer::SampleColor(const Scene& scene, const RayResult& rayResult, const Ray& ray, TraceData& data) const {
 
 	// Interpolate variables in "vertex shader"
 	const v2f interpolated = rayResult.obj->VertexShader(ray, rayResult);
 
-	glm::vec4 c;
+	vec4 c;
 
 	// Shade below in "fragment shader"
 	switch (rayResult.obj->shaderType) {
-		case Entity::Shader::PlainWhite:c = Shaders::PlainColor(scene, rayResult, interpolated, data); break;
-		case Entity::Shader::Textured:	c = Shaders::Textured(scene, rayResult, interpolated, data); break;
-		case Entity::Shader::Normals:	c = Shaders::Normals(scene, rayResult, interpolated, data); break;
-		case Entity::Shader::Grid:		c = Shaders::Grid(scene, rayResult, interpolated, data); break;
-		case Entity::Shader::Debug:		c = Shaders::Debug(scene, rayResult, interpolated, data); break;
+		case Shader::PlainWhite:c = Shaders::PlainColor(scene, rayResult, interpolated, data); break;
+		case Shader::Textured:	c = Shaders::Textured(scene, rayResult, interpolated, data); break;
+		case Shader::Normals:	c = Shaders::Normals(scene, rayResult, interpolated, data); break;
+		case Shader::Grid:		c = Shaders::Grid(scene, rayResult, interpolated, data); break;
+		case Shader::Debug:		c = Shaders::Debug(scene, rayResult, interpolated, data); break;
 		default: c = Shaders::PlainColor(scene, rayResult, interpolated, data); break;
 	}
 
@@ -69,13 +68,13 @@ glm::vec4 Raytracer::GetColor(const Scene& scene, const RayResult& rayResult, co
 		if (rayResult.obj->type == Entity::Type::RenderedMesh)
 			reflectivity = rayResult.obj->materials[rayResult.obj->GetMesh()->materials[rayResult.data / 3]].reflectivity;
 		else
-			reflectivity = rayResult.obj->materials[0].reflectivity;
+			reflectivity = rayResult.obj->materials[0].reflectivity; // Assert parametric objs have 1 material
 
 		if (reflectivity != 0.0f && data.recursionDepth < 2) {
-			const auto newRd = glm::reflect(ray.rd, rayResult.obj->transform.rotation * rayResult.faceNormal);
+			const auto newRd = reflect(ray.rd, rayResult.obj->transform.rotation * rayResult.faceNormal);
 			Ray newRay{ .ro = interpolated.worldPosition, .rd = newRd, .inv_rd = 1.0f / newRd, .mask = rayResult.data };
 			data.recursionDepth++;
-			glm::vec4 reflColor = TraceRay(scene, newRay, data);
+			vec4 reflColor = TracePath(scene, newRay, data);
 			c = Utils::Lerp(c, reflColor, reflectivity);
 		}
 	}
@@ -86,8 +85,8 @@ glm::vec4 Raytracer::GetColor(const Scene& scene, const RayResult& rayResult, co
 RayResult Raytracer::RaycastScene(const Scene& scene, const Ray& ray) const {
 
 	RayResult result{
-		.localPos = glm::vec3(),
-		.faceNormal = glm::vec3(0,1,0),
+		.localPos = vec3(),
+		.faceNormal = vec3(0,1,0),
 		.obj = nullptr,
 		.depth = std::numeric_limits<float>::max(),
 		.data = std::numeric_limits<int>::min()
@@ -96,7 +95,7 @@ RayResult Raytracer::RaycastScene(const Scene& scene, const Ray& ray) const {
 	bool intersect;
 	float depth;
 	int data;
-	glm::vec3 nrm;
+	vec3 nrm;
 
 	// Loop all objects, could use something more sophisticated but a simple loop gets us pretty far
 	for (const auto& entity : scene.entities) {
@@ -105,9 +104,9 @@ RayResult Raytracer::RaycastScene(const Scene& scene, const Ray& ray) const {
 		if (entity->worldAABB.Intersect(ray) == 0.0f) continue;
 
 		// Inverse transform object to origin
-		const auto newPosDir = entity->invModelMatrix * glm::mat2x4(
-			glm::vec4(ray.ro, 1.0f),
-			glm::vec4(ray.rd, 0.0f)
+		const auto newPosDir = entity->invModelMatrix * mat2x4(
+			vec4(ray.ro, 1.0f),
+			vec4(ray.rd, 0.0f)
 		);
 		const Ray _ray { .ro = newPosDir[0], .rd = newPosDir[1], .inv_rd = 1.0f / newPosDir[1], .mask = ray.mask };
 
@@ -127,24 +126,26 @@ RayResult Raytracer::RaycastScene(const Scene& scene, const Ray& ray) const {
 	return result;
 }
 
-glm::vec4 Raytracer::TraceRay(const Scene& scene, const Ray& ray, TraceData& data) const {
+vec4 Raytracer::TracePath(const Scene& scene, const Ray& ray, TraceData& data) const {
 
 	// Raycast
 	RayResult rayResult = RaycastScene(scene, ray);
 
-	if (rayResult.Hit()) { // Hit something, color it
+	if (rayResult.Hit()) {
+
+		// Hit something, color it
 
 		data.cumulativeDepth += rayResult.depth;
 
 		// Hit point color
-		glm::vec4 c = GetColor(scene, rayResult, ray, data);
+		vec4 c = SampleColor(scene, rayResult, ray, data);
 
 		// If we hit a transparent or cutout surface, skip it and check further
 		if (data.HasFlag(TraceData::Transparent) && c.a < 0.99f && data.recursionDepth < 2) {
 			const auto hitPt = ray.ro + ray.rd * rayResult.depth;
 			Ray newRay{ .ro = hitPt, .rd = ray.rd, .inv_rd = ray.inv_rd, .mask = rayResult.data };
 			data.recursionDepth++;
-			glm::vec4 behind = TraceRay(scene, newRay, data);
+			vec4 behind = TracePath(scene, newRay, data);
 			c = Utils::Lerp(c, behind, 1.0f - c.a);
 		}
 
@@ -153,34 +154,13 @@ glm::vec4 Raytracer::TraceRay(const Scene& scene, const Ray& ray, TraceData& dat
 	else {
 		// If we hit nothing, draw "Skybox"
 		if (data.HasFlag(TraceData::Skybox))
-			return glm::vec4(0.3f, 0.3f, 0.6f, 1.0f);
+			return vec4(0.3f, 0.3f, 0.6f, 1.0f);
 		else
-			return glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+			return vec4(0.0f, 0.0f, 0.0f, 1.0f);
 	}
 }
 
-void Raytracer::RenderScene(Scene& scene) {
-
-	using namespace glm;
-
-	// Multithread tiling values
-	const int width = window->width, height = window->height;
-	constexpr int tileSize = 4;
-	const int numXtiles = (width / tileSize);
-	const int numYtiles = (height / tileSize);
-
-	// Matrices
-	const Transform& camTransform = scene.camera.transform;
-	const glm::vec3 camPos = camTransform.position;
-	glm::vec3 fwd = camTransform.Forward();
-	glm::vec3 up = camTransform.Up();
-	auto view = glm::lookAt(camTransform.position, camTransform.position + fwd, up);
-	auto proj = glm::perspectiveFov(glm::radians(scene.camera.fov), (float)width, (float)height, scene.camera.nearClip, scene.camera.farClip);
-	auto viewInv = glm::inverse(view);
-	auto projInv = glm::inverse(proj);
-
-	// Backbuffer
-	const bgfx::Memory* mem = bgfx::makeRef(textureBuffer, (uint32_t)textureBufferSize);
+void Raytracer::SmoothShadowsPass(Scene& scene, const mat4x4& projInv, const mat4x4& viewInv) {
 
 	// Prepass for generating light buffer for interpolating smooth shadows
 	lightBufferSampleTimer.Start();
@@ -191,12 +171,14 @@ void Raytracer::RenderScene(Scene& scene) {
 		light._lightBvhTempBuffer.clear();
 	}
 
-#if true // Light buffer rays shot from the camera
-	
-	const int scaledWidth = width / screenTempBufferDiv;
-	const int scaledHeight = height / screenTempBufferDiv;
-	const int numScaledXtiles = (scaledWidth / tileSize);
-	const int numScaledYtiles = (scaledHeight / tileSize);
+	// Tiling and downsampling parameters for this pass
+	constexpr int sizeDiv = 4;
+	constexpr int tileSize = 4;
+	const int scaledWidth = window->width / sizeDiv;
+	const int scaledHeight = window->height / sizeDiv;
+	const int numScaledXtiles = scaledWidth / tileSize;
+	const int numScaledYtiles = scaledHeight / tileSize;
+	screenTempBuffer.resize(scaledWidth * scaledHeight);
 
 	// Shoot rays from camera to find areas that are in light, these are used for smooth shadows later
 	concurrency::parallel_for(0, numScaledXtiles * numScaledYtiles, [&](int tile) {
@@ -211,15 +193,15 @@ void Raytracer::RenderScene(Scene& scene) {
 				int textureIndex = tileX * tileSize + i + ((tileY * tileSize + j) * scaledWidth);
 
 				// Create view ray from proj/view matrices
-				glm::vec2 pixel = glm::vec2(xcoord, ycoord) * 2.0f - 1.0f;
-				glm::vec4 px = glm::vec4(pixel, 0.0f, 1.0f);
+				vec2 pixel = vec2(xcoord, ycoord) * 2.0f - 1.0f;
+				vec4 px = vec4(pixel, 0.0f, 1.0f);
 				px = projInv * px;
 				px.w = 0.0f;
-				glm::vec3 dir = viewInv * px;
+				vec3 dir = viewInv * px;
 				dir = normalize(dir);
 
 				// Raycast
-				const Ray ray{ .ro = camPos, .rd = dir, .inv_rd = 1.0f / dir, .mask = std::numeric_limits<int>::min() };
+				const Ray ray{ .ro = scene.camera.transform.position, .rd = dir, .inv_rd = 1.0f / dir, .mask = std::numeric_limits<int>::min() };
 				auto res = RaycastScene(scene, ray);
 
 				if (res.Hit()) {
@@ -231,7 +213,7 @@ void Raytracer::RenderScene(Scene& scene) {
 
 					for (int j = 0; j < scene.lights.size(); j++) {
 						auto os = scene.lights[j].position - hitpt;
-						auto lightDist = glm::length(os);
+						auto lightDist = length(os);
 						os /= lightDist;
 						const Ray ray2{ .ro = hitpt, .rd = os, .inv_rd = 1.0f / os, .mask = res.data };
 						const auto res2 = RaycastScene(scene, ray2);
@@ -241,16 +223,16 @@ void Raytracer::RenderScene(Scene& scene) {
 					}
 
 					// Save all lights that are lighting this point in space
-					screenTempBuffer[textureIndex] = glm::vec4(hitpt, std::bit_cast<float>(mask));
+					screenTempBuffer[textureIndex] = vec4(hitpt, std::bit_cast<float>(mask));
 				}
 				else {
 					// If we didn't hit anything just clear the index
-					screenTempBuffer[textureIndex] = glm::vec4(std::bit_cast<float>(0));
+					screenTempBuffer[textureIndex] = vec4(std::bit_cast<float>(0));
 				}
 			}
 		}
 	});
-	
+
 	// Add each point to each lights internal shadow buffer if the point was lit by that light
 	for (const auto& val : screenTempBuffer) {
 		for (int i = 0; i < scene.lights.size(); i++) {
@@ -258,8 +240,6 @@ void Raytracer::RenderScene(Scene& scene) {
 			scene.lights[i]._lightBvhTempBuffer.push_back(val);
 		}
 	}
-
-#endif
 
 	lightBufferSampleTimer.End();
 	lightBufferGenTimer.Start();
@@ -271,8 +251,9 @@ void Raytracer::RenderScene(Scene& scene) {
 	});
 
 	lightBufferGenTimer.End();
+}
 
-#if true
+void Raytracer::IndirectLightingPass(Scene& scene, const mat4x4& projInv, const mat4x4& viewInv) {
 
 	// Shoot rays from camera to find indirect light for pts hit
 	// This data could theoretically be much lower res than entire screen if blurred
@@ -281,8 +262,15 @@ void Raytracer::RenderScene(Scene& scene) {
 
 	for (auto& light : scene.lights) {
 		light._indirectTempBuffer.resize(screenTempBuffer.size());
-		light.indirectBvh.Clear();
 	}
+
+	// Tiling and downsampling parameters for this pass
+	constexpr int sizeDiv = 4;
+	constexpr int tileSize = 4;
+	const int scaledWidth = window->width / sizeDiv;
+	const int scaledHeight = window->height / sizeDiv;
+	const int numScaledXtiles = scaledWidth / tileSize;
+	const int numScaledYtiles = scaledHeight / tileSize;
 
 	// For every screenspace point, calculate the expected reflection here and save to buffer
 	concurrency::parallel_for(0, numScaledXtiles * numScaledYtiles, [&](int tile) {
@@ -297,164 +285,161 @@ void Raytracer::RenderScene(Scene& scene) {
 				int textureIndex = tileX * tileSize + i + ((tileY * tileSize + j) * scaledWidth);
 
 				// Create view ray from proj/view matrices
-				glm::vec2 pixel = glm::vec2(xcoord, ycoord) * 2.0f - 1.0f;
-				glm::vec4 px = glm::vec4(pixel, 0.0f, 1.0f);
+				vec2 pixel = vec2(xcoord, ycoord) * 2.0f - 1.0f;
+				vec4 px = vec4(pixel, 0.0f, 1.0f);
 				px = projInv * px;
 				px.w = 0.0f;
-				glm::vec3 dir = viewInv * px;
+				vec3 dir = viewInv * px;
 				dir = normalize(dir);
 
 				// Raycast
-				const Ray ray{ .ro = camPos, .rd = dir, .inv_rd = 1.0f / dir, .mask = std::numeric_limits<int>::min() };
+				const Ray ray{ .ro = scene.camera.transform.position, .rd = dir, .inv_rd = 1.0f / dir, .mask = std::numeric_limits<int>::min() };
 				auto res = RaycastScene(scene, ray);
 
-				if (res.Hit()) {
-
-					// Hit something, figure out indirect for this pt
-					const auto hitpt = ray.ro + ray.rd * res.depth;
-
-					// Loop potential lights @TODO: Scene top level acceleration structure
-					for (auto& light : scene.lights) {
-
-						// Skip pts outside light range
-						if (Utils::SqrLength(light.position - hitpt) > light.range * light.range) continue;
-
-						vec4 indirect = vec4(0.0f);
-						bool hasReflections = false;
-
-						// Loop potential objs
-						for (const auto& obj : scene.entities) {
-
-							// @TODO: Self reflections look weird, figure out why
-							if (obj.get() == res.obj) continue; // Disallow self reflections
-
-							// Inverse transform object to origin and test dist, skip if too far
-							float maxScale = max(obj->transform.scale.x, max(obj->transform.scale.y, obj->transform.scale.z));
-
-							constexpr float maxReflDist = 4.0f;
-
-							if (Utils::SqrLength(obj->worldAABB.ClosestPoint(hitpt) - hitpt) > maxReflDist * maxReflDist)
-								continue;
-
-							// Given raytrace hitpt + light position + object
-							// Compute the theoretical reflection point the obj would cast to this point, if any
-							glm::vec3 reflectPt, worldNormal;
-
-							// Sphere
-							if (obj->type == Entity::Type::Sphere) {
-
-								// For spheres figuring out reflect pt + normal is trivial
-								auto p = obj->transform.position;
-								auto toHitpt = glm::normalize(hitpt - p);
-								auto toLight = glm::normalize(light.position - p);
-								reflectPt = obj->transform.position + glm::normalize(toHitpt + toLight) * obj->transform.scale.x;
-								worldNormal = glm::normalize(reflectPt - obj->transform.position);
-							}
-
-							// Box
-							else if (obj->type == Entity::Type::Box) {
-
-								// Figure out which side hitpt is closest to in local space
-								vec3 planePos;
-								glm::vec3 tfHitpt = obj->invModelMatrix * glm::vec4(hitpt, 1.0f);
-								if (abs(tfHitpt.x) > abs(tfHitpt.y) && abs(tfHitpt.x) > abs(tfHitpt.z))
-									worldNormal = vec3(1.0f, 0.0f, 0.0f) * sign(tfHitpt.x);
-								else if (abs(tfHitpt.y) > abs(tfHitpt.z))
-									worldNormal = vec3(0.0f, 1.0f, 0.0f) * sign(tfHitpt.y);
-								else
-									worldNormal = vec3(0.0f, 0.0f, 1.0f) * sign(tfHitpt.z);
-
-								// Transform local normal to world space along with scale and compute mid point on that plane
-								worldNormal = obj->transform.rotation * (worldNormal * obj->transform.scale); // World normal scaled
-								planePos = obj->transform.position + worldNormal;
-								worldNormal = normalize(worldNormal); // Renormalize
-
-								// Reflect a point behind this plane -> Intersection test with this fake point is the reflection pos
-								vec3 reflPt = planePos - reflect((planePos - hitpt), worldNormal);
-
-								// Do the intersection test in local space
-								vec3 ro = light.position;
-								vec3 rd = normalize(reflPt - light.position);
-								const auto newPosDir = obj->invModelMatrix * glm::mat2x4(vec4(ro, 1.0f), vec4(rd, 0.0f));
-								Ray rr{ .ro = newPosDir[0], .rd = newPosDir[1], .inv_rd = 1.0f / newPosDir[1], .mask = res.data };
-								int data; float depth;
-								float isect = obj->IntersectLocal(rr, reflPt, data, depth);
-
-								if (isect <= 0.0f) continue; // No hit
-
-								reflectPt = ro + rd * depth;
-							}
-
-							// Mesh
-							else if (obj->type == Entity::Type::RenderedMesh) {
-
-								vec3 tfLightpos = obj->invModelMatrix * vec4(light.position, 1.0f);
-								
-								// Use reduced search range for meshes for perf
-								const float distLim = (maxReflDist * 0.5f) / maxScale;
-								//const float distLim = maxReflDist / maxScale;
-								Bvh::BvhTriangle tri;
-								
-								vec3 tfHitpt = obj->invModelMatrix * vec4(hitpt, 1.0f);
-								if (!obj->bvh.GetClosestReflectiveTri(tfHitpt, tfLightpos, distLim * distLim, res.data, tri, reflectPt))
-									continue; // No triangles on this mesh reflect light to this pos
-
-								reflectPt = obj->modelMatrix * vec4(reflectPt, 1.0f);
-								worldNormal = glm::normalize(obj->transform.rotation * tri.normal);
-							}
-							else {
-								continue;
-							}
-
-							float hitptDist = length(hitpt - reflectPt);
-							if (hitptDist < 0.001f) continue; // Same pos
-
-							vec3 toHitpt = (hitpt - reflectPt) / hitptDist;
-							vec3 toLight = glm::normalize(light.position - reflectPt);
-
-							// Trace a ray from light to the reflection point
-							Ray lightRay{ .ro = light.position, .rd = -toLight, .inv_rd = -1.0f / toLight, .mask = std::numeric_limits<int>::min() };
-
-							TraceData data = TraceData::Reflection | TraceData::Shadows;
-
-							// Can't call TraceRay directly because we need to assume hit target == obj in case they're in shadow
-							RayResult rayResult = RaycastScene(scene, lightRay);
-							if (!rayResult.Hit() || rayResult.obj != obj.get()) continue;
-							glm::vec4 color = GetColor(scene, rayResult, lightRay, data);
-
-							//color = vec4(0.0f, 1.0f, 1.0f, 1.0f); // Debug
-
-							// Used to fade the edges of distance pruning
-							float reflectFade = 1.0f - Utils::InvLerpClamp(glm::length(reflectPt - hitpt), 0.0f, maxReflDist);
-							reflectFade *= reflectFade * reflectFade; // 1/n^3 falloff seems good?
-
-							// Angle filter for reflection
-							float ang = (1.0f - dot(toHitpt, worldNormal)) * dot(toLight, worldNormal);
-
-							// Attenuation
-							float atten = light.CalcAttenuation(glm::length(reflectPt - hitpt) + glm::length(reflectPt - light.position));
-
-							float intensity = ang * atten * reflectFade;
-
-							if (intensity < 1.0f / 255.0f + 0.001f) continue; // Don't add data if intensity is below 1/255
-
-							indirect += color * intensity;
-
-							hasReflections = true;
-						}
-
-						// Ensure we leave empty data around the edges to fix interpolation issues when sampling
-						//if (hasReflections) indirect.a = max(indirect.a, 1.0f / 255.0f + 0.00001f);
-
-						auto clr = Color::FromVec(indirect);
-
-						light._indirectTempBuffer[textureIndex] = LightbufferPt{ .pt = hitpt, .indirect { .clr = clr, .nrm = res.obj->transform.rotation * res.faceNormal } };
-					}
-				}
-				else {
+				if (!res.Hit()) {
+					
 					// If we didn't hit anything just clear the index
 					for (auto& light : scene.lights)
-						light._indirectTempBuffer[textureIndex] = LightbufferPt{ .pt = vec3(), .indirect { .clr = Colors::Clear, .nrm = vec3() }};
+						light._indirectTempBuffer[textureIndex] = LightbufferPt{ .pt = vec3(), .indirect {.clr = Colors::Clear, .nrm = vec3() } };
+					
+					continue;
+				}
+
+				// Hit something, figure out indirect for this pt
+				const auto hitpt = ray.ro + ray.rd * res.depth;
+
+				// Loop potential lights @TODO: Scene top level acceleration structure
+				for (auto& light : scene.lights) {
+
+					// Skip pts outside light range
+					if (Utils::SqrLength(light.position - hitpt) > light.range * light.range) continue;
+
+					vec4 indirect = vec4(0.0f);
+					bool hasReflections = false;
+
+					// Loop potential objs
+					for (const auto& obj : scene.entities) {
+
+						if (obj.get() == res.obj) continue; // Disallow self reflections @TODO: Figure out why these look weird for some models
+
+						constexpr float maxReflDist = 4.0f;
+						
+						// Skip testing object if it's further than its max reflection dist
+						float maxScale = max(obj->transform.scale.x, max(obj->transform.scale.y, obj->transform.scale.z));
+						if (Utils::SqrLength(obj->worldAABB.ClosestPoint(hitpt) - hitpt) > maxReflDist * maxReflDist)
+							continue;
+
+						// Given raytrace hitpt + light position + object
+						// Compute the theoretical reflection point the obj would cast to this point, if any
+						vec3 reflectPt, worldNormal;
+
+						// The calculations differ for each shape
+
+						// Sphere
+						if (obj->type == Entity::Type::Sphere) {
+
+							// For spheres figuring out reflect pt + normal is trivial
+							auto p = obj->transform.position;
+							auto toHitpt = normalize(hitpt - p);
+							auto toLight = normalize(light.position - p);
+							reflectPt = obj->transform.position + normalize(toHitpt + toLight) * obj->transform.scale.x;
+							worldNormal = normalize(reflectPt - obj->transform.position);
+						}
+
+						// Box
+						else if (obj->type == Entity::Type::Box) {
+
+							// Figure out which side hitpt is closest to in local space
+							vec3 planePos;
+							vec3 tfHitpt = obj->invModelMatrix * vec4(hitpt, 1.0f);
+							if (abs(tfHitpt.x) > abs(tfHitpt.y) && abs(tfHitpt.x) > abs(tfHitpt.z))
+								worldNormal = vec3(1.0f, 0.0f, 0.0f) * sign(tfHitpt.x);
+							else if (abs(tfHitpt.y) > abs(tfHitpt.z))
+								worldNormal = vec3(0.0f, 1.0f, 0.0f) * sign(tfHitpt.y);
+							else
+								worldNormal = vec3(0.0f, 0.0f, 1.0f) * sign(tfHitpt.z);
+
+							// Transform local normal to world space along with scale and compute mid point on that plane
+							worldNormal = obj->transform.rotation * (worldNormal * obj->transform.scale); // World normal scaled
+							planePos = obj->transform.position + worldNormal;
+							worldNormal = normalize(worldNormal); // Renormalize
+
+							// Reflect a point behind this plane -> Intersection test with this fake point is the reflection pos
+							vec3 reflPt = planePos - reflect((planePos - hitpt), worldNormal);
+
+							// Do the intersection test in local space
+							vec3 ro = light.position;
+							vec3 rd = normalize(reflPt - light.position);
+							const auto newPosDir = obj->invModelMatrix * mat2x4(vec4(ro, 1.0f), vec4(rd, 0.0f));
+							Ray rr{ .ro = newPosDir[0], .rd = newPosDir[1], .inv_rd = 1.0f / newPosDir[1], .mask = res.data };
+							int data; float depth;
+							float isect = obj->IntersectLocal(rr, reflPt, data, depth);
+
+							if (isect <= 0.0f) continue; // No hit
+
+							reflectPt = ro + rd * depth;
+						}
+
+						// Mesh
+						else if (obj->type == Entity::Type::RenderedMesh) {
+
+							vec3 tfLightpos = obj->invModelMatrix * vec4(light.position, 1.0f);
+
+							// Use reduced search range for meshes for perf
+							const float distLim = (maxReflDist * 0.5f) / maxScale;
+							Bvh::BvhTriangle tri;
+							vec3 tfHitpt = obj->invModelMatrix * vec4(hitpt, 1.0f);
+
+							// Sample mesh BVH for closest potentially reflecting tri
+							if (!obj->bvh.GetClosestReflectiveTri(tfHitpt, tfLightpos, distLim * distLim, res.data, tri, reflectPt))
+								continue; // No triangles on this mesh reflect light to this pos
+
+							reflectPt = obj->modelMatrix * vec4(reflectPt, 1.0f);
+							worldNormal = normalize(obj->transform.rotation * tri.normal);
+						}
+
+						else continue; // Disk.. SDF... @TODO
+
+						float hitptDist = length(hitpt - reflectPt);
+						if (hitptDist < 0.001f) continue; // Same pos
+
+						vec3 toHitpt = (hitpt - reflectPt) / hitptDist;
+						vec3 toLight = normalize(light.position - reflectPt);
+
+						// Trace a ray from light to the reflection point
+						Ray lightRay{ .ro = light.position, .rd = -toLight, .inv_rd = -1.0f / toLight, .mask = std::numeric_limits<int>::min() };
+
+						TraceData data = TraceData::Reflection | TraceData::Shadows;
+
+						// Can't call TraceRay directly because we need to assume hit target == obj in case they're in shadow
+						RayResult rayResult = RaycastScene(scene, lightRay);
+						if (!rayResult.Hit() || rayResult.obj != obj.get()) continue;
+						vec4 color = SampleColor(scene, rayResult, lightRay, data);
+
+						//color = vec4(0.0f, 1.0f, 1.0f, 1.0f); // Debug
+
+						// Used to fade the edges of distance pruning
+						float reflectFade = 1.0f - Utils::InvLerpClamp(length(reflectPt - hitpt), 0.0f, maxReflDist);
+						reflectFade *= reflectFade * reflectFade; // 1/n^3 falloff seems good?
+
+						// Angle filter for reflection
+						float ang = (1.0f - dot(toHitpt, worldNormal)) * dot(toLight, worldNormal);
+
+						// Attenuation
+						float atten = light.CalcAttenuation(length(reflectPt - hitpt) + length(reflectPt - light.position));
+
+						float intensity = ang * atten * reflectFade;
+
+						if (intensity < 1.0f / 255.0f + 0.001f) continue; // Don't add data if intensity is below 1/255
+
+						indirect += color * intensity;
+
+						hasReflections = true;
+					}
+
+					// Save the accumulated value
+					auto clr = Color::FromVec(indirect);
+					light._indirectTempBuffer[textureIndex] = LightbufferPt{ .pt = hitpt, .indirect {.clr = clr, .nrm = res.obj->transform.rotation * res.faceNormal } };
 				}
 			}
 		}
@@ -465,57 +450,98 @@ void Raytracer::RenderScene(Scene& scene) {
 
 	// Populate toAdd buffer for each light and generate bvh
 	concurrency::parallel_for(size_t(0), scene.lights.size(), [&](size_t i) {
+
+		// Go over pts that had any data and add to temp buffer
 		auto& light = scene.lights[i];
 		light._toAddBuffer.clear();
 		for (const auto& val : light._indirectTempBuffer) {
 			if (val.indirect.clr.a == 0) continue;
 			light._toAddBuffer.push_back(val);
 		}
-	});
 
-	concurrency::parallel_for(size_t(0), scene.lights.size(), [&](size_t i) {
-		auto& light = scene.lights[i];
+		// Regen BVH
 		light.indirectBvh.Generate(light._toAddBuffer.data(), (int)light._toAddBuffer.size());
 	});
 
 	indirectGenTimer.End();
+}
 
-#endif
+void Raytracer::MainDirectPass(Scene& scene, const mat4x4& projInv, const mat4x4& viewInv) {
 
-	traceTimer.Start();
+	// Tiling and downsampling parameters for this pass
+	constexpr int sizeDiv = 1;
+	constexpr int tileSize = 4;
+	const int scaledWidth = window->width / sizeDiv;
+	const int scaledHeight = window->height / sizeDiv;
+	const int numScaledXtiles = scaledWidth / tileSize;
+	const int numScaledYtiles = scaledHeight / tileSize;
 
-	concurrency::parallel_for(0, numXtiles * numYtiles, [&](const int tile) {
-		int tileX = tile % numXtiles;
-		int tileY = tile / numXtiles;
-	
+	// Main scene trace pass
+	sceneTraceTimer.Start();
+	concurrency::parallel_for(0, numScaledXtiles * numScaledYtiles, [&](const int tile) {
+		int tileX = tile % numScaledXtiles;
+		int tileY = tile / numScaledXtiles;
+
 		for (int j = 0; j < tileSize; j++) {
 			for (int i = 0; i < tileSize; i++) {
-				float xcoord = (float)(tileX * tileSize + i) / (float)width;
-				float ycoord = (float)(tileY * tileSize + j) / (float)height;
-				int textureIndex = tileX * tileSize + i + ((tileY * tileSize + j) * width);
+				float xcoord = (float)(tileX * tileSize + i) / (float)window->width;
+				float ycoord = (float)(tileY * tileSize + j) / (float)window->height;
+				int textureIndex = tileX * tileSize + i + ((tileY * tileSize + j) * window->width);
 
 				// Create view ray from proj/view matrices
-				const glm::vec2 pixel = glm::vec2(xcoord, ycoord) * 2.0f - 1.0f;
-				glm::vec4 px = glm::vec4(pixel, 0.0f, 1.0f);
-	
+				const vec2 pixel = vec2(xcoord, ycoord) * 2.0f - 1.0f;
+				vec4 px = vec4(pixel, 0.0f, 1.0f);
+
 				px = projInv * px;
 				px.w = 0.0f;
-				glm::vec3 dir = viewInv * px;
+				vec3 dir = viewInv * px;
 				dir = normalize(dir);
-	
-				const Ray ray{ .ro = camPos, .rd = dir, .inv_rd = 1.0f / dir, .mask = std::numeric_limits<int>::min() };
+
+				// Trace the scene
+				const Ray ray{ .ro = scene.camera.transform.position, .rd = dir, .inv_rd = 1.0f / dir, .mask = std::numeric_limits<int>::min() };
 				TraceData data = TraceData::Default;
-				glm::vec4 result = TraceRay(scene, ray, data);
-	
+				vec4 result = TracePath(scene, ray, data);
+
 				textureBuffer[textureIndex] = Color::FromVec(result);
 			}
 		}
 	});
 
-	traceTimer.End();
+	sceneTraceTimer.End();
+}
+
+void Raytracer::RenderScene(Scene& scene) {
+
+	// Matrices
+	const Transform& camTransform = scene.camera.transform;
+	const vec3 camPos = camTransform.position;
+	vec3 fwd = camTransform.Forward();
+	vec3 up = camTransform.Up();
+	auto view = glm::lookAt(camTransform.position, camTransform.position + fwd, up);
+	auto proj = glm::perspectiveFov(radians(scene.camera.fov), (float)window->width, (float)window->height, scene.camera.nearClip, scene.camera.farClip);
+	auto viewInv = inverse(view);
+	auto projInv = inverse(proj);
+
+	// Backbuffer
+	const bgfx::Memory* mem = bgfx::makeRef(textureBuffer, (uint32_t)textureBufferSize);
+
+	// Clear buffers
+	for (auto& light : scene.lights) {
+		light.indirectBvh.Clear();
+		light.lightBvh.Clear();
+	}
+
+	// Calculate downsampled lit areas to use for smoothing shadow
+	SmoothShadowsPass(scene, projInv, viewInv);
+
+	// Calculate 1 bounce indirect lighting cast by objects
+	IndirectLightingPass(scene, projInv, viewInv);
+
+	// Draw the main screen buffer
+	MainDirectPass(scene, projInv, viewInv);
 
 	// Update gpu texture
-	bgfx::updateTexture2D(texture, 0, 0, 0, 0, width, height, mem);
+	bgfx::updateTexture2D(texture, 0, 0, 0, 0, window->width, window->height, mem);
 
 	// Render a single triangle as a fullscreen pass
 	if (bgfx::getAvailTransientVertexBuffer(3, vtxLayout) == 3) {
@@ -527,9 +553,9 @@ void Raytracer::RenderScene(Scene& scene) {
 
 		// Vertices
 		const Color clr(0x00, 0x00, 0x00, 0xff);
-		vertex[0] = PosColorTexCoord0Vertex{ .pos = glm::vec3(0.0f, 0.0f, 0.0f),			.rgba = clr, .uv = glm::vec2(0.0f, 0.0f) };
-		vertex[1] = PosColorTexCoord0Vertex{ .pos = glm::vec3(width, 0.0f, 0.0f),	.rgba = clr, .uv = glm::vec2(-2.0f, 0.0f) };
-		vertex[2] = PosColorTexCoord0Vertex{ .pos = glm::vec3(0.0f, height, 0.0f),	.rgba = clr, .uv = glm::vec2(0.0f, 2.0f) };
+		vertex[0] = PosColorTexCoord0Vertex{ .pos = vec3(0.0f, 0.0f, 0.0f),				.rgba = clr, .uv = vec2(0.0f, 0.0f) };
+		vertex[1] = PosColorTexCoord0Vertex{ .pos = vec3(window->width, 0.0f, 0.0f),	.rgba = clr, .uv = vec2(-2.0f, 0.0f) };
+		vertex[2] = PosColorTexCoord0Vertex{ .pos = vec3(0.0f, window->height, 0.0f),	.rgba = clr, .uv = vec2(0.0f, 2.0f) };
 
 		// Set data and submit
 		bgfx::setViewTransform(VIEW_LAYER, &view, &proj);

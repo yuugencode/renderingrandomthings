@@ -30,7 +30,7 @@ public:
 	// Draws the default debug UI
 	static void DrawUI();
 	
-	// Renders the UI on backbuffer
+	// Renders the UI in backbuffer
 	// Loosely based on now seemingly unmaintained bigg-library's public domain implementation
 	static void Render();
 

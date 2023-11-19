@@ -28,8 +28,6 @@ bool RenderedMesh::IntersectLocal(const Ray& ray, glm::vec3& normal, int& triIdx
 }
 
 v2f RenderedMesh::VertexShader(const Ray& ray, const RayResult& rayResult) const {
-	using namespace glm; // Pretend we're a shader
-
 	v2f ret;
 
 	const auto& mesh = Assets::Meshes[meshHandle];
@@ -111,3 +109,4 @@ Color RenderedMesh::SampleTriangle(const int& triIndex, const glm::vec3& barycen
 	const auto uv = uv0 * barycentric.x + uv1 * barycentric.y + uv2 * barycentric.z;
 	return Assets::Textures[texID]->SampleUVClamp(uv);
 }
+

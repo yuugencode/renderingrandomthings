@@ -218,11 +218,6 @@ void Mesh::ReadAllNodes() {
     Clear();
 
     ReadTextures();
-    //for (size_t i = 0; i < scene->textures.count; i++) {
-    //    auto path = std::string(scene->textures.data[i]->filename.data, scene->textures.data[0]->filename.length);
-    //    auto filename = std::filesystem::path(path).filename().replace_extension();
-    //    textureNames.push_back(filename.string());
-    //}
 
     int meshCount = GetMeshNodeCount();
     int vertexCnt = 0;
@@ -244,11 +239,6 @@ void Mesh::ReadSceneMeshNode(int nodeIndex) {
         Log::FatalError("Tried to read a mesh file node past file scene indices");
 
     ReadTextures();
-    //for (size_t i = 0; i < scene->textures.count; i++) {
-    //    auto path = std::string(scene->textures.data[i]->filename.data, scene->textures.data[0]->filename.length);
-    //    auto filename = std::filesystem::path(path).filename().replace_extension();
-    //    textureNames.push_back(filename.string());
-    //}
 
     ReadNode(nodeIndex, 0);
     CheckData();

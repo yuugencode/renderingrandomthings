@@ -2,6 +2,7 @@
 
 #include <glm/glm.hpp>
 
+#include "Engine/Common.h"
 #include "Engine/Utils.h"
 #include "Engine/Bvh.h"
 #include "Engine/Material.h"
@@ -14,12 +15,13 @@ struct RayResult; // RayResults contain an entity pointer so have to declare it 
 // Abstract object in the scene that can be raytraced against
 class Entity {
 public:
-	
 	enum class Type { Sphere, Disk, Box, RenderedMesh };
-	enum class Shader { PlainWhite, Normals, Textured, Grid, Debug };
 
 	// Type of object this is (mesh, parametric) @TODO: SDF
 	Type type;
+
+	// Name of this object
+	std::string name;
 
 	// What kind of shader should this use
 	Shader shaderType;
@@ -33,7 +35,6 @@ public:
 	Bvh bvh;
 
 	// "Material" properties
-	//std::vector<uint32_t> textureHandles; // Indices to texture assets array
 	int meshHandle = -1; // Mesh, if any
 
 	glm::mat4x4 modelMatrix;
@@ -47,6 +48,7 @@ public:
 	// Fills v2f-style struct with relevant data for this shape
 	virtual v2f VertexShader(const Ray& ray, const RayResult& rayResult) const = 0;
 
+	// Intersects a ray against this object in the object's local space
 	virtual bool IntersectLocal(const Ray& ray, glm::vec3& normal, int& data, float& depth) const = 0;
 
 protected:

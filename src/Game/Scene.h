@@ -19,4 +19,10 @@ public:
 
 	// Camera of the scene
 	Camera camera;
+
+	// Highly variable function that reads and/or generates a bunch of whatever test models are currently used
+	void ReadAndAddTestObjects();
+
+	// Trivial getter, null if doesn't exist
+	Entity* GetObjectByName(const std::string& name) const;
 };

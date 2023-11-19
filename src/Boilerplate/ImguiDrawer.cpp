@@ -118,7 +118,7 @@ void ImguiDrawer::DrawUI() {
 	ImGui::Text("Camera dir (%.1f, %.1f, %.1f)", camDir.x, camDir.y, camDir.z);
 	ImGui::Text("Scene trace");
 	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 1, 1, 1));
-	ImGui::SameLine(); ImGui::Text("%.2fms", Game::raytracer.traceTimer.GetAveragedTime() * 1000.0);
+	ImGui::SameLine(); ImGui::Text("%.2fms", Game::raytracer.sceneTraceTimer.GetAveragedTime() * 1000.0);
 	ImGui::PopStyleColor();
 
 	ImGui::Text("Shadows sample:"); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 1, 1, 1));

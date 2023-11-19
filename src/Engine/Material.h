@@ -2,8 +2,7 @@
 
 #include <glm/glm.hpp>
 
-#include "Engine/Common.h"
-
+// Material contains object specific parameters for rendering
 struct Material {
 	int textureHandle = -1;
 	float reflectivity = 0.0f;

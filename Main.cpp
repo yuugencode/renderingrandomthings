@@ -51,9 +51,9 @@ int main(int argc, char* argv[]) {
 	init.platformData.ndt = Game::window.displayHandle;
 	init.resolution.width = Game::window.width;
 	init.resolution.height = Game::window.height;
-	init.resolution.reset = BGFX_RESET_VSYNC;// | BGFX_RESET_FLIP_AFTER_RENDER | BGFX_RESET_FLUSH_AFTER_RENDER;
-	//init.resolution.reset = BGFX_RESET_NONE;
-	init.resolution.maxFrameLatency = 1; // Some bug somewhere makes the rendering jittery if this is not set
+	init.resolution.reset = BGFX_RESET_VSYNC | BGFX_RESET_FLIP_AFTER_RENDER | BGFX_RESET_FLUSH_AFTER_RENDER;
+	//init.resolution.reset = BGFX_RESET_NONE; // Uncapped fps
+	init.resolution.maxFrameLatency = 1;
 	init.callback = new BgfxCallback();
 	init.allocator = &allocator;
 
@@ -73,6 +73,7 @@ int main(int argc, char* argv[]) {
 	Game::raytracer.Create(Game::window);
 
 	// Add stuff to the scene
+	Game::scene.ReadAndAddTestObjects();
 
 	// Camera
 	const auto camStartPos = glm::vec3(-1.5f, 3.7f, 5.6f);
@@ -87,150 +88,7 @@ int main(int argc, char* argv[]) {
 		.farClip = 1000.0f,
 	};
 
-	auto& camTf = Game::scene.camera.transform; // Shorter alias
-
-	// Lights
-	Game::scene.lights.push_back(Light{ .position = glm::vec3(5.0f, 5.5f,  4.3f), .color = glm::vec3(1.0f, 0.9f, 0.9f), .range = 20.0f, .intensity = 1.0f });
-	Game::scene.lights.push_back(Light{ .position = glm::vec3(4.0f, 5.5f, -7.0f), .color = glm::vec3(0.8f, 1.0f, 1.0f), .range = 15.0f, .intensity = 1.0f });
-	Game::scene.lights.push_back(Light{ .position = glm::vec3(-4.0f, 5.5f, -7.0f), .color = glm::vec3(0.8f, 1.0f, 0.7f), .range = 15.0f, .intensity = 1.0f });
-	//Game::scene.lights.push_back(Light{ .position = glm::vec3(0.0f, 7.0f, 0.0f), .color = glm::vec3(1.0f, 1.0f, 1.0f), .range = 20.0f, .intensity = 1.5f });
-	
-	// Various parametric shapes, nothing fancy
-	Game::scene.entities.push_back(std::make_unique<Disk>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 20.0f));
-	Game::scene.entities.back()->shaderType = Entity::Shader::Grid;
-	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(10.0f, 0.5f, 0.0f), 0.1f));
-	Game::scene.entities.back()->materials[0].reflectivity = 0.3f;
-	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(0.0f, 1.5f, -5.0f), 2.0f));
-	Game::scene.entities.back()->materials[0].reflectivity = 0.3f;
-	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(1.0f, 0.5f, 7.0f), 1.0f));
-	Game::scene.entities.back()->materials[0].reflectivity = 1.0f;
-	Game::scene.entities.push_back(std::make_unique<Box>(glm::vec3(-2.0f, 0.5f, 0.0f), glm::vec3(1.0f, 4.0f, 0.05f)));
-	Game::scene.entities.back()->materials[0].reflectivity = 0.5f;
-	Game::scene.entities.push_back(std::make_unique<Box>(glm::vec3(6.0f, 0.5f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f)));
-	Game::scene.entities.back()->materials[0].color = glm::vec4(1.0f, 0.2f, 0.2f, 1.0f);
-
-#if false // Mesh
-	RenderedMesh* chara;
-	{
-		auto meshHandle = Assets::NewMesh(std::filesystem::path("models/char.fbx"));
-		auto rendMesh = std::make_unique<RenderedMesh>(meshHandle);
-		chara = rendMesh.get();
-	
-		// Mesh 1 textures
-		for (const auto& metadata : rendMesh->GetMesh()->materialMetadata) {
-			auto file = metadata.textureFilename;
-			auto path = std::filesystem::path("models") / file.append(".png");
-			if (file != "" && std::filesystem::exists(path))
-				rendMesh->materials.push_back(Material{
-					.textureHandle = Assets::NewTexture(path, Assets::ImportOpts{.flipY = true })
-				});
-			else 
-				rendMesh->materials.push_back(Material());
-		}
-	
-		Game::scene.entities.push_back(std::move(rendMesh));
-	
-		chara->transform.rotation = glm::angleAxis(glm::radians(-90.0f), glm::vec3(1, 0, 0));
-	}
-#endif
-
-#if false // Mesh
-	RenderedMesh* bunny;
-	{
-		auto meshHandle = Assets::NewMesh(std::filesystem::path("models/bunny.obj"));
-		auto rendMesh = std::make_unique<RenderedMesh>(meshHandle);
-		//rendMesh->materials[0].reflectivity = 0.5f;
-		bunny = rendMesh.get();
-
-		Game::scene.entities.push_back(std::move(rendMesh));
-
-		bunny->transform.scale = glm::vec3(20.0f);
-		bunny->transform.position += glm::vec3(3.0f, -0.6f, 0.0f);
-		bunny->transform.LookAtDir(glm::vec3(-1, 0, 0), glm::vec3(0, 1, 0));
-		bunny->shaderType = RenderedMesh::Shader::PlainWhite;
-	}
-#endif
-	
-#if false // Mesh
-	RenderedMesh* dragon;
-	{
-		auto meshHandle = Assets::NewMesh(std::filesystem::path("models/dragon_vrip.obj"));
-		auto rendMesh = std::make_unique<RenderedMesh>(meshHandle);
-		dragon = rendMesh.get();
-	
-		Game::scene.entities.push_back(std::move(rendMesh));
-	
-		dragon->transform.scale = glm::vec3(10.0f);
-		dragon->transform.position += glm::vec3(4.0f, -0.5f, 0.0f);
-		dragon->shaderType = RenderedMesh::Shader::PlainWhite;
-	}
-#endif
-	
-#if false // Mesh
-	RenderedMesh* arma;
-	{
-		auto meshHandle = Assets::NewMesh(std::filesystem::path("models/armadillo.obj"));
-		auto rendMesh = std::make_unique<RenderedMesh>(meshHandle);
-		arma = rendMesh.get();
-
-		Game::scene.entities.push_back(std::move(rendMesh));
-
-		arma->transform.scale = glm::vec3(0.02f);
-		arma->transform.position += glm::vec3(0.0f, 1.1f, 3.0f);
-		arma->transform.LookAtDir(glm::vec3(1, 0, 0), glm::vec3(0, 1, 0));
-		arma->shaderType = RenderedMesh::Shader::PlainWhite;
-	}
-#endif
-	
-#if false // Mesh
-	{
-		auto meshHandle = Assets::NewMesh(std::filesystem::path("models/sponza/sponza.fbx"), Assets::ImportOpts{ .ignoreMaterials = { 14, 28, 32, 39 } });
-		auto rendMesh = std::make_unique<RenderedMesh>(meshHandle);
-		
-		// Sometimes normals in slot0, just hardcode basecolor instead
-		for (auto& a : Assets::Meshes[meshHandle]->materialMetadata) {
-			std::string& file = a.textureFilename;
-			const std::string str = "Normal";
-			auto pos = file.find(str);
-			if (pos != std::string::npos) file = file.replace(pos, str.length(), "BaseColor");
-			//Log::Line(a.materialName, a.textureFilename);
-		}
-
-		// Read textures multithreaded
-		rendMesh->materials.resize(Assets::Meshes[meshHandle]->materialMetadata.size());
-		concurrency::parallel_for(size_t(0), Assets::Meshes[meshHandle]->materialMetadata.size(), [&](size_t i) {
-			const auto& file = Assets::Meshes[meshHandle]->materialMetadata[i].textureFilename;
-			auto path = std::filesystem::path("models/sponza/textures") / file;
-			if (file != "" && std::filesystem::exists(path))
-				rendMesh->materials[i] = Material{ .textureHandle = Assets::NewTexture(path, Assets::ImportOpts{ .flipY = true })};
-			else
-				rendMesh->materials[i] = Material();
-		});
-		
-		rendMesh->shaderType = RenderedMesh::Shader::Textured;
-		Game::scene.entities.push_back(std::move(rendMesh));
-	}
-#endif
-
-#if true // Mesh
-	RenderedMesh* ball; {
-		auto meshHandle = Assets::NewMesh(std::filesystem::path("models/triangleBall2.fbx"));
-		auto rendMesh = std::make_unique<RenderedMesh>(meshHandle);
-		rendMesh->materials[0].reflectivity = 0.5f;
-
-		rendMesh->transform.scale = glm::vec3(2.0f);
-		rendMesh->transform.position += glm::vec3(-4.0f, 2.0f, 3.0f);
-		rendMesh->transform.LookAtDir(glm::vec3(-1, 0, 0), glm::vec3(0, 1, 0));
-		rendMesh->shaderType = RenderedMesh::Shader::PlainWhite;
-		rendMesh->materials[0].color = glm::vec4(0.0f, 1.0f, 1.0f, 1.0f);
-		ball = rendMesh.get();
-
-		Game::scene.entities.push_back(std::move(rendMesh));
-	}
-#endif
-
 	bool showBgfxStats = false, paused = false;
-
 
 	// Main loop
 	while (true) {
@@ -264,6 +122,8 @@ int main(int argc, char* argv[]) {
 		if (Input::KeyHeld(SDL_KeyCode::SDLK_e)) offset += glm::vec3(0, 1,0);
 		if (Input::KeyHeld(SDL_KeyCode::SDLK_q)) offset += glm::vec3(0,-1,0);
 		if (Input::KeyHeld(SDL_KeyCode::SDLK_LSHIFT)) offset *= 0.2f;
+		
+		auto& camTf = Game::scene.camera.transform; // Shorter alias
 		camTf.position += camTf.rotation * offset * Time::unscaledDeltaTimeF * 4.0f;
 
 		// Press R to drop light at current pos
@@ -286,23 +146,28 @@ int main(int argc, char* argv[]) {
 		bgfx::setDebug(showBgfxStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
 
 		// Temp debug movement for things
-#if true
-		//bunny->transform.rotation = glm::angleAxis(Time::deltaTimeF * 2.0f, glm::vec3(0, 1, 0)) * bunny->transform.rotation;
-		//bunny->transform.rotation = glm::normalize(bunny->transform.rotation);
-		ball->transform.rotation = glm::angleAxis(-Time::deltaTimeF * 1.0f, glm::vec3(0, 0, 1)) * ball->transform.rotation;
-		ball->transform.rotation = glm::normalize(ball->transform.rotation);
-#endif
-
-		for (int i = 0; i < Game::scene.lights.size(); i++) {
-			Light& light = Game::scene.lights[i];
-			light.position = glm::normalize(glm::angleAxis(Time::deltaTimeF * 0.6f * Utils::Hash11((float)(i + 33)), glm::vec3(0, 1, 0))) * light.position;
-			//light.position = camTf.position;
+		Entity* bunny = Game::scene.GetObjectByName("bunny");
+		if (bunny != nullptr) {
+			bunny->transform.rotation = glm::angleAxis(Time::deltaTimeF * 2.0f, glm::vec3(0, 1, 0)) * bunny->transform.rotation;
+			bunny->transform.rotation = glm::normalize(bunny->transform.rotation);
+		}
+		Entity* ball = Game::scene.GetObjectByName("ball");
+		if (ball != nullptr) {
+			ball->transform.rotation = glm::angleAxis(-Time::deltaTimeF * 1.0f, glm::vec3(0, 0, 1)) * ball->transform.rotation;
+			ball->transform.rotation = glm::normalize(ball->transform.rotation);
 		}
 
-		// Update object matrices
+		// Rotate lights
+		//for (int i = 0; i < Game::scene.lights.size(); i++) {
+		//	Light& light = Game::scene.lights[i];
+		//	light.position = glm::normalize(glm::angleAxis(Time::deltaTimeF * 0.6f * Utils::Hash11((float)(i + 33)), glm::vec3(0, 1, 0))) * light.position;
+		//}
+
+		// Update object matrices @TODO: Caching, transform hierarchies etc etc.. maybe one day
 		concurrency::parallel_for(size_t(0), Game::scene.entities.size(), [&](size_t i) {
 			auto& obj = Game::scene.entities[i];
 			obj->modelMatrix = obj->transform.ToMatrix();
+			obj->invModelMatrix = glm::inverse(obj->modelMatrix);
 			
 			// Calculate rotated AABB for every obj
 			glm::mat4x4 lowPts =  { obj->aabb.GetVertice(0), obj->aabb.GetVertice(1), obj->aabb.GetVertice(2), obj->aabb.GetVertice(3), };
@@ -312,13 +177,12 @@ int main(int argc, char* argv[]) {
 			AABB globalAABB = AABB(lowPts[0], lowPts[0]);
 			for (int i = 0; i < 4; i++) { globalAABB.Encapsulate(lowPts[i]); globalAABB.Encapsulate(highPts[i]); }
 			obj->worldAABB = globalAABB;
-
-			obj->invModelMatrix = glm::inverse(obj->modelMatrix);
 		});
 
 		// Trace the scene
 		Game::raytracer.RenderScene(Game::scene);
 
+		// Draw UI
 		ImguiDrawer::Render();
 
 		// Dump on screen

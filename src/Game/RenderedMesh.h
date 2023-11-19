@@ -21,6 +21,7 @@ public:
 	// Samples the mesh texture for transparency at a given triangle index + pos
 	Color SampleAt(const glm::vec3& pos, const int& data) const;
 
+	// Samples a given triangle and barycentric UV for its raw color
 	Color SampleTriangle(const int& triIndex, const glm::vec3& barycentric) const;
 
 	// Fills v2f struct with possibly interpolated data that is passed onto the "fragment shader"
