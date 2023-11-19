@@ -287,14 +287,14 @@ void BvhPoint<T>::GatherNClosest(const int& nodeIndex, const glm::vec3& pos, flo
 
 // Have to explicit instantiate all used types
 template class BvhPoint<float>;
-template class BvhPoint<glm::vec3>;
+template class BvhPoint<LightbufferPayload>;
 template class BvhPoint<Empty>;
 
 // Just add all 1-4 variants
-template void BvhPoint<glm::vec3>::GetNClosest<1>(const glm::vec3& queryPos, float* dists, BvhPointData* data) const;
-template void BvhPoint<glm::vec3>::GetNClosest<2>(const glm::vec3& queryPos, float* dists, BvhPointData* data) const;
-template void BvhPoint<glm::vec3>::GetNClosest<3>(const glm::vec3& queryPos, float* dists, BvhPointData* data) const;
-template void BvhPoint<glm::vec3>::GetNClosest<4>(const glm::vec3& queryPos, float* dists, BvhPointData* data) const;
+template void BvhPoint<LightbufferPayload>::GetNClosest<1>(const glm::vec3& queryPos, float* dists, BvhPointData* data) const;
+template void BvhPoint<LightbufferPayload>::GetNClosest<2>(const glm::vec3& queryPos, float* dists, BvhPointData* data) const;
+template void BvhPoint<LightbufferPayload>::GetNClosest<3>(const glm::vec3& queryPos, float* dists, BvhPointData* data) const;
+template void BvhPoint<LightbufferPayload>::GetNClosest<4>(const glm::vec3& queryPos, float* dists, BvhPointData* data) const;
 template void BvhPoint<Empty>::GetNClosest<1>(const glm::vec3& queryPos, float* dists, BvhPointData* data) const;
 template void BvhPoint<Empty>::GetNClosest<2>(const glm::vec3& queryPos, float* dists, BvhPointData* data) const;
 template void BvhPoint<Empty>::GetNClosest<3>(const glm::vec3& queryPos, float* dists, BvhPointData* data) const;

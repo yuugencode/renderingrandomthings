@@ -23,7 +23,7 @@ float SampleSmoothShadow(const Light& light, const v2f& input, const float& bloc
 	//if (dist[N - 1] == distLim) return 0.0f; // Couldn't find any pts nearby
 	
 	float penumbraSize = Utils::InvLerpClamp(blockerDist * 0.3f, 0.0f, 3.0f); // Penumbra range
-	penumbraSize *= 2.0f; // Max size of penumbra
+	penumbraSize *= 2.2f; // Max size of penumbra, finicky artifacts if too high
 
 	// Bvh returns squared distances, could lerp using them to avoid sqrt but produces uncanny softening
 	float distFromEdge = 0.0f;
@@ -35,33 +35,30 @@ float SampleSmoothShadow(const Light& light, const v2f& input, const float& bloc
 }
 
 // Samples GI from bvh for this position
-glm::vec4 SampleGI(const Light& light, const RayResult& rayResult, const v2f& input, const TraceData& data) {
+glm::vec4 SampleGI(const Scene& scene, const Light& light, const RayResult& rayResult, const v2f& input, const TraceData& data) {
 	using namespace glm;
 
 	if (!light.indirectBvh.Exists()) return vec4(0.0f);
 
 	constexpr int N = 4;
 	constexpr float distLim = 1.0f;
-	constexpr BvhPoint<vec3>::BvhPointData emptyData{ .point = vec3(0.0f), .payload = vec3(0.0f) };
-	BvhPoint<vec3>::BvhPointData datas[N]{ emptyData, emptyData, emptyData, emptyData };
+	constexpr BvhPoint<LightbufferPayload>::BvhPointData emptyData{ .point = vec3(0.0f), .payload { .clr = Colors::Clear, .nrm = vec3(0.0f) }};
+	BvhPoint<LightbufferPayload>::BvhPointData datas[N]{ emptyData, emptyData, emptyData, emptyData };
 	float dist[N]{ distLim, distLim, distLim, distLim };
 
 	light.indirectBvh.GetNClosest<N>(input.worldPosition, dist, datas);
 	
-	//if (dist[N - 1] == distLim) return vec4(0.0f); // Couldn't find any pts nearby
-
-	// Remove receiving indirect light cast by self via a mask saved to the bvh during generation
-	for (int i = 0; i < N; i++) {
-		if (std::bit_cast<int>(datas[i].payload[1]) == rayResult.obj->id ||
-			std::bit_cast<int>(datas[i].payload[2]) == rayResult.obj->id)
-			dist[i] = distLim; // Make contribution 0
-	}
+	// Increase sample smoothing range based on view angle + view distance
+	const float angOffset = dot(input.worldNormal, normalize(scene.camera.transform.position - input.worldPosition));
+	const float depthOffset = (data.cumulativeDepth * 0.008f) / max(angOffset, 0.001f);
 
 	// Average N nearest samples
 	vec4 ret = vec4(0.0f);
-	for (int i = 0; i < N; i++) {		
-		dist[i] = 1.0f - Utils::InvLerpClamp(sqrt(dist[i]), 0.2f, distLim);
-		ret += std::bit_cast<Color>(datas[i].payload[0]).ToVec4() * dist[i];
+	for (int i = 0; i < N; i++) {
+		dist[i] = 1.0f - Utils::InvLerpClamp(sqrt(dist[i]), depthOffset + 0.005f, depthOffset + 0.01f);
+		// Surface receiver normal has to be similar to bvh points saved normal in order to receive indirect
+		float anglePenalty = max(0.0f, dot(input.worldNormal, datas[i].payload.nrm));
+		ret += std::bit_cast<Color>(datas[i].payload.clr).ToVec4() * dist[i] * anglePenalty;
 	}
 	ret /= (float)N;
 	return ret;
@@ -86,8 +83,7 @@ inline bool ShadowRay(const Scene& scene, const glm::vec3& from, const glm::vec3
 
 		// If we hit a textured object gotta check for transparency and go on recursively.. not very elegant
 		// While this is very proper way of dealing with it, ideally there's an early exit here instead of sampling textures
-		// Options: per object "casts shadows" flag, per-triangle extra data in bvh or an extra 1 bit buffer in the renderedmesh
-		if (res.obj->HasMesh() && res.obj->HasMaterials())
+		if (res.obj->HasMesh())
 			if (static_cast<RenderedMesh*>(res.obj)->SampleAt(res.localPos, res.data).a == 0)
 				return ShadowRay(scene, ray.ro + ray.rd * res.depth, to, res.data, ++recursionDepth, blockerDist);
 
@@ -134,7 +130,7 @@ void LightLoop(const Scene& scene, const RayResult& rayResult, const v2f& input,
 
 		direct += light.color * shading * light.intensity;
 
-		if (data.HasFlag(TraceData::Indirect)) indirect += xyz(SampleGI(light, rayResult, input, data));
+		if (data.HasFlag(TraceData::Indirect)) indirect += xyz(SampleGI(scene, light, rayResult, input, data));
 	}
 }
 
@@ -145,7 +141,7 @@ glm::vec4 Shaders::Textured(const Scene& scene, const RayResult& rayResult, cons
 	vec4 c(vec3(0.0f), 1.0f);
 
 	// Base color
-	if (rayResult.obj->HasMesh() && rayResult.obj->HasMaterials()) {
+	if (rayResult.obj->HasMesh()) {
 
 		const auto& mesh = Assets::Meshes[rayResult.obj->meshHandle];
 		const auto& materialID = mesh->materials[rayResult.data / 3]; // .data = triangle index for meshes
@@ -172,14 +168,22 @@ glm::vec4 Shaders::Textured(const Scene& scene, const RayResult& rayResult, cons
 glm::vec4 Shaders::Grid(const Scene& scene, const RayResult& rayResult, const v2f& input, const TraceData& data) {
 	using namespace glm;
 	
-	// Base color
+	// Grid pattern
 	auto f = fract(rayResult.localPos * 10.0f);
 	f = abs(f - 0.5f) * 2.0f;
 	float a = min(f.x, min(f.y, f.z));
-	float res = 0.4f + Utils::InvLerpClamp(1.0f - a, 0.9f, 1.0f);
+	float gridPattern = clamp(1.0f - (Utils::InvLerpClamp(1.0f - a, 0.95f, 1.0f)), 0.5f, 1.0f);
 
+	// Base color
 	vec4 c = rayResult.obj->materials[0].color;
-	swizzle_xyz(c) *= res;
+
+	// Add texture with procedural uvs if any set
+	if (rayResult.obj->materials[0].HasTexture()) {
+		vec2 fake_uv = fract(vec2(input.worldPosition.x, input.worldPosition.z));
+		c *= Assets::Textures[rayResult.obj->materials[0].textureHandle]->SampleUVClamp(fake_uv).ToVec4();
+	}
+
+	swizzle_xyz(c) *= gridPattern;
 
 	// Loop lights
 	vec3 direct = vec3(0.0f), indirect = vec3(0.0f);

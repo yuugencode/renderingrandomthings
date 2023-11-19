@@ -82,6 +82,18 @@ struct Empty {
     // Empty!
 };
 
+// Light's indirect buffer BVH payload struct
+struct LightbufferPayload {
+    Color clr; // Indirect color sum
+    glm::vec3 nrm; // Receiver point world normal
+};
+
+// Light's indirect buffer contents
+struct LightbufferPt {
+    glm::vec3 pt; // World position
+    LightbufferPayload indirect;
+};
+
 // Global constants
 namespace Colors {
     inline constexpr Color Red = Color(0xff, 0x00, 0x00, 0xff);

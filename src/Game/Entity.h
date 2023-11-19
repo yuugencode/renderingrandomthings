@@ -41,7 +41,6 @@ public:
 
 	std::vector<Material> materials;
 	bool HasMesh() const { return meshHandle >= 0; }
-	bool HasMaterials() const { return materials.size() != 0; }
 
 	const Mesh* GetMesh() const { return Assets::Meshes[meshHandle].get(); }
 

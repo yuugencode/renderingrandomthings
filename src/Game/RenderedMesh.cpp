@@ -70,12 +70,12 @@ v2f RenderedMesh::VertexShader(const Ray& ray, const RayResult& rayResult) const
 }
 
 Color RenderedMesh::SampleAt(const glm::vec3& pos, const int& triIndex) const {
-	if (!HasMesh() || !HasMaterials()) return Color{ .r = 0x00, .g = 0x00, .b = 0x00, .a = 0xff };
+	if (!HasMesh()) return Color{ .r = 0x00, .g = 0x00, .b = 0x00, .a = 0xff };
 
 	const auto& mesh = GetMesh();
 	const auto& materialID = mesh->materials[triIndex / 3];
-	const auto& texID = materials[materialID].textureHandle;
-	if (texID == -1) return Colors::Black;
+	const auto& material = materials[materialID];
+	if (!material.HasTexture()) return Colors::Black;
 
 	const auto& v0i = mesh->triangles[triIndex + 0];
 	const auto& v1i = mesh->triangles[triIndex + 1];
@@ -90,11 +90,11 @@ Color RenderedMesh::SampleAt(const glm::vec3& pos, const int& triIndex) const {
 	const glm::vec3 b = Utils::Barycentric(pos, p0, p1, p2);
 	const auto uv = uv0 * b.x + uv1 * b.y + uv2 * b.z;
 
-	return Assets::Textures[texID]->SampleUVClamp(uv);
+	return Assets::Textures[material.textureHandle]->SampleUVClamp(uv);
 }
 
 Color RenderedMesh::SampleTriangle(const int& triIndex, const glm::vec3& barycentric) const {
-	if (!HasMesh() || !HasMaterials()) return Color{ .r = 0x00, .g = 0x00, .b = 0x00, .a = 0xff };
+	if (!HasMesh()) return Color{ .r = 0x00, .g = 0x00, .b = 0x00, .a = 0xff };
 
 	const auto& mesh = GetMesh();
 	const auto& materialID = mesh->materials[triIndex / 3];

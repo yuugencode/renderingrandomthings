@@ -343,14 +343,14 @@ bool Bvh::ReflectiveBarycentric(const glm::vec3& lightpos, const glm::vec3& pos,
 	return false;
 }
 
-bool Bvh::GetClosestReflectiveTri(const glm::vec3& pos, const glm::vec3& lightpos, const float distLimSqr, 
+bool Bvh::GetClosestReflectiveTri(const glm::vec3& pos, const glm::vec3& lightpos, const float& distLimSqr, const int& triMask,
 	BvhTriangle& result, glm::vec3& reflectPt) const {
 	float minDist = distLimSqr;
-	TraverseNode(0, pos, lightpos, distLimSqr, minDist, result, reflectPt);
+	TraverseNode(0, pos, lightpos, triMask, minDist, result, reflectPt);
 	return minDist != distLimSqr;
 }
 
-void Bvh::TraverseNode(const int& nodeIndex, const glm::vec3& pos, const glm::vec3& lightpos, const float& distLimSqr, 
+void Bvh::TraverseNode(const int& nodeIndex, const glm::vec3& pos, const glm::vec3& lightpos, const int& triMask,
 	float& minDist, Bvh::BvhTriangle& result, glm::vec3& reflectPt) const {
 
 	const auto& node = stack[nodeIndex];
@@ -361,6 +361,8 @@ void Bvh::TraverseNode(const int& nodeIndex, const glm::vec3& pos, const glm::ve
 
 			const auto& tri = triangles[i];
 
+			if (tri.originalIndex == triMask) continue;
+
 			glm::vec3 b;
 			if (!ReflectiveBarycentric(lightpos, pos, tri, b)) continue;
 
@@ -369,7 +371,6 @@ void Bvh::TraverseNode(const int& nodeIndex, const glm::vec3& pos, const glm::ve
 			float dist = Utils::SqrLength(reflPt - pos);
 			if (dist < minDist) {
 				// We're in reflection range
-				// @TODO: 90 deg angle test?
 				minDist = dist;
 				result = tri;
 				reflectPt = reflPt;
@@ -377,18 +378,6 @@ void Bvh::TraverseNode(const int& nodeIndex, const glm::vec3& pos, const glm::ve
 		}
 		return;
 	}
-
-	// Node -> Check left/right
-
-	// bvh.GetClosestReflectiveTri(hitpt, lightpos, lightrange, distlim);
-	
-	// Query triangle bvh for this
-	// Use closest pt on AABB as distance metric
-	
-	// Prune options by filtering based on dist (light - reflpt) + (pt - reflpt)
-	// Prune oblique angles with dot(pt_nrm, refl_trinrm) (90+ degs angle = bad)
-	// Have to check all tris within potential refl range and pick closest
-	// Tri Reflection func gives barycentric for free when testing for reflection
 	
 	int nodeA = node.GetLeftChild();
 	int nodeB = node.GetRightChild();
@@ -400,8 +389,8 @@ void Bvh::TraverseNode(const int& nodeIndex, const glm::vec3& pos, const glm::ve
 		std::swap(distA, distB);
 	}
 
-	if (distA < distLimSqr && distA < minDist)
-		TraverseNode(nodeA, pos, lightpos, distLimSqr, minDist, result, reflectPt);
-	if (distB < distLimSqr && distB < minDist)
-		TraverseNode(nodeB, pos, lightpos, distLimSqr, minDist, result, reflectPt);
+	if (distA < minDist)
+		TraverseNode(nodeA, pos, lightpos, triMask, minDist, result, reflectPt);
+	if (distB < minDist)
+		TraverseNode(nodeB, pos, lightpos, triMask, minDist, result, reflectPt);
 }

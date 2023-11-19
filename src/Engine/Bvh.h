@@ -52,7 +52,8 @@ public:
 		glm::vec3 Max() const { return glm::max(glm::max(v0, v1), v2); }
 	};
 
-	bool GetClosestReflectiveTri(const glm::vec3& pos, const glm::vec3& lightpos, const float distLimSqr,
+	// Returns the closest triangle that potentially might reflect light to pos cast by a pointlight in lightpos
+	bool GetClosestReflectiveTri(const glm::vec3& pos, const glm::vec3& lightpos, const float& distLimSqr, const int& triMask,
 		BvhTriangle& result, glm::vec3& reflectPt) const;
 
 private:
@@ -83,7 +84,7 @@ private:
 
 	void IntersectNode(const int nodeIndex, const Ray& ray, glm::vec3& normal, int& minTriIdx, float& minDist) const;
 
-	void TraverseNode(const int& nodeIndex, const glm::vec3& pos, const glm::vec3& lightpos, const float& distLimSqr,
+	void TraverseNode(const int& nodeIndex, const glm::vec3& pos, const glm::vec3& lightpos, const int& triMask,
 		float& minDist, Bvh::BvhTriangle& result, glm::vec3& reflectPt) const;
 
 	bool ReflectiveBarycentric(const glm::vec3& lightpos, const glm::vec3& pos, const BvhTriangle& tri, glm::vec3& bary) const;

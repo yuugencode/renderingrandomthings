@@ -75,7 +75,8 @@ int main(int argc, char* argv[]) {
 	// Add stuff to the scene
 
 	// Camera
-	const auto camStartPos = glm::vec3(7.0f, 6.0f, 1.0f);
+	const auto camStartPos = glm::vec3(-1.5f, 3.7f, 5.6f);
+	//const auto camStartPos = glm::vec3(7.0f, 6.0f, 0.0f);
 	Game::scene.camera = {
 		.transform = { 
 			.position = camStartPos,
@@ -89,33 +90,26 @@ int main(int argc, char* argv[]) {
 	auto& camTf = Game::scene.camera.transform; // Shorter alias
 
 	// Lights
-	Game::scene.lights.push_back(Light{ .position = glm::vec3(4.0f, 5.5f,  5.0f), .color = glm::vec3(1.0f, 0.9f, 0.7f), .range = 20.0f, .intensity = 1.5f });
-	//Game::scene.lights.push_back(Light{ .position = glm::vec3(4.0f, 5.5f, -7.0f), .color = glm::vec3(0.8f, 1.0f, 1.0f), .range = 15.0f, .intensity = 1.5f });
-	//Game::scene.lights.push_back(Light{ .position = glm::vec3(-4.0f, 5.5f, -7.0f), .color = glm::vec3(0.8f, 1.0f, 0.7f), .range = 15.0f, .intensity = 1.5f });
-
-	//Game::scene.lights.push_back(Light{ .position = glm::vec3(0.0f, 7.0f, 0.0f), .color = glm::vec3(0.8f, 1.0f, 0.7f), .range = 20.0f, .intensity = 1.5f });
+	Game::scene.lights.push_back(Light{ .position = glm::vec3(5.0f, 5.5f,  4.3f), .color = glm::vec3(1.0f, 0.9f, 0.9f), .range = 20.0f, .intensity = 1.0f });
+	Game::scene.lights.push_back(Light{ .position = glm::vec3(4.0f, 5.5f, -7.0f), .color = glm::vec3(0.8f, 1.0f, 1.0f), .range = 15.0f, .intensity = 1.0f });
+	Game::scene.lights.push_back(Light{ .position = glm::vec3(-4.0f, 5.5f, -7.0f), .color = glm::vec3(0.8f, 1.0f, 0.7f), .range = 15.0f, .intensity = 1.0f });
+	//Game::scene.lights.push_back(Light{ .position = glm::vec3(0.0f, 7.0f, 0.0f), .color = glm::vec3(1.0f, 1.0f, 1.0f), .range = 20.0f, .intensity = 1.5f });
 	
-	// Random parametric shapes
+	// Various parametric shapes, nothing fancy
 	Game::scene.entities.push_back(std::make_unique<Disk>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 20.0f));
-	Game::scene.entities.back()->shaderType = Entity::Shader::PlainWhite;
-	
+	Game::scene.entities.back()->shaderType = Entity::Shader::Grid;
 	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(10.0f, 0.5f, 0.0f), 0.1f));
 	Game::scene.entities.back()->materials[0].reflectivity = 0.3f;
 	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(0.0f, 1.5f, -5.0f), 2.0f));
 	Game::scene.entities.back()->materials[0].reflectivity = 0.3f;
 	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(1.0f, 0.5f, 7.0f), 1.0f));
 	Game::scene.entities.back()->materials[0].reflectivity = 1.0f;
-	
 	Game::scene.entities.push_back(std::make_unique<Box>(glm::vec3(-2.0f, 0.5f, 0.0f), glm::vec3(1.0f, 4.0f, 0.05f)));
 	Game::scene.entities.back()->materials[0].reflectivity = 0.5f;
-	auto box = Game::scene.entities.back().get();
-
-	//Game::scene.entities.push_back(std::make_unique<Box>(glm::vec3(6.0f, 0.5f, 0.0f), glm::vec3(0.05f, 4.0f, 3.0f)));
 	Game::scene.entities.push_back(std::make_unique<Box>(glm::vec3(6.0f, 0.5f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f)));
 	Game::scene.entities.back()->materials[0].color = glm::vec4(1.0f, 0.2f, 0.2f, 1.0f);
 
-	// Mesh
-#if false
+#if false // Mesh
 	RenderedMesh* chara;
 	{
 		auto meshHandle = Assets::NewMesh(std::filesystem::path("models/char.fbx"));
@@ -140,13 +134,12 @@ int main(int argc, char* argv[]) {
 	}
 #endif
 
-#if true
-	// Mesh
+#if false // Mesh
 	RenderedMesh* bunny;
 	{
 		auto meshHandle = Assets::NewMesh(std::filesystem::path("models/bunny.obj"));
 		auto rendMesh = std::make_unique<RenderedMesh>(meshHandle);
-		rendMesh->materials[0].reflectivity = 0.5f;
+		//rendMesh->materials[0].reflectivity = 0.5f;
 		bunny = rendMesh.get();
 
 		Game::scene.entities.push_back(std::move(rendMesh));
@@ -157,9 +150,8 @@ int main(int argc, char* argv[]) {
 		bunny->shaderType = RenderedMesh::Shader::PlainWhite;
 	}
 #endif
-
-	// Mesh
-#if false
+	
+#if false // Mesh
 	RenderedMesh* dragon;
 	{
 		auto meshHandle = Assets::NewMesh(std::filesystem::path("models/dragon_vrip.obj"));
@@ -173,9 +165,8 @@ int main(int argc, char* argv[]) {
 		dragon->shaderType = RenderedMesh::Shader::PlainWhite;
 	}
 #endif
-
-	// Mesh
-#if false
+	
+#if false // Mesh
 	RenderedMesh* arma;
 	{
 		auto meshHandle = Assets::NewMesh(std::filesystem::path("models/armadillo.obj"));
@@ -190,9 +181,8 @@ int main(int argc, char* argv[]) {
 		arma->shaderType = RenderedMesh::Shader::PlainWhite;
 	}
 #endif
-
-	// Mesh
-#if false
+	
+#if false // Mesh
 	{
 		auto meshHandle = Assets::NewMesh(std::filesystem::path("models/sponza/sponza.fbx"), Assets::ImportOpts{ .ignoreMaterials = { 14, 28, 32, 39 } });
 		auto rendMesh = std::make_unique<RenderedMesh>(meshHandle);
@@ -203,6 +193,7 @@ int main(int argc, char* argv[]) {
 			const std::string str = "Normal";
 			auto pos = file.find(str);
 			if (pos != std::string::npos) file = file.replace(pos, str.length(), "BaseColor");
+			//Log::Line(a.materialName, a.textureFilename);
 		}
 
 		// Read textures multithreaded
@@ -216,9 +207,24 @@ int main(int argc, char* argv[]) {
 				rendMesh->materials[i] = Material();
 		});
 		
-		rendMesh->transform.scale = glm::vec3(1.0f);
-		rendMesh->transform.rotation = glm::normalize(glm::angleAxis(glm::radians(180.0f), glm::vec3(0, 0, 1) * rendMesh->transform.rotation));
 		rendMesh->shaderType = RenderedMesh::Shader::Textured;
+		Game::scene.entities.push_back(std::move(rendMesh));
+	}
+#endif
+
+#if true // Mesh
+	RenderedMesh* ball; {
+		auto meshHandle = Assets::NewMesh(std::filesystem::path("models/triangleBall2.fbx"));
+		auto rendMesh = std::make_unique<RenderedMesh>(meshHandle);
+		rendMesh->materials[0].reflectivity = 0.5f;
+
+		rendMesh->transform.scale = glm::vec3(2.0f);
+		rendMesh->transform.position += glm::vec3(-4.0f, 2.0f, 3.0f);
+		rendMesh->transform.LookAtDir(glm::vec3(-1, 0, 0), glm::vec3(0, 1, 0));
+		rendMesh->shaderType = RenderedMesh::Shader::PlainWhite;
+		rendMesh->materials[0].color = glm::vec4(0.0f, 1.0f, 1.0f, 1.0f);
+		ball = rendMesh.get();
+
 		Game::scene.entities.push_back(std::move(rendMesh));
 	}
 #endif
@@ -280,31 +286,23 @@ int main(int argc, char* argv[]) {
 		bgfx::setDebug(showBgfxStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
 
 		// Temp debug movement for things
-		//chara->transform.position += glm::vec3(0, 1, 0) * glm::sin(Time::timeF * 2.0f) * 0.01f;
-		//chara->transform.rotation = glm::angleAxis(Time::deltaTimeF * 2.0f, glm::vec3(0, 1, 0)) * chara->transform.rotation;
-		//chara->transform.rotation = glm::normalize(chara->transform.rotation);
-
+#if true
 		//bunny->transform.rotation = glm::angleAxis(Time::deltaTimeF * 2.0f, glm::vec3(0, 1, 0)) * bunny->transform.rotation;
 		//bunny->transform.rotation = glm::normalize(bunny->transform.rotation);
-		//bunny->transform.scale = glm::vec3(10.0f) + glm::abs(glm::sin(Time::timeF) * 0.8f * 10.0f);
+		ball->transform.rotation = glm::angleAxis(-Time::deltaTimeF * 1.0f, glm::vec3(0, 0, 1)) * ball->transform.rotation;
+		ball->transform.rotation = glm::normalize(ball->transform.rotation);
+#endif
 
-		//arma->transform.rotation = glm::angleAxis(-Time::deltaTimeF * 4.0f, glm::vec3(0, 0, 1)) * arma->transform.rotation;
-		//arma->transform.rotation = glm::normalize(arma->transform.rotation);
-
-		//box->transform.rotation = glm::angleAxis(-Time::deltaTimeF * 0.1f, glm::vec3(0, 1, 0)) * box->transform.rotation;
-		//box->transform.rotation = glm::normalize(box->transform.rotation);
-
-		//for (int i = 0; i < Game::scene.lights.size(); i++) {
-		//	Light& light = Game::scene.lights[i];
-		//	light.position = glm::normalize(glm::angleAxis(Time::deltaTimeF * 0.6f * Utils::Hash11((float)(i + 33)), glm::vec3(0, 1, 0))) * light.position;
-		//	//light.position = camTf.position;
-		//}
+		for (int i = 0; i < Game::scene.lights.size(); i++) {
+			Light& light = Game::scene.lights[i];
+			light.position = glm::normalize(glm::angleAxis(Time::deltaTimeF * 0.6f * Utils::Hash11((float)(i + 33)), glm::vec3(0, 1, 0))) * light.position;
+			//light.position = camTf.position;
+		}
 
 		// Update object matrices
 		concurrency::parallel_for(size_t(0), Game::scene.entities.size(), [&](size_t i) {
 			auto& obj = Game::scene.entities[i];
 			obj->modelMatrix = obj->transform.ToMatrix();
-			//obj->InvTranspose_M = glm::transpose(glm::inverse((glm::mat3x3)obj->modelMatrix));
 			
 			// Calculate rotated AABB for every obj
 			glm::mat4x4 lowPts =  { obj->aabb.GetVertice(0), obj->aabb.GetVertice(1), obj->aabb.GetVertice(2), obj->aabb.GetVertice(3), };

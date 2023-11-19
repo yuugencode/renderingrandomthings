@@ -275,7 +275,7 @@ void Raytracer::RenderScene(Scene& scene) {
 #if true
 
 	// Shoot rays from camera to find indirect light for pts hit
-	// This data can be much lower res than entire screen
+	// This data could theoretically be much lower res than entire screen if blurred
 
 	indirectSampleTimer.Start();
 
@@ -321,26 +321,26 @@ void Raytracer::RenderScene(Scene& scene) {
 
 						vec4 indirect = vec4(0.0f);
 						bool hasReflections = false;
-						ivec2 ids = ivec2(0, 0); // Support masking 2 lights per point out
 
 						// Loop potential objs
 						for (const auto& obj : scene.entities) {
 
+							// @TODO: Self reflections look weird, figure out why
 							if (obj.get() == res.obj) continue; // Disallow self reflections
 
 							// Inverse transform object to origin and test dist, skip if too far
-							//glm::vec3 tfHitpt = obj->invModelMatrix * glm::vec4(hitpt, 1.0f);
 							float maxScale = max(obj->transform.scale.x, max(obj->transform.scale.y, obj->transform.scale.z));
-							//float llen = glm::length((obj->aabb.ClosestPoint(tfHitpt) - tfHitpt) * obj->transform.scale * 0.5f);
-							//if (llen > maxScale) continue; // If further than max scale axis -> can't reflect here -> skip
 
-							if (Utils::SqrLength(obj->worldAABB.ClosestPoint(hitpt) - hitpt) > maxScale * maxScale)
+							constexpr float maxReflDist = 4.0f;
+
+							if (Utils::SqrLength(obj->worldAABB.ClosestPoint(hitpt) - hitpt) > maxReflDist * maxReflDist)
 								continue;
 
 							// Given raytrace hitpt + light position + object
 							// Compute the theoretical reflection point the obj would cast to this point, if any
 							glm::vec3 reflectPt, worldNormal;
 
+							// Sphere
 							if (obj->type == Entity::Type::Sphere) {
 
 								// For spheres figuring out reflect pt + normal is trivial
@@ -350,6 +350,8 @@ void Raytracer::RenderScene(Scene& scene) {
 								reflectPt = obj->transform.position + glm::normalize(toHitpt + toLight) * obj->transform.scale.x;
 								worldNormal = glm::normalize(reflectPt - obj->transform.position);
 							}
+
+							// Box
 							else if (obj->type == Entity::Type::Box) {
 
 								// Figure out which side hitpt is closest to in local space
@@ -382,13 +384,19 @@ void Raytracer::RenderScene(Scene& scene) {
 
 								reflectPt = ro + rd * depth;
 							}
+
+							// Mesh
 							else if (obj->type == Entity::Type::RenderedMesh) {
-								glm::vec3 tfLightpos = obj->invModelMatrix * glm::vec4(light.position, 1.0f);
-								const float distLim = 100000.0f; //glm::length(obj->transform.scale * 1.0f); // @TODO: Post tf dist
+
+								vec3 tfLightpos = obj->invModelMatrix * vec4(light.position, 1.0f);
+								
+								// Use reduced search range for meshes for perf
+								const float distLim = (maxReflDist * 0.5f) / maxScale;
+								//const float distLim = maxReflDist / maxScale;
 								Bvh::BvhTriangle tri;
 								
-								glm::vec3 tfHitpt = obj->invModelMatrix * glm::vec4(hitpt, 1.0f);
-								if (!obj->bvh.GetClosestReflectiveTri(tfHitpt, tfLightpos, distLim, tri, reflectPt))
+								vec3 tfHitpt = obj->invModelMatrix * vec4(hitpt, 1.0f);
+								if (!obj->bvh.GetClosestReflectiveTri(tfHitpt, tfLightpos, distLim * distLim, res.data, tri, reflectPt))
 									continue; // No triangles on this mesh reflect light to this pos
 
 								reflectPt = obj->modelMatrix * vec4(reflectPt, 1.0f);
@@ -398,7 +406,10 @@ void Raytracer::RenderScene(Scene& scene) {
 								continue;
 							}
 
-							vec3 toHitpt = glm::normalize(hitpt - reflectPt);
+							float hitptDist = length(hitpt - reflectPt);
+							if (hitptDist < 0.001f) continue; // Same pos
+
+							vec3 toHitpt = (hitpt - reflectPt) / hitptDist;
 							vec3 toLight = glm::normalize(light.position - reflectPt);
 
 							// Trace a ray from light to the reflection point
@@ -414,7 +425,8 @@ void Raytracer::RenderScene(Scene& scene) {
 							//color = vec4(0.0f, 1.0f, 1.0f, 1.0f); // Debug
 
 							// Used to fade the edges of distance pruning
-							float reflectFade = 1.0f - Utils::InvLerpClamp(glm::length(reflectPt - hitpt), 0.0f, 2.0f);
+							float reflectFade = 1.0f - Utils::InvLerpClamp(glm::length(reflectPt - hitpt), 0.0f, maxReflDist);
+							reflectFade *= reflectFade * reflectFade; // 1/n^3 falloff seems good?
 
 							// Angle filter for reflection
 							float ang = (1.0f - dot(toHitpt, worldNormal)) * dot(toLight, worldNormal);
@@ -422,27 +434,27 @@ void Raytracer::RenderScene(Scene& scene) {
 							// Attenuation
 							float atten = light.CalcAttenuation(glm::length(reflectPt - hitpt) + glm::length(reflectPt - light.position));
 
-							indirect += color * ang * atten * reflectFade;
+							float intensity = ang * atten * reflectFade;
 
-							// Add mask data to indirect about the obj who cast it
-							if (ids[0] == 0) ids[1] = obj->id;
-							else ids[0] = obj->id;
+							if (intensity < 1.0f / 255.0f + 0.001f) continue; // Don't add data if intensity is below 1/255
+
+							indirect += color * intensity;
 
 							hasReflections = true;
 						}
 
 						// Ensure we leave empty data around the edges to fix interpolation issues when sampling
-						if (hasReflections) indirect.a = max(indirect.a, 0.01f);
+						//if (hasReflections) indirect.a = max(indirect.a, 1.0f / 255.0f + 0.00001f);
 
 						auto clr = Color::FromVec(indirect);
 
-						light._indirectTempBuffer[textureIndex] = Light::BufferPt{ .pt = hitpt, .clr = clr, .ids = ids };
+						light._indirectTempBuffer[textureIndex] = LightbufferPt{ .pt = hitpt, .indirect { .clr = clr, .nrm = res.obj->transform.rotation * res.faceNormal } };
 					}
 				}
 				else {
 					// If we didn't hit anything just clear the index
 					for (auto& light : scene.lights)
-						light._indirectTempBuffer[textureIndex] = Light::BufferPt{ .pt = vec3(), .clr = Colors::Clear, .ids = ivec2(0,0) };
+						light._indirectTempBuffer[textureIndex] = LightbufferPt{ .pt = vec3(), .indirect { .clr = Colors::Clear, .nrm = vec3() }};
 				}
 			}
 		}
@@ -456,7 +468,7 @@ void Raytracer::RenderScene(Scene& scene) {
 		auto& light = scene.lights[i];
 		light._toAddBuffer.clear();
 		for (const auto& val : light._indirectTempBuffer) {
-			if (val.clr.a == 0) continue;
+			if (val.indirect.clr.a == 0) continue;
 			light._toAddBuffer.push_back(val);
 		}
 	});
