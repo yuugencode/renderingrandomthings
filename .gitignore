@@ -40,8 +40,6 @@ x64
 # VS Files
 .editorconfig
 .vs
-*.sln
-*.vcxproj
 *.vcxproj.filters
 *.vcxproj.user
 

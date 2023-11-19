@@ -2,10 +2,8 @@
 
 #include "Engine/Time.h"
 
-Timer::Timer() : current(0.0), traceCnt(0) { times.reserve(32); }
-Timer::Timer(size_t size) : current(0.0), traceCnt(0) {
-	times.reserve(size);
-}
+Timer::Timer() { times.reserve(32); }
+Timer::Timer(size_t size) { times.reserve(size); }
 
 void Timer::Start() {
 	current = Time::GetAccurateTime();

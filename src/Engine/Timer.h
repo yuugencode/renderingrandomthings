@@ -4,8 +4,8 @@
 
 // Simple class for timing things 
 class Timer {
-	size_t traceCnt;
-	double current;
+	size_t traceCnt = 0;
+	double current = 0.0;
 public:
 
 	std::vector<double> times;
