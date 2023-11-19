@@ -300,13 +300,23 @@ int main(int argc, char* argv[]) {
 		//	//light.position = camTf.position;
 		//}
 
-		// Update matrices
-		for (const auto& obj : Game::scene.entities) {
-			auto modelMtx = obj->transform.ToMatrix();
-			const auto worldAABB = modelMtx * glm::mat2x4(glm::vec4(obj->aabb.min, 1.0f), glm::vec4(obj->aabb.max, 1.0f));
-			obj->worldAABB = AABB(worldAABB[0], worldAABB[1]);
-			obj->invModelMatrix = glm::inverse(modelMtx);
-		}
+		// Update object matrices
+		concurrency::parallel_for(size_t(0), Game::scene.entities.size(), [&](size_t i) {
+			auto& obj = Game::scene.entities[i];
+			obj->modelMatrix = obj->transform.ToMatrix();
+			//obj->InvTranspose_M = glm::transpose(glm::inverse((glm::mat3x3)obj->modelMatrix));
+			
+			// Calculate rotated AABB for every obj
+			glm::mat4x4 lowPts =  { obj->aabb.GetVertice(0), obj->aabb.GetVertice(1), obj->aabb.GetVertice(2), obj->aabb.GetVertice(3), };
+			lowPts = obj->modelMatrix * lowPts;
+			glm::mat4x4 highPts = { obj->aabb.GetVertice(4), obj->aabb.GetVertice(5), obj->aabb.GetVertice(6), obj->aabb.GetVertice(7), };
+			highPts = obj->modelMatrix * highPts;
+			AABB globalAABB = AABB(lowPts[0], lowPts[0]);
+			for (int i = 0; i < 4; i++) { globalAABB.Encapsulate(lowPts[i]); globalAABB.Encapsulate(highPts[i]); }
+			obj->worldAABB = globalAABB;
+
+			obj->invModelMatrix = glm::inverse(obj->modelMatrix);
+		});
 
 		// Trace the scene
 		Game::raytracer.RenderScene(Game::scene);

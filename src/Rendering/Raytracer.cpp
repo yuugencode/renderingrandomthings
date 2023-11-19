@@ -277,6 +277,8 @@ void Raytracer::RenderScene(Scene& scene) {
 	// Shoot rays from camera to find indirect light for pts hit
 	// This data can be much lower res than entire screen
 
+	indirectSampleTimer.Start();
+
 	for (auto& light : scene.lights) {
 		light._indirectTempBuffer.resize(screenTempBuffer.size());
 		light.indirectBvh.Clear();
@@ -327,10 +329,13 @@ void Raytracer::RenderScene(Scene& scene) {
 							if (obj.get() == res.obj) continue; // Disallow self reflections
 
 							// Inverse transform object to origin and test dist, skip if too far
-							glm::vec3 tfHitpt = obj->invModelMatrix * glm::vec4(hitpt, 1.0f);
+							//glm::vec3 tfHitpt = obj->invModelMatrix * glm::vec4(hitpt, 1.0f);
 							float maxScale = max(obj->transform.scale.x, max(obj->transform.scale.y, obj->transform.scale.z));
-							float llen = glm::length((obj->aabb.ClosestPoint(tfHitpt) - tfHitpt) * obj->transform.scale * 0.5f);
-							if (llen > maxScale) continue; // If further than max scale axis -> can't reflect here -> skip
+							//float llen = glm::length((obj->aabb.ClosestPoint(tfHitpt) - tfHitpt) * obj->transform.scale * 0.5f);
+							//if (llen > maxScale) continue; // If further than max scale axis -> can't reflect here -> skip
+
+							if (Utils::SqrLength(obj->worldAABB.ClosestPoint(hitpt) - hitpt) > maxScale * maxScale)
+								continue;
 
 							// Given raytrace hitpt + light position + object
 							// Compute the theoretical reflection point the obj would cast to this point, if any
@@ -349,6 +354,7 @@ void Raytracer::RenderScene(Scene& scene) {
 
 								// Figure out which side hitpt is closest to in local space
 								vec3 planePos;
+								glm::vec3 tfHitpt = obj->invModelMatrix * glm::vec4(hitpt, 1.0f);
 								if (abs(tfHitpt.x) > abs(tfHitpt.y) && abs(tfHitpt.x) > abs(tfHitpt.z))
 									worldNormal = vec3(1.0f, 0.0f, 0.0f) * sign(tfHitpt.x);
 								else if (abs(tfHitpt.y) > abs(tfHitpt.z))
@@ -377,8 +383,16 @@ void Raytracer::RenderScene(Scene& scene) {
 								reflectPt = ro + rd * depth;
 							}
 							else if (obj->type == Entity::Type::RenderedMesh) {
+								glm::vec3 tfLightpos = obj->invModelMatrix * glm::vec4(light.position, 1.0f);
+								const float distLim = 100000.0f; //glm::length(obj->transform.scale * 1.0f); // @TODO: Post tf dist
+								Bvh::BvhTriangle tri;
+								
+								glm::vec3 tfHitpt = obj->invModelMatrix * glm::vec4(hitpt, 1.0f);
+								if (!obj->bvh.GetClosestReflectiveTri(tfHitpt, tfLightpos, distLim, tri, reflectPt))
+									continue; // No triangles on this mesh reflect light to this pos
 
-								continue;
+								reflectPt = obj->modelMatrix * vec4(reflectPt, 1.0f);
+								worldNormal = glm::normalize(obj->transform.rotation * tri.normal);
 							}
 							else {
 								continue;
@@ -434,6 +448,9 @@ void Raytracer::RenderScene(Scene& scene) {
 		}
 	});
 
+	indirectSampleTimer.End();
+	indirectGenTimer.Start();
+
 	// Populate toAdd buffer for each light and generate bvh
 	concurrency::parallel_for(size_t(0), scene.lights.size(), [&](size_t i) {
 		auto& light = scene.lights[i];
@@ -448,6 +465,8 @@ void Raytracer::RenderScene(Scene& scene) {
 		auto& light = scene.lights[i];
 		light.indirectBvh.Generate(light._toAddBuffer.data(), (int)light._toAddBuffer.size());
 	});
+
+	indirectGenTimer.End();
 
 #endif
 

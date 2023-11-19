@@ -58,6 +58,8 @@ public:
 	Timer traceTimer;
 	Timer lightBufferSampleTimer;
 	Timer lightBufferGenTimer;
+	Timer indirectSampleTimer;
+	Timer indirectGenTimer;
 
 	// Initializes a new raytracer for given window
 	void Create(const Window& window);

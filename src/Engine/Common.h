@@ -73,6 +73,9 @@ struct AABB {
 
     // Returns the squared distance from given pt to the closest point on this AABB
     float SqrDist(const glm::vec3& pos) const;
+
+    // Returns one of the i=0...7 vertices of this AABB
+    glm::vec4 GetVertice(int i) const;
 };
 
 struct Empty {

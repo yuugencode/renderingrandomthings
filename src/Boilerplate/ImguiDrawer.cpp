@@ -126,8 +126,19 @@ void ImguiDrawer::DrawUI() {
 	
 	ImGui::Text("Shadows accelerator:"); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 1, 1, 1));
 	ImGui::SameLine(); ImGui::Text("%.2fms", Game::raytracer.lightBufferGenTimer.GetAveragedTime() * 1000.0); ImGui::PopStyleColor();
+
 	int ptCnt = 0;
 	for (const auto& light : Game::scene.lights) ptCnt += (int)light.lightBvh.points.size();
+	ImGui::SameLine(); ImGui::Text("(%d pts)", ptCnt);
+
+	ImGui::Text("Indirect sample:"); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 1, 1, 1));
+	ImGui::SameLine(); ImGui::Text("%.2fms", Game::raytracer.indirectSampleTimer.GetAveragedTime() * 1000.0); ImGui::PopStyleColor();
+
+	ImGui::Text("Indirect accelerator:"); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 1, 1, 1));
+	ImGui::SameLine(); ImGui::Text("%.2fms", Game::raytracer.indirectGenTimer.GetAveragedTime() * 1000.0); ImGui::PopStyleColor();
+
+	ptCnt = 0;
+	for (const auto& light : Game::scene.lights) ptCnt += (int)light.indirectBvh.points.size();
 	ImGui::SameLine(); ImGui::Text("(%d pts)", ptCnt);
 
 	// Vtx count

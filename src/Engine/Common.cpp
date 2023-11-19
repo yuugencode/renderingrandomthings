@@ -103,3 +103,17 @@ float AABB::SqrDist(const glm::vec3& pos) const {
     const auto os = (ClosestPoint(pos) - pos);
     return glm::dot(os, os);
 }
+
+glm::vec4 AABB::GetVertice(int i) const {
+    switch (i) {
+        case 0: return glm::vec4(min.x, min.y, min.z, 1.0f);
+        case 1: return glm::vec4(max.x, min.y, min.z, 1.0f);
+        case 2: return glm::vec4(max.x, min.y, max.z, 1.0f);
+        case 3: return glm::vec4(min.x, min.y, max.z, 1.0f);
+        case 4: return glm::vec4(min.x, max.y, min.z, 1.0f);
+        case 5: return glm::vec4(max.x, max.y, min.z, 1.0f);
+        case 6: return glm::vec4(max.x, max.y, max.z, 1.0f);
+        case 7: return glm::vec4(min.x, max.y, max.z, 1.0f);
+        default: return glm::vec4(0.0f);
+    }
+}

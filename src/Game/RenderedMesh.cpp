@@ -69,17 +69,17 @@ v2f RenderedMesh::VertexShader(const Ray& ray, const RayResult& rayResult) const
 	return ret;
 }
 
-Color RenderedMesh::SampleAt(const glm::vec3& pos, const int& data) const {
+Color RenderedMesh::SampleAt(const glm::vec3& pos, const int& triIndex) const {
 	if (!HasMesh() || !HasMaterials()) return Color{ .r = 0x00, .g = 0x00, .b = 0x00, .a = 0xff };
 
 	const auto& mesh = GetMesh();
-	const auto& materialID = mesh->materials[data / 3];
+	const auto& materialID = mesh->materials[triIndex / 3];
 	const auto& texID = materials[materialID].textureHandle;
-	if (texID == -1) return Colors::Clear;
+	if (texID == -1) return Colors::Black;
 
-	const auto& v0i = mesh->triangles[data + 0];
-	const auto& v1i = mesh->triangles[data + 1];
-	const auto& v2i = mesh->triangles[data + 2];
+	const auto& v0i = mesh->triangles[triIndex + 0];
+	const auto& v1i = mesh->triangles[triIndex + 1];
+	const auto& v2i = mesh->triangles[triIndex + 2];
 	const auto& p0 = mesh->vertices[v0i];
 	const auto& p1 = mesh->vertices[v1i];
 	const auto& p2 = mesh->vertices[v2i];
@@ -90,5 +90,24 @@ Color RenderedMesh::SampleAt(const glm::vec3& pos, const int& data) const {
 	const glm::vec3 b = Utils::Barycentric(pos, p0, p1, p2);
 	const auto uv = uv0 * b.x + uv1 * b.y + uv2 * b.z;
 
+	return Assets::Textures[texID]->SampleUVClamp(uv);
+}
+
+Color RenderedMesh::SampleTriangle(const int& triIndex, const glm::vec3& barycentric) const {
+	if (!HasMesh() || !HasMaterials()) return Color{ .r = 0x00, .g = 0x00, .b = 0x00, .a = 0xff };
+
+	const auto& mesh = GetMesh();
+	const auto& materialID = mesh->materials[triIndex / 3];
+	const auto& texID = materials[materialID].textureHandle;
+	if (texID == -1) return Colors::Clear;
+
+	const auto& v0i = mesh->triangles[triIndex + 0];
+	const auto& v1i = mesh->triangles[triIndex + 1];
+	const auto& v2i = mesh->triangles[triIndex + 2];
+	const auto& uv0 = mesh->uvs[v0i];
+	const auto& uv1 = mesh->uvs[v1i];
+	const auto& uv2 = mesh->uvs[v2i];
+
+	const auto uv = uv0 * barycentric.x + uv1 * barycentric.y + uv2 * barycentric.z;
 	return Assets::Textures[texID]->SampleUVClamp(uv);
 }

@@ -36,6 +36,7 @@ public:
 	//std::vector<uint32_t> textureHandles; // Indices to texture assets array
 	int meshHandle = -1; // Mesh, if any
 
+	glm::mat4x4 modelMatrix;
 	glm::mat4x3 invModelMatrix;
 
 	std::vector<Material> materials;

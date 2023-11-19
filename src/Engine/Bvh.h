@@ -43,14 +43,6 @@ public:
 	// Array of bvh nodes, 0 is always root
 	std::vector<BvhNode> stack;
 
-private:
-
-	// Concurrent stack used during generation
-	concurrency::concurrent_vector<BvhNode> cc_stack;
-
-	// Queue used during generation
-	concurrency::concurrent_queue<int> queue;
-
 	// Abstraction for a single triangle
 	struct BvhTriangle {
 		glm::vec3 v0, v1, v2, normal;
@@ -59,6 +51,17 @@ private:
 		glm::vec3 Min() const { return glm::min(glm::min(v0, v1), v2); }
 		glm::vec3 Max() const { return glm::max(glm::max(v0, v1), v2); }
 	};
+
+	bool GetClosestReflectiveTri(const glm::vec3& pos, const glm::vec3& lightpos, const float distLimSqr,
+		BvhTriangle& result, glm::vec3& reflectPt) const;
+
+private:
+
+	// Concurrent stack used during generation
+	concurrency::concurrent_vector<BvhNode> cc_stack;
+
+	// Queue used during generation
+	concurrency::concurrent_queue<int> queue;
 
 	/// Sorted triangles with indices to original positions
 	std::vector<BvhTriangle> triangles;
@@ -79,4 +82,9 @@ private:
 	float ray_tri_intersect(const glm::vec3& ro, const glm::vec3& rd, const BvhTriangle& tri) const;
 
 	void IntersectNode(const int nodeIndex, const Ray& ray, glm::vec3& normal, int& minTriIdx, float& minDist) const;
+
+	void TraverseNode(const int& nodeIndex, const glm::vec3& pos, const glm::vec3& lightpos, const float& distLimSqr,
+		float& minDist, Bvh::BvhTriangle& result, glm::vec3& reflectPt) const;
+
+	bool ReflectiveBarycentric(const glm::vec3& lightpos, const glm::vec3& pos, const BvhTriangle& tri, glm::vec3& bary) const;
 };

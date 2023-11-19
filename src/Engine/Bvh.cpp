@@ -3,6 +3,8 @@
 #include <thread>
 #include <ppl.h> // Parallel for
 
+#include "Engine/Utils.h"
+
 #define MULTI_THREADED_GEN 1
 
 void Bvh::Generate(const std::vector<glm::vec3>& srcVertices, const std::vector<uint32_t>& srcTriangles) {
@@ -272,45 +274,134 @@ void Bvh::IntersectNode(const int nodeIndex, const Ray& ray, glm::vec3& normal, 
 	}
 
 	// Node -> Check left/right node
-	else {
+	int nodeA = node.GetLeftChild();
+	int nodeB = node.GetRightChild();
+	float intersectA = stack[nodeA].aabb.Intersect(ray);
+	float intersectB = stack[nodeB].aabb.Intersect(ray);
 
-		int nodeA = node.GetLeftChild();
-		int nodeB = node.GetRightChild();
-		float intersectA = stack[nodeA].aabb.Intersect(ray);
-		float intersectB = stack[nodeB].aabb.Intersect(ray);
-
-		// Swap A closer
-		if (intersectB < intersectA) {
-			std::swap(nodeA, nodeB);
-			std::swap(intersectA, intersectB);
-		}
-
-		// Both either behind or we're inside -> check both
-		if (intersectA < 0.0f && intersectB < 0.0f) {
-			if (stack[nodeA].aabb.Contains(ray.ro))
-				IntersectNode(nodeA, ray, normal, minTriIdx, minDist);
-			if (stack[nodeB].aabb.Contains(ray.ro))
-				IntersectNode(nodeB, ray, normal, minTriIdx, minDist);
-		}
-		// A behind or we're inside and B in front or miss
-		else if (intersectA < 0.0f) {
-			if (stack[nodeA].aabb.Contains(ray.ro))
-				IntersectNode(nodeA, ray, normal, minTriIdx, minDist);
-			if (intersectB != 0.0f && intersectB < minDist)
-				IntersectNode(nodeB, ray, normal, minTriIdx, minDist);
-		}
-		// B behind or we're inside and A in front or miss
-		else if (intersectB < 0.0f) {
-			if (stack[nodeB].aabb.Contains(ray.ro))
-				IntersectNode(nodeB, ray, normal, minTriIdx, minDist);
-			if (intersectA != 0.0f && intersectA < minDist)
-				IntersectNode(nodeA, ray, normal, minTriIdx, minDist);
-		}
-		else { // Both in front or missed, check closer first
-			if (intersectA != 0.0f && intersectA < minDist)
-				IntersectNode(nodeA, ray, normal, minTriIdx, minDist);
-			if (intersectB != 0.0f && intersectB < minDist)
-				IntersectNode(nodeB, ray, normal, minTriIdx, minDist);
-		}
+	// Swap A closer
+	if (intersectB < intersectA) {
+		std::swap(nodeA, nodeB);
+		std::swap(intersectA, intersectB);
 	}
+
+	// Both either behind or we're inside -> check both
+	if (intersectA < 0.0f && intersectB < 0.0f) {
+		if (stack[nodeA].aabb.Contains(ray.ro))
+			IntersectNode(nodeA, ray, normal, minTriIdx, minDist);
+		if (stack[nodeB].aabb.Contains(ray.ro))
+			IntersectNode(nodeB, ray, normal, minTriIdx, minDist);
+	}
+	// A behind or we're inside and B in front or miss
+	else if (intersectA < 0.0f) {
+		if (stack[nodeA].aabb.Contains(ray.ro))
+			IntersectNode(nodeA, ray, normal, minTriIdx, minDist);
+		if (intersectB != 0.0f && intersectB < minDist)
+			IntersectNode(nodeB, ray, normal, minTriIdx, minDist);
+	}
+	// B behind or we're inside and A in front or miss
+	else if (intersectB < 0.0f) {
+		if (stack[nodeB].aabb.Contains(ray.ro))
+			IntersectNode(nodeB, ray, normal, minTriIdx, minDist);
+		if (intersectA != 0.0f && intersectA < minDist)
+			IntersectNode(nodeA, ray, normal, minTriIdx, minDist);
+	}
+	else { // Both in front or missed, check closer first
+		if (intersectA != 0.0f && intersectA < minDist)
+			IntersectNode(nodeA, ray, normal, minTriIdx, minDist);
+		if (intersectB != 0.0f && intersectB < minDist)
+			IntersectNode(nodeB, ray, normal, minTriIdx, minDist);
+	}
+}
+
+// Calculates whether pos could receive reflected light by the point light at lightpos
+bool Bvh::ReflectiveBarycentric(const glm::vec3& lightpos, const glm::vec3& pos, const BvhTriangle& tri, glm::vec3& bary) const {
+	using namespace glm;
+
+	// @TODO: This is a self-devised function with 15 dot products... is this the best?
+
+	vec3 v0r = (tri.v0 - lightpos), v1r = (tri.v1 - lightpos), v2r = (tri.v2 - lightpos);
+	
+	if (dot(v0r, tri.normal) > 0.0f) return false;
+
+	v0r = reflect(v0r, tri.normal);
+	v0r = (v0r / dot(v0r, tri.normal)) * dot(pos - tri.v0, tri.normal);
+	
+	v1r = reflect(v1r, tri.normal);
+	v1r = (v1r / dot(v1r, tri.normal)) * dot(pos - tri.v1, tri.normal);
+	
+	v2r = reflect(v2r, tri.normal);
+	v2r = (v2r / dot(v2r, tri.normal)) * dot(pos - tri.v2, tri.normal);
+
+	v0r = tri.v0 + v0r; v1r = tri.v1 + v1r; v2r = tri.v2 + v2r;
+
+	// Barycentric is the point on triangle that reflects here, can return if useful
+	bary = Utils::Barycentric(pos, v0r, v1r, v2r);
+
+	if (bary.x > 0.0f && bary.y > 0.0f && bary.z > 0.0f)
+		return true; // Pos is inside an area reflected by the light via tri
+	return false;
+}
+
+bool Bvh::GetClosestReflectiveTri(const glm::vec3& pos, const glm::vec3& lightpos, const float distLimSqr, 
+	BvhTriangle& result, glm::vec3& reflectPt) const {
+	float minDist = distLimSqr;
+	TraverseNode(0, pos, lightpos, distLimSqr, minDist, result, reflectPt);
+	return minDist != distLimSqr;
+}
+
+void Bvh::TraverseNode(const int& nodeIndex, const glm::vec3& pos, const glm::vec3& lightpos, const float& distLimSqr, 
+	float& minDist, Bvh::BvhTriangle& result, glm::vec3& reflectPt) const {
+
+	const auto& node = stack[nodeIndex];
+
+	// Leaf, check tris
+	if (node.IsLeaf()) {
+		for (int i = node.GetLeftIndex(); i < node.GetRightIndex(); i++) {
+
+			const auto& tri = triangles[i];
+
+			glm::vec3 b;
+			if (!ReflectiveBarycentric(lightpos, pos, tri, b)) continue;
+
+			// This tri does reflect here
+			glm::vec3 reflPt = tri.v0 * b.x + tri.v1 * b.y + tri.v2 * b.z;
+			float dist = Utils::SqrLength(reflPt - pos);
+			if (dist < minDist) {
+				// We're in reflection range
+				// @TODO: 90 deg angle test?
+				minDist = dist;
+				result = tri;
+				reflectPt = reflPt;
+			}
+		}
+		return;
+	}
+
+	// Node -> Check left/right
+
+	// bvh.GetClosestReflectiveTri(hitpt, lightpos, lightrange, distlim);
+	
+	// Query triangle bvh for this
+	// Use closest pt on AABB as distance metric
+	
+	// Prune options by filtering based on dist (light - reflpt) + (pt - reflpt)
+	// Prune oblique angles with dot(pt_nrm, refl_trinrm) (90+ degs angle = bad)
+	// Have to check all tris within potential refl range and pick closest
+	// Tri Reflection func gives barycentric for free when testing for reflection
+	
+	int nodeA = node.GetLeftChild();
+	int nodeB = node.GetRightChild();
+	auto distA = Utils::SqrLength(stack[nodeA].aabb.ClosestPoint(pos) - pos);
+	auto distB = Utils::SqrLength(stack[nodeB].aabb.ClosestPoint(pos) - pos);
+
+	if (distA < distB) {
+		std::swap(nodeA, nodeB);
+		std::swap(distA, distB);
+	}
+
+	if (distA < distLimSqr && distA < minDist)
+		TraverseNode(nodeA, pos, lightpos, distLimSqr, minDist, result, reflectPt);
+	if (distB < distLimSqr && distB < minDist)
+		TraverseNode(nodeB, pos, lightpos, distLimSqr, minDist, result, reflectPt);
 }
