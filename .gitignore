@@ -57,3 +57,4 @@ imgui.ini
 *.tga
 *.mtl
 *.hdr
+*.bvh

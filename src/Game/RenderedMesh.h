@@ -10,7 +10,7 @@
 struct RenderedMesh : Entity {
 public:
 
-	RenderedMesh(const int& meshHandle);
+	RenderedMesh(const std::string& name, const int& meshHandle);
 
 	// Generates the BVH for the mesh on this obj
 	void GenerateBVH();

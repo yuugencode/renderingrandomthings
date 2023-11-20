@@ -100,7 +100,7 @@ void Bvh::SplitNodeSingle(const int& nodeIdx, int& nextLeft, int& nextRight) {
 	const float invNodeArea = 1.0f / node.aabb.AreaHeuristic();
 
 	// Naive = 22.5ms, 6 = 19.7ms, 10 = 19.6ms, 20 = 19.4ms, 100 = 19.0ms
-	const float stepsize = 1.0f / 30.0f;
+	const float stepsize = 1.0f / 200.0f;
 
 	for (uint32_t axis = 0; axis < 3; axis++) {
 		
@@ -206,7 +206,7 @@ void Bvh::SplitNodeRecurse(const int& nodeIdx) {
 int Bvh::Partition(const int& low, const int& high, const glm::vec3& splitPos, const int& axis) {
 	int pt = low;
 	for (int i = low; i < high; i++)
-		if (triangles[i].Max()[axis] < splitPos[axis])
+		if (triangles[i].Centroid()[axis] < splitPos[axis])
 			std::swap(triangles[i], triangles[pt++]); // Swap index i and pt in triangles array
 	return pt;
 }
@@ -258,9 +258,9 @@ void Bvh::IntersectNode(const int nodeIndex, const Ray& ray, glm::vec3& normal, 
 			const BvhTriangle& tri = triangles[i];
 
 			if (tri.originalIndex == ray.mask) continue;
-
+			
 			const float& res = ray_tri_intersect(ray.ro, ray.rd, tri);
-
+			
 			if (res > 0.0f && res < minDist) {
 				minDist = res;
 				minTriIdx = tri.originalIndex;

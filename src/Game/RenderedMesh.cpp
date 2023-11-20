@@ -1,12 +1,15 @@
 #include "RenderedMesh.h"
 
+#include <filesystem>
+
 #include "Engine/Timer.h"
 #include "Engine/Log.h"
 #include "Rendering/RayResult.h"
 
-RenderedMesh::RenderedMesh(const int& meshHandle) {
+RenderedMesh::RenderedMesh(const std::string& name, const int& meshHandle) {
 	this->type = Entity::Type::RenderedMesh;
 	this->meshHandle = meshHandle;
+	this->name = name;
 	id = idCount--;
 	shaderType = Shader::Textured;
 	GenerateBVH();
@@ -14,13 +17,46 @@ RenderedMesh::RenderedMesh(const int& meshHandle) {
 }
 
 void RenderedMesh::GenerateBVH() {
-	// Construct a bvh
-	Timer t(1);
-	t.Start();
-	bvh.Generate(GetMesh()->vertices, GetMesh()->triangles);
-	aabb = bvh.stack[0].aabb;
-	t.End();
-	Log::Line("bvh gen", Log::FormatFloat((float)t.GetAveragedTime() * 1000.0f), "ms");
+
+	// Quick hack for serializing bvh
+	std::string filename = name + ".bvh";
+
+	if (name.length() > 0 && std::filesystem::exists(filename)) {
+		// BVH Exists on disk, read
+		Log::LineFormatted("Reading bvh from file: {}", filename);
+		std::ifstream ifs(filename, std::ios::binary);
+		int stackCount;
+		ifs.read((char*)&stackCount, sizeof(int));
+		bvh.stack.resize(stackCount);
+		ifs.read((char*)bvh.stack.data(), stackCount * sizeof(Bvh::BvhNode));
+		int triCount;
+		ifs.read((char*)&triCount, sizeof(int));
+		if (triCount != GetMesh()->triangles.size() / 3) Log::FatalError("Invalid BVH on disk:", filename);
+		bvh.triangles.resize(triCount);
+		ifs.read((char*)bvh.triangles.data(), triCount * sizeof(Bvh::BvhTriangle));
+		aabb = bvh.stack[0].aabb;
+	}
+	else {
+		// BVH Doesn't exist on disk have to generate
+		if (name.length() == 0) Log::Line("Generating BVH for unnamed obj");
+		else Log::LineFormatted("Generating bvh because {} doesn't exist", filename);
+		Timer t(1);
+		t.Start();
+		bvh.Generate(GetMesh()->vertices, GetMesh()->triangles);
+		aabb = bvh.stack[0].aabb;
+		t.End();
+		Log::LineFormatted("BVH Generation time {}ms", Log::FormatFloat((float)t.GetAveragedTime() * 1000.0f));
+		if (name.length() > 0) {
+			std::ofstream ofs(filename, std::ios::binary);
+			int stackCount = bvh.stack.size();
+			ofs.write((char*)&stackCount, sizeof(int));
+			ofs.write((char*)bvh.stack.data(), stackCount * sizeof(Bvh::BvhNode));
+			int triCount = bvh.triangles.size();
+			ofs.write((char*)&triCount, sizeof(int));
+			ofs.write((char*)bvh.triangles.data(), triCount * sizeof(Bvh::BvhTriangle));
+			Log::LineFormatted("Wrote BVH to disk ({}Mb)", ((bvh.stack.size() * sizeof(Bvh::BvhNode)) / 1024) / 1024);
+		}
+	}
 }
 
 bool RenderedMesh::IntersectLocal(const Ray& ray, glm::vec3& normal, int& triIdx, float& depth) const {

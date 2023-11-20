@@ -157,11 +157,16 @@ int main(int argc, char* argv[]) {
 			ball->transform.rotation = glm::normalize(ball->transform.rotation);
 		}
 
-		// Rotate lights
-		//for (int i = 0; i < Game::scene.lights.size(); i++) {
-		//	Light& light = Game::scene.lights[i];
-		//	light.position = glm::normalize(glm::angleAxis(Time::deltaTimeF * 0.6f * Utils::Hash11((float)(i + 33)), glm::vec3(0, 1, 0))) * light.position;
-		//}
+		// Move lights
+		for (int i = 0; i < Game::scene.lights.size(); i++) {
+			Light& light = Game::scene.lights[i];
+			//light.position = glm::normalize(glm::angleAxis(Time::deltaTimeF * 0.6f * Utils::Hash11((float)(i + 33)), glm::vec3(0, 1, 0))) * light.position;
+			glm::vec3 defPos = glm::vec3(-5.0f, 5.0f, 0.0f);
+			light.position = defPos + 
+				glm::vec3(5, 0, 0) * (float)i +
+				glm::vec3(0,4.9,0) * glm::sin(Time::timeF * (float)(i+1) * 0.25f) +
+				glm::vec3(0,0,2) * glm::sin(Time::timeF * (float)(i+1) * 0.3f);
+		}
 
 		// Update object matrices @TODO: Caching, transform hierarchies etc etc.. maybe one day
 		concurrency::parallel_for(size_t(0), Game::scene.entities.size(), [&](size_t i) {

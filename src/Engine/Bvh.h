@@ -32,6 +32,15 @@ public:
 		int TriangleCount() const { return valR - valL; }
 	};
 
+	// Abstraction for a single triangle
+	struct BvhTriangle {
+		glm::vec3 v0, v1, v2, normal;
+		int originalIndex; // These are sorted around so need to save this, coulda instead added 1 indirection but slower
+		glm::vec3 Centroid() const { return (v0 + v1 + v2) * 0.3333333333f; }
+		glm::vec3 Min() const { return glm::min(glm::min(v0, v1), v2); }
+		glm::vec3 Max() const { return glm::max(glm::max(v0, v1), v2); }
+	};
+
 	// Generates a new BVH from given vertices/tris
 	void Generate(const std::vector<glm::vec3>& srcVertices, const std::vector<uint32_t>& srcTriangles);
 
@@ -43,14 +52,8 @@ public:
 	// Array of bvh nodes, 0 is always root
 	std::vector<BvhNode> stack;
 
-	// Abstraction for a single triangle
-	struct BvhTriangle {
-		glm::vec3 v0, v1, v2, normal;
-		int originalIndex; // These are sorted around so need to save this, coulda instead added 1 indirection but slower
-		glm::vec3 Centroid() const { return (v0 + v1 + v2) * 0.3333333333f; }
-		glm::vec3 Min() const { return glm::min(glm::min(v0, v1), v2); }
-		glm::vec3 Max() const { return glm::max(glm::max(v0, v1), v2); }
-	};
+	/// Sorted triangles with indices to original positions
+	std::vector<BvhTriangle> triangles;
 
 	// Returns the closest triangle that potentially might reflect light to pos cast by a pointlight in lightpos
 	bool GetClosestReflectiveTri(const glm::vec3& pos, const glm::vec3& lightpos, const float& distLimSqr, const int& triMask,
@@ -63,9 +66,6 @@ private:
 
 	// Queue used during generation
 	concurrency::concurrent_queue<int> queue;
-
-	/// Sorted triangles with indices to original positions
-	std::vector<BvhTriangle> triangles;
 
 	/// Number of tris after which we stop splitting nodes
 	static const int maxNodeEntries = 4;
