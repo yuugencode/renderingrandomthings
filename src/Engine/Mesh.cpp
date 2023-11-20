@@ -33,7 +33,7 @@ int Mesh::ReadNode(int i, int vertexOffset) {
     colors.reserve(vertices.size());
     uvs.reserve(vertices.size());
     normals.reserve(vertices.size());
-    materials.reserve(vertices.size());
+    materialIDs.reserve(vertices.size());
     connectivity.reserve(vertices.size());
 
     // Vertices, uvs, normals, vertex colors
@@ -97,7 +97,7 @@ int Mesh::ReadNode(int i, int vertexOffset) {
             triangles.push_back(vertexOffset + i0);
             triangles.push_back(vertexOffset + i1);
             triangles.push_back(vertexOffset + i2);
-            materials.push_back(matIndex);
+            materialIDs.push_back(matIndex);
         }
 
         else if (face.num_indices == 4) {
@@ -110,7 +110,7 @@ int Mesh::ReadNode(int i, int vertexOffset) {
             triangles.push_back(vertexOffset + i0);
             triangles.push_back(vertexOffset + i1);
             triangles.push_back(vertexOffset + i2);
-            materials.push_back(matIndex);
+            materialIDs.push_back(matIndex);
 
             connectivity[vertexOffset + i0].push_back((uint32_t)triangles.size());
             connectivity[vertexOffset + i2].push_back((uint32_t)triangles.size());
@@ -119,7 +119,7 @@ int Mesh::ReadNode(int i, int vertexOffset) {
             triangles.push_back(vertexOffset + i0);
             triangles.push_back(vertexOffset + i2);
             triangles.push_back(vertexOffset + i3);
-            materials.push_back(matIndex);
+            materialIDs.push_back(matIndex);
         }
     }
 
@@ -181,7 +181,7 @@ void Mesh::Clear() {
     materialMetadata.clear();
     vertices.clear();
     triangles.clear();
-    materials.clear();
+    materialIDs.clear();
     uvs.clear();
     normals.clear();
     colors.clear();
@@ -282,7 +282,7 @@ void Mesh::CopyFrom(const Mesh& other) {
     colors = other.colors;
     uvs = other.uvs;
     normals = other.normals;
-    materials = other.materials;
+    materialIDs = other.materialIDs;
     hasNormals = other.hasNormals;
     hasColors = other.hasColors;
     hasUVs = other.hasUVs;

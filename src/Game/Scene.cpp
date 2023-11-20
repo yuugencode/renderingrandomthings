@@ -13,10 +13,10 @@ void Scene::ReadAndAddTestObjects() {
 	// Lights
 	Game::scene.lights.push_back(Light{ .position = glm::vec3(5.0f, 5.5f,  4.3f), .color = glm::vec3(1.0f, 0.9f, 0.9f), .range = 15.0f, .intensity = 1.0f });
 	Game::scene.lights.push_back(Light{ .position = glm::vec3(4.0f, 5.5f, -7.0f), .color = glm::vec3(0.8f, 1.0f, 1.0f), .range = 15.0f, .intensity = 1.0f });
-	//Game::scene.lights.push_back(Light{ .position = glm::vec3(-4.0f, 5.5f, -7.0f), .color = glm::vec3(0.8f, 1.0f, 0.7f), .range = 15.0f, .intensity = 1.0f });
+	Game::scene.lights.push_back(Light{ .position = glm::vec3(-4.0f, 5.5f, -7.0f), .color = glm::vec3(0.8f, 1.0f, 0.7f), .range = 15.0f, .intensity = 1.0f });
 	//Game::scene.lights.push_back(Light{ .position = glm::vec3(0.0f, 7.0f, 0.0f), .color = glm::vec3(1.0f, 1.0f, 1.0f), .range = 15.0f, .intensity = 1.0f });
 
-#if true // Parametric shapes
+#if false // Parametric shapes
 	Game::scene.entities.push_back(std::make_unique<Disk>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 20.0f));
 	Game::scene.entities.back()->shaderType = Shader::Grid;
 
@@ -36,7 +36,7 @@ void Scene::ReadAndAddTestObjects() {
 	Game::scene.entities.back()->materials[0].color = glm::vec4(1.0f, 0.2f, 0.2f, 1.0f);
 #endif
 
-#if true // Mesh
+#if false // Mesh
 	{
 		auto meshHandle = Assets::NewMesh(std::filesystem::path("models/char.fbx"));
 		auto rendMesh = std::make_unique<RenderedMesh>("chara", meshHandle);
@@ -102,7 +102,7 @@ void Scene::ReadAndAddTestObjects() {
 	}
 #endif
 
-#if false // Mesh
+#if true // Mesh
 	{
 		auto meshHandle = Assets::NewMesh(std::filesystem::path("models/sponza/sponza.fbx"), Assets::ImportOpts{ .ignoreMaterials = { 14, 28, 32, 39 } });
 		auto rendMesh = std::make_unique<RenderedMesh>("sponza", meshHandle);

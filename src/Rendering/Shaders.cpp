@@ -16,7 +16,7 @@ vec4 Shaders::Textured(const Scene& scene, const RayResult& rayResult, const v2f
 	if (rayResult.obj->HasMesh()) {
 
 		const auto& mesh = Assets::Meshes[rayResult.obj->meshHandle];
-		const auto& materialID = mesh->materials[rayResult.data / 3]; // .data = triangle index for meshes
+		const auto& materialID = mesh->materialIDs[rayResult.triIndex / 3];
 		const auto& material = rayResult.obj->materials[materialID];
 
 		if (material.HasTexture())
@@ -109,6 +109,7 @@ vec4 Shaders::Debug(const Scene& scene, const RayResult& rayResult, const v2f& i
 
 // Loops lights and adds their contribution to diffuse and indirect terms
 void Shaders::LightLoop(const Scene& scene, const RayResult& rayResult, const v2f& input, vec3& direct, vec3& indirect, const TraceData& data) {
+
 	for (int i = 0; i < scene.lights.size(); i++) {
 		const auto& light = scene.lights[i];
 		if (Utils::SqrLength(input.worldPosition - light.position) > light.range * light.range)
@@ -138,12 +139,12 @@ float Shaders::CalculateShadow(const Scene& scene, const Light& light, const Ray
 	float blockerDist = 0.0f;
 	int shadowRecursionCount = 0;
 
-	// Lowpoly meshes require still bias to avoid self-shadowing artifacts
+	// Lowpoly meshes still require bias to avoid self-shadowing artifacts
 	// Could try using some smart filtering instead for example angle diff + dist requirement if self-intersect detected
 	const vec3 bias = input.worldNormal * 0.008f;
 
 	// If the primary shadow ray hits a blocker -> this is in shadow -> calculate smooth shadows using light mask
-	if (ShadowRay(scene, input.worldPosition + bias, light.position, rayResult.data, shadowRecursionCount, blockerDist))
+	if (ShadowRay(scene, input.worldPosition + bias, light.position, rayResult.id, shadowRecursionCount, blockerDist))
 		return SampleSmoothShadow(light, input, blockerDist);
 
 	return 1.0f;
@@ -167,9 +168,9 @@ inline bool Shaders::ShadowRay(const Scene& scene, const vec3& from, const vec3&
 
 		// If we hit a textured object gotta check for transparency and go on recursively.. not very elegant
 		// While this is very proper way of dealing with it, ideally there's an early exit here instead of sampling textures
-		if (res.obj->HasMesh())
-			if (static_cast<RenderedMesh*>(res.obj)->SampleAt(res.localPos, res.data).a == 0)
-				return ShadowRay(scene, ray.ro + ray.rd * res.depth, to, res.data, ++recursionDepth, blockerDist);
+		if (res.obj->type == Entity::Type::RenderedMesh)
+			if (static_cast<RenderedMesh*>(res.obj)->SampleAt(res.localPos, res.id).a == 0)
+				return ShadowRay(scene, ray.ro + ray.rd * res.depth, to, res.triIndex, ++recursionDepth, blockerDist);
 
 		return true;
 	}

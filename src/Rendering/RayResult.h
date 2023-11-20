@@ -10,7 +10,10 @@ struct RayResult {
 	glm::vec3 faceNormal;
 	Entity* obj;
 	float depth;
-	int data;
+	union { // Tri index for meshes, id for parametric shapes
+		int id;
+		int triIndex;
+	};
 	bool Hit() const { return obj != nullptr; }
 };
 

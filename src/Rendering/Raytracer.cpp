@@ -66,13 +66,13 @@ vec4 Raytracer::SampleColor(const Scene& scene, const RayResult& rayResult, cons
 
 		float reflectivity;
 		if (rayResult.obj->type == Entity::Type::RenderedMesh)
-			reflectivity = rayResult.obj->materials[rayResult.obj->GetMesh()->materials[rayResult.data / 3]].reflectivity;
+			reflectivity = rayResult.obj->materials[rayResult.obj->GetMesh()->materialIDs[rayResult.triIndex / 3]].reflectivity;
 		else
 			reflectivity = rayResult.obj->materials[0].reflectivity; // Assert parametric objs have 1 material
 
 		if (reflectivity != 0.0f && data.recursionDepth < 2) {
 			const auto newRd = reflect(ray.rd, rayResult.obj->transform.rotation * rayResult.faceNormal);
-			Ray newRay{ .ro = interpolated.worldPosition, .rd = newRd, .inv_rd = 1.0f / newRd, .mask = rayResult.data };
+			Ray newRay{ .ro = interpolated.worldPosition, .rd = newRd, .inv_rd = 1.0f / newRd, .mask = rayResult.id };
 			data.recursionDepth++;
 			vec4 reflColor = TracePath(scene, newRay, data);
 			c = Utils::Lerp(c, reflColor, reflectivity);
@@ -89,7 +89,7 @@ RayResult Raytracer::RaycastScene(const Scene& scene, const Ray& ray) const {
 		.faceNormal = vec3(0,1,0),
 		.obj = nullptr,
 		.depth = std::numeric_limits<float>::max(),
-		.data = std::numeric_limits<int>::min()
+		.id = std::numeric_limits<int>::min()
 	};
 
 	bool intersect;
@@ -116,7 +116,7 @@ RayResult Raytracer::RaycastScene(const Scene& scene, const Ray& ray) const {
 		// Check if hit something and if it's the closest hit
 		if (intersect && depth < result.depth) {
 			result.depth = depth;
-			result.data = data;
+			result.id = data;
 			result.localPos = _ray.ro + _ray.rd * depth;
 			result.faceNormal = nrm;
 			result.obj = entity.get();
@@ -143,7 +143,7 @@ vec4 Raytracer::TracePath(const Scene& scene, const Ray& ray, TraceData& data) c
 		// If we hit a transparent or cutout surface, skip it and check further
 		if (data.HasFlag(TraceData::Transparent) && c.a < 0.99f && data.recursionDepth < 2) {
 			const auto hitPt = ray.ro + ray.rd * rayResult.depth;
-			Ray newRay{ .ro = hitPt, .rd = ray.rd, .inv_rd = ray.inv_rd, .mask = rayResult.data };
+			Ray newRay{ .ro = hitPt, .rd = ray.rd, .inv_rd = ray.inv_rd, .mask = rayResult.id };
 			data.recursionDepth++;
 			vec4 behind = TracePath(scene, newRay, data);
 			c = Utils::Lerp(c, behind, 1.0f - c.a);
@@ -215,7 +215,7 @@ void Raytracer::SmoothShadowsPass(Scene& scene, const mat4x4& projInv, const mat
 						auto os = scene.lights[j].position - hitpt;
 						auto lightDist = length(os);
 						os /= lightDist;
-						const Ray ray2{ .ro = hitpt, .rd = os, .inv_rd = 1.0f / os, .mask = res.data };
+						const Ray ray2{ .ro = hitpt, .rd = os, .inv_rd = 1.0f / os, .mask = res.id };
 						const auto res2 = RaycastScene(scene, ray2);
 
 						if (!res2.Hit() || res2.depth > lightDist - 0.001f)
@@ -371,7 +371,7 @@ void Raytracer::IndirectLightingPass(Scene& scene, const mat4x4& projInv, const 
 							vec3 ro = light.position;
 							vec3 rd = normalize(reflPt - light.position);
 							const auto newPosDir = obj->invModelMatrix * mat2x4(vec4(ro, 1.0f), vec4(rd, 0.0f));
-							Ray rr{ .ro = newPosDir[0], .rd = newPosDir[1], .inv_rd = 1.0f / newPosDir[1], .mask = res.data };
+							Ray rr{ .ro = newPosDir[0], .rd = newPosDir[1], .inv_rd = 1.0f / newPosDir[1], .mask = res.id };
 							int data; float depth;
 							float isect = obj->IntersectLocal(rr, reflPt, data, depth);
 
@@ -391,7 +391,7 @@ void Raytracer::IndirectLightingPass(Scene& scene, const mat4x4& projInv, const 
 							vec3 tfHitpt = obj->invModelMatrix * vec4(hitpt, 1.0f);
 
 							// Sample mesh BVH for closest potentially reflecting tri
-							if (!obj->bvh.GetClosestReflectiveTri(tfHitpt, tfLightpos, distLim * distLim, res.data, tri, reflectPt))
+							if (!obj->bvh.GetClosestReflectiveTri(tfHitpt, tfLightpos, distLim * distLim, res.triIndex, tri, reflectPt))
 								continue; // No triangles on this mesh reflect light to this pos
 
 							reflectPt = obj->modelMatrix * vec4(reflectPt, 1.0f);

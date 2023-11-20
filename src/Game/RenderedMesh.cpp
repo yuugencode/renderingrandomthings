@@ -48,10 +48,10 @@ void RenderedMesh::GenerateBVH() {
 		Log::LineFormatted("BVH Generation time {}ms", Log::FormatFloat((float)t.GetAveragedTime() * 1000.0f));
 		if (name.length() > 0) {
 			std::ofstream ofs(filename, std::ios::binary);
-			int stackCount = bvh.stack.size();
+			int stackCount = (int)bvh.stack.size();
 			ofs.write((char*)&stackCount, sizeof(int));
 			ofs.write((char*)bvh.stack.data(), stackCount * sizeof(Bvh::BvhNode));
-			int triCount = bvh.triangles.size();
+			int triCount = (int)bvh.triangles.size();
 			ofs.write((char*)&triCount, sizeof(int));
 			ofs.write((char*)bvh.triangles.data(), triCount * sizeof(Bvh::BvhTriangle));
 			Log::LineFormatted("Wrote BVH to disk ({}Mb)", ((bvh.stack.size() * sizeof(Bvh::BvhNode)) / 1024) / 1024);
@@ -67,9 +67,9 @@ v2f RenderedMesh::VertexShader(const Ray& ray, const RayResult& rayResult) const
 	v2f ret;
 
 	const auto& mesh = Assets::Meshes[meshHandle];
-	const auto& v0i = mesh->triangles[rayResult.data + 0]; // data == triIndex for meshes
-	const auto& v1i = mesh->triangles[rayResult.data + 1];
-	const auto& v2i = mesh->triangles[rayResult.data + 2];
+	const auto& v0i = mesh->triangles[rayResult.triIndex + 0];
+	const auto& v1i = mesh->triangles[rayResult.triIndex + 1];
+	const auto& v2i = mesh->triangles[rayResult.triIndex + 2];
 	const auto& p0 = mesh->vertices[v0i];
 	const auto& p1 = mesh->vertices[v1i];
 	const auto& p2 = mesh->vertices[v2i];
@@ -82,7 +82,7 @@ v2f RenderedMesh::VertexShader(const Ray& ray, const RayResult& rayResult) const
 	const auto& uv0 = mesh->uvs[v0i];
 	const auto& uv1 = mesh->uvs[v1i];
 	const auto& uv2 = mesh->uvs[v2i];
-	const auto& material = mesh->materials[rayResult.data / 3];
+	const auto& material = mesh->materialIDs[rayResult.triIndex / 3];
 
 	// Barycentric interpolation
 	const auto b = Utils::Barycentric(rayResult.localPos, p0, p1, p2);
@@ -107,7 +107,7 @@ Color RenderedMesh::SampleAt(const glm::vec3& pos, const int& triIndex) const {
 	if (!HasMesh()) return Color{ .r = 0x00, .g = 0x00, .b = 0x00, .a = 0xff };
 
 	const auto& mesh = GetMesh();
-	const auto& materialID = mesh->materials[triIndex / 3];
+	const auto& materialID = mesh->materialIDs[triIndex / 3];
 	const auto& material = materials[materialID];
 	if (!material.HasTexture()) return Colors::Black;
 
@@ -131,7 +131,7 @@ Color RenderedMesh::SampleTriangle(const int& triIndex, const glm::vec3& barycen
 	if (!HasMesh()) return Color{ .r = 0x00, .g = 0x00, .b = 0x00, .a = 0xff };
 
 	const auto& mesh = GetMesh();
-	const auto& materialID = mesh->materials[triIndex / 3];
+	const auto& materialID = mesh->materialIDs[triIndex / 3];
 	const auto& texID = materials[materialID].textureHandle;
 	if (texID == -1) return Colors::Clear;
 

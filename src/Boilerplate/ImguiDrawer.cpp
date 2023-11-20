@@ -121,25 +121,45 @@ void ImguiDrawer::DrawUI() {
 	ImGui::SameLine(); ImGui::Text("%.2fms", Game::raytracer.sceneTraceTimer.GetAveragedTime() * 1000.0);
 	ImGui::PopStyleColor();
 
-	ImGui::Text("Shadows sample:"); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 1, 1, 1));
-	ImGui::SameLine(); ImGui::Text("%.2fms", Game::raytracer.lightBufferSampleTimer.GetAveragedTime() * 1000.0); ImGui::PopStyleColor();
-	
-	ImGui::Text("Shadows accelerator:"); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 1, 1, 1));
-	ImGui::SameLine(); ImGui::Text("%.2fms", Game::raytracer.lightBufferGenTimer.GetAveragedTime() * 1000.0); ImGui::PopStyleColor();
-
 	int ptCnt = 0;
 	for (const auto& light : Game::scene.lights) ptCnt += (int)light.lightBvh.points.size();
-	ImGui::SameLine(); ImGui::Text("(%d pts)", ptCnt);
 
-	ImGui::Text("Indirect sample:"); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 1, 1, 1));
-	ImGui::SameLine(); ImGui::Text("%.2fms", Game::raytracer.indirectSampleTimer.GetAveragedTime() * 1000.0); ImGui::PopStyleColor();
-
-	ImGui::Text("Indirect accelerator:"); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 1, 1, 1));
-	ImGui::SameLine(); ImGui::Text("%.2fms", Game::raytracer.indirectGenTimer.GetAveragedTime() * 1000.0); ImGui::PopStyleColor();
+	ImGui::Text("Shadows sample:"); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 1, 1, 1));
+	if (ptCnt == 0) {
+		ImGui::SameLine(); ImGui::Text("Inactive"); ImGui::PopStyleColor();
+	}
+	else {
+		ImGui::SameLine(); ImGui::Text("%.2fms", Game::raytracer.lightBufferSampleTimer.GetAveragedTime() * 1000.0); ImGui::PopStyleColor();
+	}
+	
+	ImGui::Text("Shadows accelerator:"); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 1, 1, 1));
+	if (ptCnt == 0) {
+		ImGui::SameLine(); ImGui::Text("Inactive"); ImGui::PopStyleColor();
+	}
+	else {
+		ImGui::SameLine(); ImGui::Text("%.2fms", Game::raytracer.lightBufferGenTimer.GetAveragedTime() * 1000.0); ImGui::PopStyleColor();
+		ImGui::SameLine(); ImGui::Text("(%d pts)", ptCnt);
+	}
 
 	ptCnt = 0;
 	for (const auto& light : Game::scene.lights) ptCnt += (int)light.indirectBvh.points.size();
-	ImGui::SameLine(); ImGui::Text("(%d pts)", ptCnt);
+	ImGui::Text("Indirect sample:"); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 1, 1, 1));
+	if (ptCnt == 0) {
+		ImGui::SameLine(); ImGui::Text("Inactive"); ImGui::PopStyleColor();
+	}
+	else {
+		ImGui::SameLine(); ImGui::Text("%.2fms", Game::raytracer.indirectSampleTimer.GetAveragedTime() * 1000.0); ImGui::PopStyleColor();
+	}
+
+	ImGui::Text("Indirect accelerator:"); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 1, 1, 1));
+	if (ptCnt == 0) {
+		ImGui::SameLine(); ImGui::Text("Inactive"); ImGui::PopStyleColor();
+	}
+	else {
+		ImGui::SameLine(); ImGui::Text("%.2fms", Game::raytracer.indirectGenTimer.GetAveragedTime() * 1000.0); ImGui::PopStyleColor();
+		ImGui::SameLine(); ImGui::Text("(%d pts)", ptCnt);
+	}
+
 
 	// Vtx count
 	uint32_t meshes = 0, parametrics = 0;
