@@ -90,12 +90,12 @@ void Bvh::SplitNodeSingle(const int& nodeIdx, int& nextLeft, int& nextRight) {
 #else
 	auto& node = stack[nodeIdx];
 #endif
-	const auto aabbSize = node.aabb.Size();
+	const glm::vec3 aabbSize = node.aabb.Size();
 
 #if true // SAH Splits
 
 	int minAxis = 0;
-	auto minSplitPos = node.aabb.Center();
+	glm::vec3 minSplitPos = node.aabb.Center();
 	float minCost = std::numeric_limits<float>::max();
 	const float invNodeArea = 1.0f / node.aabb.AreaHeuristic();
 
@@ -379,8 +379,8 @@ void Bvh::TraverseNode(const int& nodeIndex, const glm::vec3& pos, const glm::ve
 	// Node, check left/right and recurse if they're closer than closest
 	int nodeA = node.GetLeftChild();
 	int nodeB = node.GetRightChild();
-	auto distA = Utils::SqrLength(stack[nodeA].aabb.ClosestPoint(pos) - pos);
-	auto distB = Utils::SqrLength(stack[nodeB].aabb.ClosestPoint(pos) - pos);
+	float distA = Utils::SqrLength(stack[nodeA].aabb.ClosestPoint(pos) - pos);
+	float distB = Utils::SqrLength(stack[nodeB].aabb.ClosestPoint(pos) - pos);
 
 	if (distA < distB) {
 		std::swap(nodeA, nodeB);

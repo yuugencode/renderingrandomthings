@@ -32,7 +32,7 @@ Sphere::Sphere(const glm::vec3& pos, const float& radius) {
 bool Sphere::IntersectLocal(const Ray& ray, glm::vec3& normal, int& data, float& depth) const {
 	if (ray.mask == id) return false;
 	// Adapted from Inigo Quilez https://iquilezles.org/articles/
-	auto nrm_rd = glm::normalize(ray.rd);
+	const glm::vec3 nrm_rd = glm::normalize(ray.rd);
 	float b = glm::dot(ray.ro, nrm_rd);
 	if (b > 0.0f) return false; // Looking 180 degs away
 	float c = glm::dot(ray.ro, ray.ro) - 1.0f;
@@ -97,7 +97,7 @@ Box::Box(const glm::vec3& pos, const glm::vec3& size) {
 
 bool Box::IntersectLocal(const Ray& ray, glm::vec3& normal, int& data, float& depth) const {
 	if (ray.mask == id) return false;
-	auto res = AABB(1.0f).Intersect(ray);
+	const float res = AABB(1.0f).Intersect(ray);
 	if (res > 0.0f && id != ray.mask) {
 		depth = res;
 		normal = LocalNormal(ray.ro + ray.rd * res);
@@ -109,7 +109,7 @@ bool Box::IntersectLocal(const Ray& ray, glm::vec3& normal, int& data, float& de
 
 glm::vec3 Box::LocalNormal(const glm::vec3& pos) const {
 	using namespace glm;
-	const auto nrm = pos;// / (transform.scale);
+	const glm::vec3 nrm = pos;// / (transform.scale);
 	if (abs(nrm.x) > abs(nrm.y) && abs(nrm.x) > abs(nrm.z))
 		return nrm.x < 0.0f ? vec3(-1.0f, 0.0f, 0.0f) : vec3(1.0f, 0.0f, 0.0f);
 	else if (abs(nrm.y) > abs(nrm.z))

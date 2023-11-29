@@ -30,7 +30,7 @@ public:
     std::vector<glm::vec2> uvs;
     std::vector<glm::vec3> normals;
     std::vector<glm::vec4> colors;
-    std::vector<uint32_t> materialIDs; // tri index -> material index
+    std::vector<int> materialIDs; // tri index -> material index
     std::vector<std::vector<uint32_t>> connectivity; // vertex index -> triangle list
     std::vector<std::vector<uint32_t>> triConnectivity; // triangle index -> neighbor triangles
     std::vector<MaterialMetadata> materialMetadata;

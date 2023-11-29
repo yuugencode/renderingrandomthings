@@ -71,7 +71,7 @@ vec4 Raytracer::SampleColor(const Scene& scene, const RayResult& rayResult, cons
 			reflectivity = rayResult.obj->materials[0].reflectivity; // Assert parametric objs have 1 material
 
 		if (reflectivity != 0.0f && data.recursionDepth < 2) {
-			const auto newRd = reflect(ray.rd, rayResult.obj->transform.rotation * rayResult.faceNormal);
+			const vec3 newRd = reflect(ray.rd, rayResult.obj->transform.rotation * rayResult.faceNormal);
 			Ray newRay{ .ro = interpolated.worldPosition, .rd = newRd, .inv_rd = 1.0f / newRd, .mask = rayResult.id };
 			data.recursionDepth++;
 			vec4 reflColor = TracePath(scene, newRay, data);
@@ -104,7 +104,7 @@ RayResult Raytracer::RaycastScene(const Scene& scene, const Ray& ray) const {
 		if (entity->worldAABB.Intersect(ray) == 0.0f) continue;
 
 		// Inverse transform object to origin
-		const auto newPosDir = entity->invModelMatrix * mat2x4(
+		const mat2x3 newPosDir = entity->invModelMatrix * mat2x4(
 			vec4(ray.ro, 1.0f),
 			vec4(ray.rd, 0.0f)
 		);
@@ -142,7 +142,7 @@ vec4 Raytracer::TracePath(const Scene& scene, const Ray& ray, TraceData& data) c
 
 		// If we hit a transparent or cutout surface, skip it and check further
 		if (data.HasFlag(TraceData::Transparent) && c.a < 0.99f && data.recursionDepth < 2) {
-			const auto hitPt = ray.ro + ray.rd * rayResult.depth;
+			const vec3 hitPt = ray.ro + ray.rd * rayResult.depth;
 			Ray newRay{ .ro = hitPt, .rd = ray.rd, .inv_rd = ray.inv_rd, .mask = rayResult.id };
 			data.recursionDepth++;
 			vec4 behind = TracePath(scene, newRay, data);
@@ -206,14 +206,14 @@ void Raytracer::SmoothShadowsPass(Scene& scene, const mat4x4& projInv, const mat
 
 				if (res.Hit()) {
 
-					const auto hitpt = ray.ro + ray.rd * res.depth;
+					const vec3 hitpt = ray.ro + ray.rd * res.depth;
 
 					// Loop all lights and save a bitmask representing which light indices are fully lit
 					int mask = 0;
 
 					for (int j = 0; j < scene.lights.size(); j++) {
-						auto os = scene.lights[j].position - hitpt;
-						auto lightDist = length(os);
+						vec3 os = scene.lights[j].position - hitpt;
+						float lightDist = length(os);
 						os /= lightDist;
 						const Ray ray2{ .ro = hitpt, .rd = os, .inv_rd = 1.0f / os, .mask = res.id };
 						const auto res2 = RaycastScene(scene, ray2);
@@ -306,7 +306,7 @@ void Raytracer::IndirectLightingPass(Scene& scene, const mat4x4& projInv, const 
 				}
 
 				// Hit something, figure out indirect for this pt
-				const auto hitpt = ray.ro + ray.rd * res.depth;
+				const vec3 hitpt = ray.ro + ray.rd * res.depth;
 
 				// Loop potential lights @TODO: Scene top level acceleration structure
 				for (auto& light : scene.lights) {
@@ -339,9 +339,9 @@ void Raytracer::IndirectLightingPass(Scene& scene, const mat4x4& projInv, const 
 						if (obj->type == Entity::Type::Sphere) {
 
 							// For spheres figuring out reflect pt + normal is trivial
-							auto p = obj->transform.position;
-							auto toHitpt = normalize(hitpt - p);
-							auto toLight = normalize(light.position - p);
+							vec3 p = obj->transform.position;
+							vec3 toHitpt = normalize(hitpt - p);
+							vec3 toLight = normalize(light.position - p);
 							reflectPt = obj->transform.position + normalize(toHitpt + toLight) * obj->transform.scale.x;
 							worldNormal = normalize(reflectPt - obj->transform.position);
 						}
@@ -370,10 +370,10 @@ void Raytracer::IndirectLightingPass(Scene& scene, const mat4x4& projInv, const 
 							// Do the intersection test in local space
 							vec3 ro = light.position;
 							vec3 rd = normalize(reflPt - light.position);
-							const auto newPosDir = obj->invModelMatrix * mat2x4(vec4(ro, 1.0f), vec4(rd, 0.0f));
+							const mat2x3 newPosDir = obj->invModelMatrix * mat2x4(vec4(ro, 1.0f), vec4(rd, 0.0f));
 							Ray rr{ .ro = newPosDir[0], .rd = newPosDir[1], .inv_rd = 1.0f / newPosDir[1], .mask = res.id };
-							int data; float depth;
-							float isect = obj->IntersectLocal(rr, reflPt, data, depth);
+							int data; float depth; vec3 dummy;
+							float isect = obj->IntersectLocal(rr, dummy, data, depth);
 
 							if (isect <= 0.0f) continue; // No hit
 
@@ -428,7 +428,7 @@ void Raytracer::IndirectLightingPass(Scene& scene, const mat4x4& projInv, const 
 						// Attenuation
 						float atten = light.CalcAttenuation(length(reflectPt - hitpt) + length(reflectPt - light.position));
 
-						float intensity = ang * atten * reflectFade;
+						float intensity = ang * atten * reflectFade * 3.0f;
 
 						if (intensity < 1.0f / 255.0f + 0.001f) continue; // Don't add data if intensity is below 1/255
 
@@ -438,7 +438,7 @@ void Raytracer::IndirectLightingPass(Scene& scene, const mat4x4& projInv, const 
 					}
 
 					// Save the accumulated value
-					auto clr = Color::FromVec(indirect);
+					Color clr = Color::FromVec(indirect);
 					light._indirectTempBuffer[textureIndex] = LightbufferPt{ .pt = hitpt, .indirect {.clr = clr, .nrm = res.obj->transform.rotation * res.faceNormal } };
 				}
 			}
@@ -517,10 +517,10 @@ void Raytracer::RenderScene(Scene& scene) {
 	const vec3 camPos = camTransform.position;
 	vec3 fwd = camTransform.Forward();
 	vec3 up = camTransform.Up();
-	auto view = glm::lookAt(camTransform.position, camTransform.position + fwd, up);
-	auto proj = glm::perspectiveFov(radians(scene.camera.fov), (float)window->width, (float)window->height, scene.camera.nearClip, scene.camera.farClip);
-	auto viewInv = inverse(view);
-	auto projInv = inverse(proj);
+	mat4x4 view = glm::lookAt(camTransform.position, camTransform.position + fwd, up);
+	mat4x4 proj = glm::perspectiveFov(radians(scene.camera.fov), (float)window->width, (float)window->height, scene.camera.nearClip, scene.camera.farClip);
+	mat4x4 viewInv = inverse(view);
+	mat4x4 projInv = inverse(proj);
 
 	// Backbuffer
 	const bgfx::Memory* mem = bgfx::makeRef(textureBuffer, (uint32_t)textureBufferSize);

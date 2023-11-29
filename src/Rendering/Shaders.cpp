@@ -16,8 +16,8 @@ vec4 Shaders::Textured(const Scene& scene, const RayResult& rayResult, const v2f
 	if (rayResult.obj->HasMesh()) {
 
 		const auto& mesh = Assets::Meshes[rayResult.obj->meshHandle];
-		const auto& materialID = mesh->materialIDs[rayResult.triIndex / 3];
-		const auto& material = rayResult.obj->materials[materialID];
+		const int& materialID = mesh->materialIDs[rayResult.triIndex / 3];
+		const Material& material = rayResult.obj->materials[materialID];
 
 		if (material.HasTexture())
 			c = Assets::Textures[material.textureHandle]->SampleUVClamp(input.uv).ToVec4() * material.color;
@@ -40,7 +40,7 @@ vec4 Shaders::Textured(const Scene& scene, const RayResult& rayResult, const v2f
 vec4 Shaders::Grid(const Scene& scene, const RayResult& rayResult, const v2f& input, const TraceData& data) {
 	
 	// Grid pattern
-	auto f = fract(rayResult.localPos * 10.0f);
+	vec3 f = fract(rayResult.localPos * 10.0f);
 	f = abs(f - 0.5f) * 2.0f;
 	float a = min(f.x, min(f.y, f.z));
 	float gridPattern = clamp(1.0f - (Utils::InvLerpClamp(1.0f - a, 0.95f, 1.0f)), 0.5f, 1.0f);

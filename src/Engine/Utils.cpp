@@ -78,17 +78,18 @@ glm::vec3 Utils::ConfinedBarycentric(const glm::vec3& p, const glm::vec3& a, con
 }
 
 inline float Utils::InvSegmentLerp(const glm::vec3& p, const glm::vec3& a, const glm::vec3& b) {
-    const auto pa = p - a;
-    const auto ba = b - a;
-    const auto baMagn = glm::length(ba);
+    using namespace glm;
+    const vec3 pa = p - a;
+    const vec3 ba = b - a;
+    const float baMagn = length(ba);
     if (baMagn < 0.000001f) return 0.0f;
-    const auto baNorm = ba / baMagn;
-    const auto dot = glm::dot(pa, baNorm);
-    if (dot < 0.0f) return 0.0f;
-    const auto proj = baNorm * dot;
-    const auto dist2 = baMagn;
-    const auto dist3 = glm::length(proj);
-    return glm::min(dist3 / dist2, 1.0f);
+    const vec3 baNorm = ba / baMagn;
+    const float d = dot(pa, baNorm);
+    if (d < 0.0f) return 0.0f;
+    const vec3 proj = baNorm * d;
+    const float dist2 = baMagn;
+    const float dist3 = length(proj);
+    return min(dist3 / dist2, 1.0f);
 }
 
 glm::vec4 Utils::InvQuadrilateral(const glm::vec3& p, const glm::vec3& a, const glm::vec3& b, const glm::vec3& c, const glm::vec3& d) {
