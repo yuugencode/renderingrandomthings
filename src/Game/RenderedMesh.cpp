@@ -11,14 +11,14 @@ RenderedMesh::RenderedMesh(const std::string& name, const int& meshHandle) {
 	this->meshHandle = meshHandle;
 	this->name = name;
 	id = idCount--;
-	shaderType = Shader::Textured;
+	SetShader(Shader::Textured);
 	GenerateBVH();
 	materials.push_back(Material());
 }
 
 void RenderedMesh::GenerateBVH() {
 
-	// Quick hack for serializing bvh
+	// Quick hack for serializing a bvh // @TODO: Refactor
 	std::string filename = name + ".bvh";
 
 	if (name.length() > 0 && std::filesystem::exists(filename)) {
@@ -85,7 +85,7 @@ v2f RenderedMesh::VertexShader(const Ray& ray, const RayResult& rayResult) const
 	//const auto& material = mesh->materialIDs[rayResult.triIndex / 3];
 
 	// Barycentric interpolation
-	const glm::vec3 b = Utils::Barycentric(rayResult.localPos, p0, p1, p2);
+	glm::vec3 b = Utils::Barycentric(rayResult.localPos, p0, p1, p2);
 
 	ret.worldPosition = ray.ro + ray.rd * rayResult.depth;
 	ret.rayDirection = ray.rd;
@@ -103,7 +103,7 @@ v2f RenderedMesh::VertexShader(const Ray& ray, const RayResult& rayResult) const
 	return ret;
 }
 
-Color RenderedMesh::SampleAt(const glm::vec3& pos, const int& triIndex) const {
+Color RenderedMesh::SampleAt(const glm::vec3& pos, int triIndex) const {
 	if (!HasMesh()) return Color{ .r = 0x00, .g = 0x00, .b = 0x00, .a = 0xff };
 
 	const auto& mesh = GetMesh();
@@ -127,7 +127,7 @@ Color RenderedMesh::SampleAt(const glm::vec3& pos, const int& triIndex) const {
 	return Assets::Textures[material.textureHandle]->SampleUVClamp(uv);
 }
 
-Color RenderedMesh::SampleTriangle(const int& triIndex, const glm::vec3& barycentric) const {
+Color RenderedMesh::SampleTriangle(int triIndex, const glm::vec3& barycentric) const {
 	if (!HasMesh()) return Color{ .r = 0x00, .g = 0x00, .b = 0x00, .a = 0xff };
 
 	const auto& mesh = GetMesh();

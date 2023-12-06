@@ -60,7 +60,7 @@ struct AABB {
     float Intersect(const Ray& ray) const;
 
     // Returns the closest point on this AABB to given pos
-    glm::vec3 ClosestPoint(const glm::vec3 pos) const;
+    glm::vec3 ClosestPoint(const glm::vec3& pos) const;
 
     // Returns the squared distance from given pt to the closest point on this AABB
     float SqrDist(const glm::vec3& pos) const;

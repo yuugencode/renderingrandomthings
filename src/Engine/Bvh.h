@@ -71,14 +71,14 @@ private:
 	static const int maxNodeEntries = 4;
 
 	// Splits bvh node into 2
-	void SplitNodeSingle(const int& nodeIdx, int& nextLeft, int& nextRight);
+	void SplitNodeSingle(int nodeIdx, int& nextLeft, int& nextRight);
 
-	void SplitNodeRecurse(const int& nodeIdx);
+	void SplitNodeRecurse(int nodeIdx);
 
 	// Partitions data to 2 sides based on given pos and axis. Right index is exclusive.
-	int Partition(const int& low, const int& high, const glm::vec3& splitPos, const int& axis);
+	int Partition(int low, int high, const glm::vec3& splitPos, int axis);
 
-	AABB CalculateAABB(const int& left, const int& right) const;
+	AABB CalculateAABB(int left, int right) const;
 
 	float ray_tri_intersect(const glm::vec3& ro, const glm::vec3& rd, const BvhTriangle& tri) const;
 

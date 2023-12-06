@@ -24,7 +24,7 @@ Sphere::Sphere(const glm::vec3& pos, const float& radius) {
 	transform.rotation = glm::quat();
 	transform.scale = glm::vec3(radius, radius, radius);
 	type = Entity::Type::Sphere;
-	shaderType = Shader::Normals;
+	SetShader(Shader::Normals);
 	materials.push_back(Material());
 	id = idCount--;
 }
@@ -62,7 +62,7 @@ Disk::Disk(const glm::vec3& pos, const glm::vec3& normal, const float& radius) {
 	transform.scale = glm::vec3(radius);
 	type = Entity::Type::Disk;
 	id = idCount--;
-	shaderType = Shader::Grid;
+	SetShader(Shader::Grid);
 	materials.push_back(Material());
 }
 
@@ -91,7 +91,7 @@ Box::Box(const glm::vec3& pos, const glm::vec3& size) {
 	aabb = AABB(1.0f); //AABB(-size, size);
 	type = Entity::Type::Box;
 	id = idCount--;
-	shaderType = Shader::PlainWhite;
+	SetShader(Shader::PlainWhite);
 	materials.push_back(Material());
 }
 

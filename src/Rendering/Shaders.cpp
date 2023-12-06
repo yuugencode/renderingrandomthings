@@ -15,8 +15,8 @@ vec4 Shaders::Textured(const Scene& scene, const RayResult& rayResult, const v2f
 	// Base color
 	if (rayResult.obj->HasMesh()) {
 
-		const auto& mesh = Assets::Meshes[rayResult.obj->meshHandle];
-		const int& materialID = mesh->materialIDs[rayResult.triIndex / 3];
+		const auto& meshPtr = Assets::Meshes[rayResult.obj->meshHandle];
+		int materialID = meshPtr->materialIDs[rayResult.triIndex / 3];
 		const Material& material = rayResult.obj->materials[materialID];
 
 		if (material.HasTexture())
@@ -151,7 +151,7 @@ float Shaders::CalculateShadow(const Scene& scene, const Light& light, const Ray
 }
 
 // Shoots a ray towards a light returns if it hit anything before reaching it
-inline bool Shaders::ShadowRay(const Scene& scene, const vec3& from, const vec3& to, const int& collisionMask, int& recursionDepth, float& blockerDist) {
+inline bool Shaders::ShadowRay(const Scene& scene, const vec3& from, const vec3& to, int collisionMask, int& recursionDepth, float& blockerDist) {
 
 	// If we're passing multiple transparent things just return no shadow, mostly inf loop safeguard with textured objs
 	if (recursionDepth > 5) return false;
@@ -185,8 +185,9 @@ float Shaders::SampleSmoothShadow(const Light& light, const v2f& input, const fl
 
 	constexpr int N = 4; // Num closest samples to average
 	constexpr float distLim = 4.0f; // Range limit for searches, should be higher than max expected penumbra size
-	float dist[N]{ distLim, distLim, distLim, distLim };
 	constexpr BvhPoint<Empty>::BvhPointData emptyData{ .point = vec3(0.0f), .payload = Empty() };
+
+	float dist[N]{ distLim, distLim, distLim, distLim };
 	BvhPoint<Empty>::BvhPointData data[N]{ emptyData, emptyData, emptyData, emptyData };
 
 	light.lightBvh.GetNClosest<N>(input.worldPosition, dist, data);
@@ -210,17 +211,18 @@ vec4 Shaders::SampleGI(const Scene& scene, const Light& light, const RayResult& 
 
 	if (!light.indirectBvh.Exists()) return vec4(0.0f);
 
-	constexpr int N = 4;
-	constexpr float distLim = 1.0f;
+	constexpr int N = 4; // Num closest samples to average
+	constexpr float distLim = 1.0f; // Range limit for searches
 	constexpr BvhPoint<LightbufferPayload>::BvhPointData emptyData{ .point = vec3(0.0f), .payload {.clr = Colors::Clear, .nrm = vec3(0.0f) } };
+
 	BvhPoint<LightbufferPayload>::BvhPointData datas[N]{ emptyData, emptyData, emptyData, emptyData };
 	float dist[N]{ distLim, distLim, distLim, distLim };
 
 	light.indirectBvh.GetNClosest<N>(input.worldPosition, dist, datas);
 
 	// Increase sample smoothing range based on view angle + view distance
-	const float angOffset = dot(input.worldNormal, normalize(scene.camera.transform.position - input.worldPosition));
-	const float depthOffset = (data.cumulativeDepth * 0.008f) / max(angOffset, 0.001f);
+	float angOffset = dot(input.worldNormal, normalize(scene.camera.transform.position - input.worldPosition));
+	float depthOffset = (data.cumulativeDepth * 0.008f) / max(angOffset, 0.001f);
 
 	// Average N nearest samples
 	vec4 ret = vec4(0.0f);

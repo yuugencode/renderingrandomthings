@@ -9,6 +9,7 @@
 
 using namespace glm; // Math heavy file, convenience
 
+// Construct the hardware backend for drawing 1 triangle
 void Raytracer::Create(const Window& window) {
 
 	this->window = &window;
@@ -20,7 +21,7 @@ void Raytracer::Create(const Window& window) {
 		.add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
 		.end();
 
-	// Create mutable texture
+	// Create a mutable texture
 	texture = bgfx::createTexture2D(window.width, window.height, false, 1, textureFormat);
 
 	bgfx::TextureInfo info;
@@ -31,7 +32,7 @@ void Raytracer::Create(const Window& window) {
 	u_texture = bgfx::createUniform("s_tex", bgfx::UniformType::Sampler);
 
 	// Read and compile shaders
-	const std::filesystem::path folder = "shaders/";
+	std::filesystem::path folder = "shaders/";
 	auto vShader = Utils::LoadShader(folder / "screenpass_vs.bin");
 	auto fShader = Utils::LoadShader(folder / "screenpass_fs.bin");
 	assert(vShader.idx != bgfx::kInvalidHandle);
@@ -47,19 +48,10 @@ void Raytracer::Create(const Window& window) {
 vec4 Raytracer::SampleColor(const Scene& scene, const RayResult& rayResult, const Ray& ray, TraceData& data) const {
 
 	// Interpolate variables in "vertex shader"
-	const v2f interpolated = rayResult.obj->VertexShader(ray, rayResult);
-
-	vec4 c;
+	v2f interpolated = rayResult.obj->VertexShader(ray, rayResult);
 
 	// Shade below in "fragment shader"
-	switch (rayResult.obj->shaderType) {
-		case Shader::PlainWhite:c = Shaders::PlainColor(scene, rayResult, interpolated, data); break;
-		case Shader::Textured:	c = Shaders::Textured(scene, rayResult, interpolated, data); break;
-		case Shader::Normals:	c = Shaders::Normals(scene, rayResult, interpolated, data); break;
-		case Shader::Grid:		c = Shaders::Grid(scene, rayResult, interpolated, data); break;
-		case Shader::Debug:		c = Shaders::Debug(scene, rayResult, interpolated, data); break;
-		default: c = Shaders::PlainColor(scene, rayResult, interpolated, data); break;
-	}
+	vec4 c = rayResult.obj->FragmentShader(scene, rayResult, interpolated, data);
 
 	// Reflection
 	if (data.HasFlag(TraceData::Reflection)) {
@@ -71,7 +63,7 @@ vec4 Raytracer::SampleColor(const Scene& scene, const RayResult& rayResult, cons
 			reflectivity = rayResult.obj->materials[0].reflectivity; // Assert parametric objs have 1 material
 
 		if (reflectivity != 0.0f && data.recursionDepth < 2) {
-			const vec3 newRd = reflect(ray.rd, rayResult.obj->transform.rotation * rayResult.faceNormal);
+			vec3 newRd = reflect(ray.rd, rayResult.obj->transform.rotation * rayResult.faceNormal);
 			Ray newRay{ .ro = interpolated.worldPosition, .rd = newRd, .inv_rd = 1.0f / newRd, .mask = rayResult.id };
 			data.recursionDepth++;
 			vec4 reflColor = TracePath(scene, newRay, data);
@@ -103,21 +95,21 @@ RayResult Raytracer::RaycastScene(const Scene& scene, const Ray& ray) const {
 		// Early bounding box rejection for missed rays
 		if (entity->worldAABB.Intersect(ray) == 0.0f) continue;
 
-		// Inverse transform object to origin
-		const mat2x3 newPosDir = entity->invModelMatrix * mat2x4(
+		// Inverse transform ray to the object's space
+		mat2x3 newPosDir = entity->invModelMatrix * mat2x4(
 			vec4(ray.ro, 1.0f),
 			vec4(ray.rd, 0.0f)
 		);
-		const Ray _ray { .ro = newPosDir[0], .rd = newPosDir[1], .inv_rd = 1.0f / newPosDir[1], .mask = ray.mask };
+		Ray localRay { .ro = newPosDir[0], .rd = newPosDir[1], .inv_rd = 1.0f / newPosDir[1], .mask = ray.mask };
 
 		// Check intersect (virtual function call but perf cost irrelevant compared to the entire frame)
-		intersect = entity->IntersectLocal(_ray, nrm, data, depth);
+		intersect = entity->IntersectLocal(localRay, nrm, data, depth);
 
 		// Check if hit something and if it's the closest hit
 		if (intersect && depth < result.depth) {
 			result.depth = depth;
 			result.id = data;
-			result.localPos = _ray.ro + _ray.rd * depth;
+			result.localPos = localRay.ro + localRay.rd * depth;
 			result.faceNormal = nrm;
 			result.obj = entity.get();
 		}
@@ -142,7 +134,7 @@ vec4 Raytracer::TracePath(const Scene& scene, const Ray& ray, TraceData& data) c
 
 		// If we hit a transparent or cutout surface, skip it and check further
 		if (data.HasFlag(TraceData::Transparent) && c.a < 0.99f && data.recursionDepth < 2) {
-			const vec3 hitPt = ray.ro + ray.rd * rayResult.depth;
+			vec3 hitPt = ray.ro + ray.rd * rayResult.depth;
 			Ray newRay{ .ro = hitPt, .rd = ray.rd, .inv_rd = ray.inv_rd, .mask = rayResult.id };
 			data.recursionDepth++;
 			vec4 behind = TracePath(scene, newRay, data);
@@ -201,8 +193,8 @@ void Raytracer::SmoothShadowsPass(Scene& scene, const mat4x4& projInv, const mat
 				dir = normalize(dir);
 
 				// Raycast
-				const Ray ray{ .ro = scene.camera.transform.position, .rd = dir, .inv_rd = 1.0f / dir, .mask = std::numeric_limits<int>::min() };
-				auto res = RaycastScene(scene, ray);
+				Ray ray{ .ro = scene.camera.transform.position, .rd = dir, .inv_rd = 1.0f / dir, .mask = std::numeric_limits<int>::min() };
+				RayResult res = RaycastScene(scene, ray);
 
 				if (res.Hit()) {
 
@@ -215,12 +207,15 @@ void Raytracer::SmoothShadowsPass(Scene& scene, const mat4x4& projInv, const mat
 						vec3 os = scene.lights[j].position - hitpt;
 						float lightDist = length(os);
 						os /= lightDist;
-						const Ray ray2{ .ro = hitpt, .rd = os, .inv_rd = 1.0f / os, .mask = res.id };
-						const auto res2 = RaycastScene(scene, ray2);
+						Ray ray2{ .ro = hitpt, .rd = os, .inv_rd = 1.0f / os, .mask = res.id };
+						RayResult res2 = RaycastScene(scene, ray2);
 
 						if (!res2.Hit() || res2.depth > lightDist - 0.001f)
 							mask |= 1 << j;
 					}
+
+					// @TODO: Pack blocker dist as uint16 (ratio / max_uint16)
+					// Doing shadow rays every pixel doesn't scale
 
 					// Save all lights that are lighting this point in space
 					screenTempBuffer[textureIndex] = vec4(hitpt, std::bit_cast<float>(mask));
@@ -294,7 +289,7 @@ void Raytracer::IndirectLightingPass(Scene& scene, const mat4x4& projInv, const 
 
 				// Raycast
 				const Ray ray{ .ro = scene.camera.transform.position, .rd = dir, .inv_rd = 1.0f / dir, .mask = std::numeric_limits<int>::min() };
-				auto res = RaycastScene(scene, ray);
+				const RayResult res = RaycastScene(scene, ray);
 
 				if (!res.Hit()) {
 					
@@ -370,7 +365,7 @@ void Raytracer::IndirectLightingPass(Scene& scene, const mat4x4& projInv, const 
 							// Do the intersection test in local space
 							vec3 ro = light.position;
 							vec3 rd = normalize(reflPt - light.position);
-							const mat2x3 newPosDir = obj->invModelMatrix * mat2x4(vec4(ro, 1.0f), vec4(rd, 0.0f));
+							mat2x3 newPosDir = obj->invModelMatrix * mat2x4(vec4(ro, 1.0f), vec4(rd, 0.0f));
 							Ray rr{ .ro = newPosDir[0], .rd = newPosDir[1], .inv_rd = 1.0f / newPosDir[1], .mask = res.id };
 							int data; float depth; vec3 dummy;
 							float isect = obj->IntersectLocal(rr, dummy, data, depth);
@@ -489,7 +484,7 @@ void Raytracer::MainDirectPass(Scene& scene, const mat4x4& projInv, const mat4x4
 				int textureIndex = tileX * tileSize + i + ((tileY * tileSize + j) * window->width);
 
 				// Create view ray from proj/view matrices
-				const vec2 pixel = vec2(xcoord, ycoord) * 2.0f - 1.0f;
+				vec2 pixel = vec2(xcoord, ycoord) * 2.0f - 1.0f;
 				vec4 px = vec4(pixel, 0.0f, 1.0f);
 
 				px = projInv * px;
@@ -498,7 +493,7 @@ void Raytracer::MainDirectPass(Scene& scene, const mat4x4& projInv, const mat4x4
 				dir = normalize(dir);
 
 				// Trace the scene
-				const Ray ray{ .ro = scene.camera.transform.position, .rd = dir, .inv_rd = 1.0f / dir, .mask = std::numeric_limits<int>::min() };
+				Ray ray{ .ro = scene.camera.transform.position, .rd = dir, .inv_rd = 1.0f / dir, .mask = std::numeric_limits<int>::min() };
 				TraceData data = TraceData::Default;
 				vec4 result = TracePath(scene, ray, data);
 
@@ -514,7 +509,7 @@ void Raytracer::RenderScene(Scene& scene) {
 
 	// Matrices
 	const Transform& camTransform = scene.camera.transform;
-	const vec3 camPos = camTransform.position;
+	vec3 camPos = camTransform.position;
 	vec3 fwd = camTransform.Forward();
 	vec3 up = camTransform.Up();
 	mat4x4 view = glm::lookAt(camTransform.position, camTransform.position + fwd, up);

@@ -2,7 +2,7 @@
 
 #include <glm/glm.hpp>
 
-#include "Game/Entity.h"
+class Entity; // Entity cross references this so forward-declare
 
 // Raycast result
 struct RayResult {

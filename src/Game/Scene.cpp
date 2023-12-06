@@ -18,7 +18,7 @@ void Scene::ReadAndAddTestObjects() {
 
 #if true // Parametric shapes
 	Game::scene.entities.push_back(std::make_unique<Disk>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 20.0f));
-	Game::scene.entities.back()->shaderType = Shader::Grid;
+	Game::scene.entities.back()->SetShader(Shader::Grid);
 
 	Game::scene.entities.push_back(std::make_unique<Sphere>(glm::vec3(10.0f, 0.5f, 0.0f), 0.1f));
 	Game::scene.entities.back()->materials[0].reflectivity = 0.3f;
@@ -142,7 +142,7 @@ void Scene::ReadAndAddTestObjects() {
 		rendMesh->transform.scale = glm::vec3(2.0f);
 		rendMesh->transform.position += glm::vec3(-4.0f, 2.0f, 3.0f);
 		rendMesh->transform.LookAtDir(glm::vec3(-1, 0, 0), glm::vec3(0, 1, 0));
-		rendMesh->shaderType = Shader::PlainWhite;
+		rendMesh->SetShader(Shader::PlainWhite);
 
 		Game::scene.entities.push_back(std::move(rendMesh));
 	}

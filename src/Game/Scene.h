@@ -7,6 +7,8 @@
 #include "Game/Camera.h"
 #include "Rendering/Light.h"
 
+class Entity; // Entity cross-references this so forward declare
+
 class Scene {
 
 public:

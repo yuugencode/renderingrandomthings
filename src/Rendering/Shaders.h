@@ -34,7 +34,7 @@ private:
 	static glm::vec4 SampleGI(const Scene& scene, const Light& light, const RayResult& rayResult, const v2f& input, const TraceData& data);
 	
 	// Shoots a ray towards a light returns if it hit anything before reaching it
-	static bool ShadowRay(const Scene& scene, const glm::vec3& from, const glm::vec3& to, const int& collisionMask, int& recursionDepth, float& blockerDist);
+	static bool ShadowRay(const Scene& scene, const glm::vec3& from, const glm::vec3& to, int collisionMask, int& recursionDepth, float& blockerDist);
 	
 	// Shoots a shadow ray and calculates a smooth shadow for given input
 	static float CalculateShadow(const Scene& scene, const Light& light, const RayResult& rayResult, const v2f& input, const TraceData& data);

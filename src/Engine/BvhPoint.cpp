@@ -9,7 +9,7 @@
 #define MULTI_THREADED_GEN 1
 
 template <typename T>
-void BvhPoint<T>::Generate(const void* data, const int& count) {
+void BvhPoint<T>::Generate(const void* data, int count) {
 
 	stack.clear();
 	cc_stack.clear();
@@ -82,7 +82,7 @@ void BvhPoint<T>::Clear() {
 }
 
 template <typename T>
-void BvhPoint<T>::SplitNodeSingle(const int& nodeIdx, int& nextLeft, int& nextRight) {
+void BvhPoint<T>::SplitNodeSingle(int nodeIdx, int& nextLeft, int& nextRight) {
 
 #if MULTI_THREADED_GEN
 	auto& node = cc_stack[nodeIdx];
@@ -195,7 +195,7 @@ void BvhPoint<T>::SplitNodeSingle(const int& nodeIdx, int& nextLeft, int& nextRi
 }
 
 template <typename T>
-void BvhPoint<T>::SplitNodeRecurse(const int& nodeIdx) {
+void BvhPoint<T>::SplitNodeRecurse(int nodeIdx) {
 	int nextLeft = -1, nextRight = -1;
 	SplitNodeSingle(nodeIdx, nextLeft, nextRight);
 	if (nextLeft != -1) SplitNodeRecurse(nextLeft);
@@ -208,7 +208,7 @@ void BvhPoint<T>::SplitNodeRecurse(const int& nodeIdx) {
 //}
 
 template <typename T>
-int BvhPoint<T>::Partition(const int& low, const int& high, const glm::vec3& splitPos, const int& axis) {
+int BvhPoint<T>::Partition(int low, int high, const glm::vec3& splitPos, int axis) {
 	int pt = low;
 	for (int i = low; i < high; i++)
 		if (points[i].point[axis] < splitPos[axis])
@@ -217,7 +217,7 @@ int BvhPoint<T>::Partition(const int& low, const int& high, const glm::vec3& spl
 }
 
 template <typename T>
-AABB BvhPoint<T>::CalculateAABB(const int& left, const int& right) const {
+AABB BvhPoint<T>::CalculateAABB(int left, int right) const {
 	AABB ret = AABB(points[left].point);
 	for (int i = left + 1; i < right; i++)
 		ret.Encapsulate(points[i].point);

@@ -83,24 +83,24 @@ void Bvh::Generate(const std::vector<glm::vec3>& srcVertices, const std::vector<
 #endif
 }
 
-void Bvh::SplitNodeSingle(const int& nodeIdx, int& nextLeft, int& nextRight) {
+void Bvh::SplitNodeSingle(int nodeIdx, int& nextLeft, int& nextRight) {
 
 #if MULTI_THREADED_GEN
 	auto& node = cc_stack[nodeIdx];
 #else
 	auto& node = stack[nodeIdx];
 #endif
-	const glm::vec3 aabbSize = node.aabb.Size();
+	glm::vec3 aabbSize = node.aabb.Size();
 
 #if true // SAH Splits
 
 	int minAxis = 0;
 	glm::vec3 minSplitPos = node.aabb.Center();
 	float minCost = std::numeric_limits<float>::max();
-	const float invNodeArea = 1.0f / node.aabb.AreaHeuristic();
+	float invNodeArea = 1.0f / node.aabb.AreaHeuristic();
 
 	// Naive = 22.5ms, 6 = 19.7ms, 10 = 19.6ms, 20 = 19.4ms, 100 = 19.0ms
-	const float stepsize = 1.0f / 200.0f;
+	constexpr float stepsize = 1.0f / 200.0f;
 
 	for (uint32_t axis = 0; axis < 3; axis++) {
 		
@@ -165,11 +165,11 @@ void Bvh::SplitNodeSingle(const int& nodeIdx, int& nextLeft, int& nextRight) {
 	BvhNode left, right;
 
 #if MULTI_THREADED_GEN
-	const int leftStackIndex = (int)(cc_stack.push_back(BvhNode()) - cc_stack.begin());
-	const int rightStackIndex = (int)(cc_stack.push_back(BvhNode()) - cc_stack.begin());
+	int leftStackIndex = (int)(cc_stack.push_back(BvhNode()) - cc_stack.begin());
+	int rightStackIndex = (int)(cc_stack.push_back(BvhNode()) - cc_stack.begin());
 #else
-	const auto leftStackIndex = (int)stack.size();
-	const auto rightStackIndex = (int)stack.size() + 1;
+	int leftStackIndex = (int)stack.size();
+	int rightStackIndex = (int)stack.size() + 1;
 #endif
 
 	left.SetLeftIndex(node.GetLeftIndex());
@@ -196,14 +196,14 @@ void Bvh::SplitNodeSingle(const int& nodeIdx, int& nextLeft, int& nextRight) {
 	if (right.TriangleCount() > maxNodeEntries) nextRight = rightStackIndex;
 }
 
-void Bvh::SplitNodeRecurse(const int& nodeIdx) {
+void Bvh::SplitNodeRecurse(int nodeIdx) {
 	int nextLeft = -1, nextRight = -1;
 	SplitNodeSingle(nodeIdx, nextLeft, nextRight);
 	if (nextLeft != -1) SplitNodeRecurse(nextLeft);
 	if (nextRight != -1) SplitNodeRecurse(nextRight);
 }
 
-int Bvh::Partition(const int& low, const int& high, const glm::vec3& splitPos, const int& axis) {
+int Bvh::Partition(int low, int high, const glm::vec3& splitPos, int axis) {
 	int pt = low;
 	for (int i = low; i < high; i++)
 		if (triangles[i].Centroid()[axis] < splitPos[axis])
@@ -211,7 +211,7 @@ int Bvh::Partition(const int& low, const int& high, const glm::vec3& splitPos, c
 	return pt;
 }
 
-AABB Bvh::CalculateAABB(const int& left, const int& right) const {
+AABB Bvh::CalculateAABB(int left, int right) const {
 	AABB ret = AABB(triangles[left].v0);
 	for (int i = left; i < right; i++) {
 		ret.Encapsulate(triangles[i].v0);
@@ -223,13 +223,13 @@ AABB Bvh::CalculateAABB(const int& left, const int& right) const {
 
 // Adapted from Inigo Quilez https://iquilezles.org/articles/
 float Bvh::ray_tri_intersect(const glm::vec3& ro, const glm::vec3& rd, const BvhTriangle& tri) const {
-	const glm::vec3 v1v0 = tri.v1 - tri.v0, v2v0 = tri.v2 - tri.v0, rov0 = ro - tri.v0;
-	const glm::vec3 n = glm::cross(v1v0, v2v0);
-	const glm::vec3 q = glm::cross(rov0, rd);
-	const float d = 1.0f / glm::dot(n, rd);
-	const float u = d * glm::dot(-q, v2v0);
+	glm::vec3 v1v0 = tri.v1 - tri.v0, v2v0 = tri.v2 - tri.v0, rov0 = ro - tri.v0;
+	glm::vec3 n = glm::cross(v1v0, v2v0);
+	glm::vec3 q = glm::cross(rov0, rd);
+	float d = 1.0f / glm::dot(n, rd);
+	float u = d * glm::dot(-q, v2v0);
 	if (u < 0.0f) return -1.0f;
-	const float v = d * glm::dot(q, v1v0);
+	float v = d * glm::dot(q, v1v0);
 	if (v < 0.0f) return -1.0f;
 	if (u + v <= 1.0f) {
 		return d * glm::dot(-n, rov0); // Doublesided
@@ -259,7 +259,7 @@ void Bvh::IntersectNode(const int nodeIndex, const Ray& ray, glm::vec3& normal, 
 
 			if (tri.originalIndex == ray.mask) continue;
 			
-			const float& res = ray_tri_intersect(ray.ro, ray.rd, tri);
+			float res = ray_tri_intersect(ray.ro, ray.rd, tri);
 			
 			if (res > 0.0f && res < minDist) {
 				minDist = res;
@@ -356,7 +356,7 @@ void Bvh::TraverseNode(const int& nodeIndex, const glm::vec3& pos, const glm::ve
 	if (node.IsLeaf()) {
 		for (int i = node.GetLeftIndex(); i < node.GetRightIndex(); i++) {
 
-			const auto& tri = triangles[i];
+			const BvhTriangle& tri = triangles[i];
 
 			if (tri.originalIndex == triMask) continue;
 

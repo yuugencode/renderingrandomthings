@@ -79,28 +79,28 @@ void AABB::Encapsulate(const glm::vec3& point) {
 }
 
 float AABB::AreaHeuristic() const {
-    const auto temp = max - min;
+    glm::vec3 temp = max - min;
     return temp.x + temp.y + temp.z;
 }
 
 float AABB::Intersect(const Ray& ray) const {
-    const auto a = (min - ray.ro) * ray.inv_rd;
-    const auto b = (max - ray.ro) * ray.inv_rd;
-    const auto mi = glm::min(a, b);
-    const auto ma = glm::max(a, b);
-    const auto minT = glm::max(glm::max(mi.x, mi.y), mi.z);
-    const auto maxT = glm::min(glm::min(ma.x, ma.y), ma.z);
+    glm::vec3 a = (min - ray.ro) * ray.inv_rd;
+    glm::vec3 b = (max - ray.ro) * ray.inv_rd;
+    glm::vec3 mi = glm::min(a, b);
+    glm::vec3 ma = glm::max(a, b);
+    float minT = glm::max(glm::max(mi.x, mi.y), mi.z);
+    float maxT = glm::min(glm::min(ma.x, ma.y), ma.z);
     if (minT > maxT) return 0.0f;
     if (maxT < 0.0f) return maxT;
     return minT;
 }
 
-glm::vec3 AABB::ClosestPoint(const glm::vec3 pos) const { 
+glm::vec3 AABB::ClosestPoint(const glm::vec3& pos) const { 
     return glm::clamp(pos, min, max); 
 }
 
 float AABB::SqrDist(const glm::vec3& pos) const {
-    const auto os = (ClosestPoint(pos) - pos);
+    glm::vec3 os = (ClosestPoint(pos) - pos);
     return glm::dot(os, os);
 }
 

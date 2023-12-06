@@ -27,10 +27,10 @@ public:
 		int GetRightIndex() const { return valR; }
 		int GetLeftChild() const { return -valL - 1; }
 		int GetRightChild() const { return -valR - 1; }
-		void SetLeftIndex(const int& val) { valL = val; }
-		void SetRightIndex(const int& val) { valR = val; }
-		void SetLeftChild(const int& val) { valL = -val - 1; }
-		void SetRightChild(const int& val) { valR = -val - 1; }
+		void SetLeftIndex(int val) { valL = val; }
+		void SetRightIndex(int val) { valR = val; }
+		void SetLeftChild(int val) { valL = -val - 1; }
+		void SetRightChild(int val) { valR = -val - 1; }
 		int ElementCount() { return valR - valL; }
 	};
 
@@ -41,7 +41,7 @@ public:
 	};
 
 	// Generates a new BVH from given points
-	void Generate(const void* data, const int& count);
+	void Generate(const void* data, int count);
 
 	bool Exists() const { return stack.size() != 0; }
 
@@ -70,13 +70,13 @@ private:
 	static const int maxNodeEntries = 32;
 
 	// Splits bvh node into 2
-	void SplitNodeSingle(const int& nodeIdx, int& nextLeft, int& nextRight);
-	void SplitNodeRecurse(const int& nodeIdx);
+	void SplitNodeSingle(int nodeIdx, int& nextLeft, int& nextRight);
+	void SplitNodeRecurse(int nodeIdx);
 
 	// Partitions data to 2 sides based on given pos and axis. Right index is exclusive.
-	int Partition(const int& low, const int& high, const glm::vec3& splitPos, const int& axis);
+	int Partition(int low, int high, const glm::vec3& splitPos, int axis);
 
-	AABB CalculateAABB(const int& left, const int& right) const;
+	AABB CalculateAABB(int left, int right) const;
 
 	template <int N>
 	void GatherNClosest(const int& nodeIndex, const glm::vec3& pos, float* dists, BvhPointData* data) const;

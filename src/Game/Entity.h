@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <glm/glm.hpp>
 
 #include "Engine/Common.h"
@@ -8,9 +9,12 @@
 #include "Engine/Material.h"
 #include "Engine/Mesh.h"
 #include "Engine/Assets.h"
+#include "Rendering/RayResult.h"
 #include "Game/Transform.h"
+#include "Game/Scene.h"
 
-struct RayResult; // RayResults contain an entity pointer so have to declare it here
+class Scene; // Scene cross references this so forward declare
+struct RayResult; // Rayresult cross references this so forward-declare
 
 // Abstract object in the scene that can be raytraced against
 class Entity {
@@ -22,9 +26,6 @@ public:
 
 	// Name of this object
 	std::string name;
-
-	// What kind of shader should this use
-	Shader shaderType;
 
 	// Unique object id, used for masking rays for procedural objects
 	int id = 0;
@@ -51,6 +52,13 @@ public:
 	// Intersects a ray against this object in the object's local space
 	virtual bool IntersectLocal(const Ray& ray, glm::vec3& normal, int& data, float& depth) const = 0;
 
+	// Sets the CPU shader type for this entity // @TODO: Could have shadertype per material instead, maybe one day
+	void SetShader(Shader shaderType);
+
+	// Evaluates this object's shader at given ray intersection pos, maps to static functions in Shaders::
+	std::function<glm::vec4(const Scene&, const RayResult&, const v2f&, const TraceData&)> FragmentShader;
+
 protected:
+	Shader shaderType; // Debugging
 	static int idCount;
 };
