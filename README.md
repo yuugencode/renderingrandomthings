@@ -13,7 +13,7 @@ Potential files of interest:\
 [Raytracer.cpp](src/Rendering/Raytracer.cpp) (Raytracer logic)\
 [Shaders.cpp](src/Rendering/Shaders.cpp) (CPU Implemented "shaders")\
 [Bvh.cpp](src/Engine/Bvh.cpp) (Triangle bvh)\
-[main.cpp](main.cpp) (Main loop and setup)
+[main.cpp](Main.cpp) (Main loop and setup)
 
 Uses the following 3rd party libraries [bgfx](https://github.com/bkaradzic/bgfx), [SDL2](https://github.com/libsdl-org/SDL), [glm](https://github.com/g-truc/glm), [ufbx](https://github.com/ufbx/ufbx), [mimalloc](https://github.com/microsoft/mimalloc), [stb_image and resize](https://github.com/nothings/stb).
 
