@@ -15,7 +15,7 @@ Potential files of interest:\
 [Bvh.cpp](src/Engine/Bvh.cpp) (Triangle bvh)\
 [main.cpp](Main.cpp) (Main loop and setup)
 
-Uses the following 3rd party libraries [bgfx](https://github.com/bkaradzic/bgfx), [SDL2](https://github.com/libsdl-org/SDL), [glm](https://github.com/g-truc/glm), [ufbx](https://github.com/ufbx/ufbx), [mimalloc](https://github.com/microsoft/mimalloc), [stb_image and resize](https://github.com/nothings/stb).
+Uses the following 3rd party libraries [Dear ImGui](https://github.com/ocornut/imgui), [bgfx](https://github.com/bkaradzic/bgfx), [SDL2](https://github.com/libsdl-org/SDL), [glm](https://github.com/g-truc/glm), [ufbx](https://github.com/ufbx/ufbx), [mimalloc](https://github.com/microsoft/mimalloc), [stb_image and resize](https://github.com/nothings/stb).
 
 Exists mostly for personal tinkering and portfolio purposes, so no makefiles or dependencies included.
 
