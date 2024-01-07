@@ -34,10 +34,7 @@ int main(int argc, char* argv[]) {
 	// Init SDL
 	SDL_SetMainReady();
 
-	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-		Log::Line("SDL Init failed: {}", SDL_GetError());
-		return EXIT_FAILURE;
-	}
+	if (SDL_Init(SDL_INIT_VIDEO) < 0) LOG_FATAL_AND_EXIT_ARG("Failed to init SDL: {}", SDL_GetError());
 
 	// Create window
 	Game::window.Create(1280, 720);
@@ -59,7 +56,7 @@ int main(int argc, char* argv[]) {
 
 	bgfx::renderFrame(); // Make bgfx not create a render thread
 
-	if (!bgfx::init(init)) return EXIT_FAILURE;
+	if (!bgfx::init(init)) LOG_FATAL_AND_EXIT("Failed to init bgfx");
 
 	// Set view rect to full screen and add clear flags
 	const bgfx::ViewId MAIN_VIEW = 0;

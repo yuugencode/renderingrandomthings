@@ -17,8 +17,6 @@ bool Texture::Exists() const {
 }
 
 Color Texture::SampleUVClamp(const glm::vec2& uv) const {
-	//int x = glm::clamp((int)(glm::fract(uv.x) * width), 0, width);
-	//int y = glm::clamp((int)(glm::fract(uv.y) * height), 0, height);
 	const glm::ivec2 pt = glm::clamp((glm::ivec2)(glm::fract(uv) * sizeF), glm::ivec2(0, 0), size);
 	return data[pt.x + size.x * pt.y];
 }
@@ -30,11 +28,8 @@ Texture::Texture(const std::filesystem::path& path, bool flip) {
 	int numChannels;
 	stbi_uc* img = stbi_load(path.string().c_str(), &size.x, &size.y, &numChannels, 4); // Request RGBA texture
 	sizeF = size;
-	if (img == nullptr) {
-		Log::FatalError("Failed to load img: ", stbi_failure_reason());
-		return;
-	}
-	if (size.x == 0 || size.y == 0) Log::FatalError("Zero size image?");
+	if (img == nullptr) LOG_FATAL_AND_EXIT_ARG("Failed to load img: ", stbi_failure_reason());
+	if (size.x == 0 || size.y == 0) LOG_FATAL_AND_EXIT("Zero size image?");
 
 	static_assert(sizeof(Color) == 4); // Make sure no overflow if color struct changes
 
@@ -61,6 +56,6 @@ Texture::Texture(const std::filesystem::path& path, bool flip) {
 
 	stbi_image_free(img);
 
-	Log::LineFormatted("Read {}, Size {}x{}", path.string(), size.x, size.y);
+	fmt::println("Read {}, Size {}x{}", path.string(), size.x, size.y);
 }
 

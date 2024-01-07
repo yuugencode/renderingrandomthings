@@ -23,7 +23,7 @@ void RenderedMesh::GenerateBVH() {
 
 	if (name.length() > 0 && std::filesystem::exists(filename)) {
 		// BVH Exists on disk, read
-		Log::LineFormatted("Reading bvh from file: {}", filename);
+		fmt::println("Reading bvh from file: {}", filename);
 		std::ifstream ifs(filename, std::ios::binary);
 		int stackCount;
 		ifs.read((char*)&stackCount, sizeof(int));
@@ -31,21 +31,21 @@ void RenderedMesh::GenerateBVH() {
 		ifs.read((char*)bvh.stack.data(), stackCount * sizeof(Bvh::BvhNode));
 		int triCount;
 		ifs.read((char*)&triCount, sizeof(int));
-		if (triCount != GetMesh()->triangles.size() / 3) Log::FatalError("Invalid BVH on disk:", filename);
+		if (triCount != GetMesh()->triangles.size() / 3) LOG_FATAL_AND_EXIT_ARG("Invalid BVH on disk:", filename);
 		bvh.triangles.resize(triCount);
 		ifs.read((char*)bvh.triangles.data(), triCount * sizeof(Bvh::BvhTriangle));
 		aabb = bvh.stack[0].aabb;
 	}
 	else {
 		// BVH Doesn't exist on disk have to generate
-		if (name.length() == 0) Log::Line("Generating BVH for unnamed obj");
-		else Log::LineFormatted("Generating bvh because {} doesn't exist", filename);
+		if (name.length() == 0) fmt::println("Generating BVH for unnamed obj");
+		else fmt::println("Generating bvh because {} doesn't exist", filename);
 		Timer t(1);
 		t.Start();
 		bvh.Generate(GetMesh()->vertices, GetMesh()->triangles);
 		aabb = bvh.stack[0].aabb;
 		t.End();
-		Log::LineFormatted("BVH Generation time {}ms", Log::FormatFloat((float)t.GetAveragedTime() * 1000.0f));
+		fmt::println("BVH Generation time {}ms", Log::FormatFloat((float)t.GetAveragedTime() * 1000.0f));
 		if (name.length() > 0) {
 			std::ofstream ofs(filename, std::ios::binary);
 			int stackCount = (int)bvh.stack.size();
@@ -54,7 +54,7 @@ void RenderedMesh::GenerateBVH() {
 			int triCount = (int)bvh.triangles.size();
 			ofs.write((char*)&triCount, sizeof(int));
 			ofs.write((char*)bvh.triangles.data(), triCount * sizeof(Bvh::BvhTriangle));
-			Log::LineFormatted("Wrote BVH to disk ({}Mb)", ((bvh.stack.size() * sizeof(Bvh::BvhNode)) / 1024) / 1024);
+			fmt::println("Wrote BVH to disk ({}Mb)", ((bvh.stack.size() * sizeof(Bvh::BvhNode)) / 1024) / 1024);
 		}
 	}
 }

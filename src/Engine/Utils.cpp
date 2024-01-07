@@ -197,9 +197,9 @@ bool Utils::HasFlag(const T& val, const T& flag) {
 }
 
 void Utils::PrintMatrix(const glm::mat4x4& matrix) {
-    Log::Line("Matrix4x4:");
-    Log::LineFormatted("({}, {}, {}, {})", Log::FormatFloat(matrix[0][0]), Log::FormatFloat(matrix[1][0]), Log::FormatFloat(matrix[2][0]), Log::FormatFloat(matrix[3][0]));
-    Log::LineFormatted("({}, {}, {}, {})", Log::FormatFloat(matrix[0][1]), Log::FormatFloat(matrix[1][1]), Log::FormatFloat(matrix[2][1]), Log::FormatFloat(matrix[3][1]));
-    Log::LineFormatted("({}, {}, {}, {})", Log::FormatFloat(matrix[0][2]), Log::FormatFloat(matrix[1][2]), Log::FormatFloat(matrix[2][2]), Log::FormatFloat(matrix[3][2]));
-    Log::LineFormatted("({}, {}, {}, {})", Log::FormatFloat(matrix[0][3]), Log::FormatFloat(matrix[1][3]), Log::FormatFloat(matrix[2][3]), Log::FormatFloat(matrix[3][3]));
+    fmt::println("Matrix4x4:");
+    fmt::println("({}, {}, {}, {})", Log::FormatFloat(matrix[0][0]), Log::FormatFloat(matrix[1][0]), Log::FormatFloat(matrix[2][0]), Log::FormatFloat(matrix[3][0]));
+    fmt::println("({}, {}, {}, {})", Log::FormatFloat(matrix[0][1]), Log::FormatFloat(matrix[1][1]), Log::FormatFloat(matrix[2][1]), Log::FormatFloat(matrix[3][1]));
+    fmt::println("({}, {}, {}, {})", Log::FormatFloat(matrix[0][2]), Log::FormatFloat(matrix[1][2]), Log::FormatFloat(matrix[2][2]), Log::FormatFloat(matrix[3][2]));
+    fmt::println("({}, {}, {}, {})", Log::FormatFloat(matrix[0][3]), Log::FormatFloat(matrix[1][3]), Log::FormatFloat(matrix[2][3]), Log::FormatFloat(matrix[3][3]));
 }

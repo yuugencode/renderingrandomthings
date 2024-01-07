@@ -77,7 +77,7 @@ int Mesh::ReadNode(int i, int vertexOffset) {
             const auto& internalId = mesh->face_material.data[i];
             matIndex = mesh->materials.data[internalId].material->typed_id;
             if (matIndex >= scene->materials.count)
-                Log::FatalError("Model has tri material indices outside material array length");
+                LOG_FATAL_AND_EXIT("Model has tri material indices outside material array length");
 
             if (!Utils::Contains(seenMaterials, matIndex)) seenMaterials.push_back(matIndex);
         }
@@ -150,15 +150,15 @@ void Mesh::CheckData() {
 
     if (!sanityCheckData) return;
     
-    if (vertices.size() == 0) Log::Line("Checking mesh with no vertices?");
+    if (vertices.size() == 0) fmt::println("Checking mesh with no vertices?");
 
     // Sanity check data
     for (size_t i = 0; i < triangles.size(); i++)
         if (triangles.at(i) >= vertices.size())
-            Log::FatalError("Invalid triangle index: {}", triangles.at(i));
+            LOG_FATAL_AND_EXIT_ARG("Invalid triangle index: {}", triangles.at(i));
 
     if ((vertices.size() != uvs.size()) || (uvs.size() != colors.size()) || (colors.size() != normals.size()))
-        Log::FatalError("Mesh array sizes don't match");
+        LOG_FATAL_AND_EXIT("Mesh array sizes don't match");
 }
 
 void Mesh::LoadMesh(const std::filesystem::path& path, bool loadMtl) {
@@ -168,7 +168,7 @@ void Mesh::LoadMesh(const std::filesystem::path& path, bool loadMtl) {
 
     ufbx_error error; // Can be null to disable errors
     scene = ufbx_load_file(path.string().c_str(), &opts, &error);
-    if (!scene) Log::FatalError("Failed to load: ", error.description.data);
+    if (!scene) LOG_FATAL_AND_EXIT_ARG("Failed to load: ", error.description.data);
 }
 
 void Mesh::UnloadMesh() {
@@ -213,7 +213,7 @@ void Mesh::ReadTextures() {
 
 void Mesh::ReadAllNodes() {
     if (scene == nullptr)
-        Log::FatalError("Reading scene with no scene loaded");
+        LOG_FATAL_AND_EXIT("Reading scene with no scene loaded");
 
     Clear();
 
@@ -225,31 +225,31 @@ void Mesh::ReadAllNodes() {
         vertexCnt += ReadNode((int)i, vertexCnt);
     CheckData();
 
-    Log::LineFormatted("Read a mesh with {} vertices, {} triangles and {} materials.", vertices.size(), triangles.size() / 3, scene->materials.count);
-    Log::LineFormatted("Has UVs: {}, Has Normals: {}, Has Colors: {}", hasUVs, hasNormals, hasColors);
+    fmt::println("Read a mesh with {} vertices, {} triangles and {} materials.", vertices.size(), triangles.size() / 3, scene->materials.count);
+    fmt::println("Has UVs: {}, Has Normals: {}, Has Colors: {}", hasUVs, hasNormals, hasColors);
 }
 
 void Mesh::ReadSceneMeshNode(int nodeIndex) {
     if (scene == nullptr)
-        Log::FatalError("Reading scene with no scene loaded");
+        LOG_FATAL_AND_EXIT("Reading scene with no scene loaded");
 
     Clear();
 
     if (nodeIndex < 0 || nodeIndex >= scene->nodes.count)
-        Log::FatalError("Tried to read a mesh file node past file scene indices");
+        LOG_FATAL_AND_EXIT("Tried to read a mesh file node past file scene indices");
 
     ReadTextures();
 
     ReadNode(nodeIndex, 0);
     CheckData();
 
-    Log::LineFormatted("Read a mesh with {} vertices, {} triangles and {} materials.", vertices.size(), triangles.size() / 3, scene->materials.count);
-    Log::LineFormatted("Has UVs: {}, Has Normals: {}, Has Colors: {}", hasUVs, hasNormals, hasColors);
+    fmt::println("Read a mesh with {} vertices, {} triangles and {} materials.", vertices.size(), triangles.size() / 3, scene->materials.count);
+    fmt::println("Has UVs: {}, Has Normals: {}, Has Colors: {}", hasUVs, hasNormals, hasColors);
 }
 
 int Mesh::GetMeshNodeCount() {
 
-    if (scene == nullptr) { Log::FatalError("No mesh loaded?"); return 0; }
+    if (scene == nullptr) LOG_FATAL_AND_EXIT("No mesh loaded?");
 
     int cnt = 0;
     for (size_t i = 0; i < scene->nodes.count; i++)
